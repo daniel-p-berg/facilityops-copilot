@@ -1,0 +1,11 @@
+timestamp,source,equipment,equipment_type,alarm,severity,status
+2026-05-01 08:14,BMS,AHU-1,Air Handler,Supply air temperature high,High,Active
+2026-05-01 08:22,BMS,AHU-1,Air Handler,Supply air temperature high,High,Cleared
+2026-05-01 09:03,EPMS,UPS-A,UPS,Input voltage low,Critical,Active
+2026-05-01 09:05,EPMS,UPS-A,UPS,Input voltage low,Critical,Cleared
+2026-05-01 10:41,BMS,CRAC-2,CRAC,Return air temperature high,High,Active
+2026-05-01 11:02,EPMS,GEN-1,Generator,Generator not in auto,Critical,Active
+2026-05-01 11:19,EPMS,ATS-1,ATS,Source 1 unavailable,Critical,Active
+2026-05-01 11:23,EPMS,ATS-1,ATS,Source 1 unavailable,Critical,Cleared
+2026-05-01 12:07,BMS,CHW-P-1,Chilled Water Pump,Pump failed to start,High,Active
+2026-05-01 12:15,BMS,CHW-P-1,Chilled Water Pump,Pump failed to start,High,Cleared
