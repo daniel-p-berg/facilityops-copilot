@@ -19,6 +19,18 @@ The project uses sample building automation and electrical power monitoring data
 
 The first version uses simulated data only. It does not connect to live BMS, EPMS, Niagara, Schneider, BACnet, Modbus, or customer systems.
 
+## Local SQLite Alarm Database
+
+The sample alarm CSV can be loaded into a local SQLite database:
+
+```bash
+python3 analysis/load_alarm_db.py
+```
+
+The loader reads `data/sample_alarms.csv`, creates `db/facilityops.sqlite3`, and prints a verification summary with total records and alarm counts by severity, source, and equipment.
+
+Generated database files are local development artifacts and are ignored by git.
+
 ## Planned Stack
 
 - Git and GitHub
