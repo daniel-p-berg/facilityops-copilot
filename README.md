@@ -39,6 +39,14 @@ The database-backed briefing is written to `reports/daily_briefing_from_db.md`.
 
 Generated database files are local development artifacts and are ignored by git.
 
+## Running Tests
+
+Run the standard-library unittest suite:
+
+```bash
+python3 -m unittest discover -s tests
+```
+
 ## Planned Stack
 
 - Git and GitHub
