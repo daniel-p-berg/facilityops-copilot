@@ -39,6 +39,35 @@ The database-backed briefing is written to `reports/daily_briefing_from_db.md`.
 
 Generated database files are local development artifacts and are ignored by git.
 
+## Local API Server
+
+Create a local virtual environment and install the API dependencies:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+Load the SQLite database before starting the API:
+
+```bash
+python3 analysis/load_alarm_db.py
+```
+
+Start the FastAPI server:
+
+```bash
+.venv/bin/python -m uvicorn backend.main:app --reload
+```
+
+Call the summary endpoint:
+
+```bash
+curl http://127.0.0.1:8000/summary
+```
+
+The `.venv` folder is local development environment data and should not be committed.
+
 ## Running Tests
 
 Run the standard-library unittest suite:
