@@ -29,6 +29,14 @@ python3 analysis/load_alarm_db.py
 
 The loader reads `data/sample_alarms.csv`, creates `db/facilityops.sqlite3`, and prints a verification summary with total records and alarm counts by severity, source, and equipment.
 
+After loading the database, generate a database-backed daily briefing:
+
+```bash
+python3 analysis/generate_db_briefing.py
+```
+
+The database-backed briefing is written to `reports/daily_briefing_from_db.md`.
+
 Generated database files are local development artifacts and are ignored by git.
 
 ## Planned Stack
