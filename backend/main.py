@@ -2,11 +2,13 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATABASE_FILE = PROJECT_ROOT / "db" / "facilityops.sqlite3"
+FRONTEND_FILE = PROJECT_ROOT / "frontend" / "index.html"
 DATABASE_DISPLAY_PATH = Path("db") / "facilityops.sqlite3"
 LOADER_COMMAND = "python3 analysis/load_alarm_db.py"
 
@@ -81,3 +83,8 @@ def read_summary():
         )
 
     return get_alarm_summary()
+
+
+@app.get("/dashboard")
+def read_dashboard():
+    return FileResponse(FRONTEND_FILE)

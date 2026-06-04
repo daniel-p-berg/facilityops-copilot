@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FacilityOps Alarm Summary</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7f9;
+      --panel: #ffffff;
+      --text: #20252c;
+      --muted: #637083;
+      --line: #d9e0e7;
+      --accent: #0f766e;
+      --critical: #b42318;
+      --high: #b54708;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 18px;
+      margin-bottom: 20px;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    h2 {
+      font-size: 1rem;
+      margin-bottom: 12px;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 0.95rem;
+      text-align: right;
+    }
+
+    .error {
+      background: #fff1f0;
+      border: 1px solid #f2b8b5;
+      color: #7a271a;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+    }
+
+    .overview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 16px;
+    }
+
+    .total {
+      min-height: 128px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .total-value {
+      color: var(--accent);
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .total-label,
+    .note {
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .count-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    .count-list li,
+    .alarm-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding: 7px 0;
+    }
+
+    .count-list li:last-child,
+    .alarm-row:last-child {
+      border-bottom: 0;
+    }
+
+    .label {
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .count {
+      min-width: 2rem;
+      color: var(--text);
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .critical {
+      color: var(--critical);
+      font-weight: 700;
+    }
+
+    .high {
+      color: var(--high);
+      font-weight: 700;
+    }
+
+    .alarm-list {
+      display: grid;
+      gap: 0;
+    }
+
+    .alarm-row {
+      align-items: flex-start;
+    }
+
+    .alarm-main {
+      min-width: 0;
+    }
+
+    .alarm-title {
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .alarm-detail {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 760px) {
+      header,
+      .overview,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        display: block;
+      }
+
+      .status {
+        text-align: left;
+        margin-top: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>FacilityOps Alarm Summary</h1>
+        <div class="note">SQLite-backed BMS/EPMS alarm overview</div>
+      </div>
+      <div id="status" class="status">Loading alarm summary...</div>
+    </header>
+
+    <div id="error" class="error" hidden></div>
+
+    <section class="overview">
+      <div class="panel total">
+        <div id="totalAlarmRecords" class="total-value">--</div>
+        <div class="total-label">Total alarm records</div>
+      </div>
+      <div class="panel">
+        <h2>Active Critical Alarms</h2>
+        <div id="activeCriticalAlarms" class="alarm-list"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Severity Counts</h2>
+        <ul id="severityCounts" class="count-list"></ul>
+      </div>
+      <div class="panel">
+        <h2>Source Counts</h2>
+        <ul id="sourceCounts" class="count-list"></ul>
+      </div>
+      <div class="panel">
+        <h2>Equipment Counts</h2>
+        <ul id="equipmentCounts" class="count-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const errorEl = document.getElementById("error");
+    const totalAlarmRecordsEl = document.getElementById("totalAlarmRecords");
+    const severityCountsEl = document.getElementById("severityCounts");
+    const sourceCountsEl = document.getElementById("sourceCounts");
+    const equipmentCountsEl = document.getElementById("equipmentCounts");
+    const activeCriticalAlarmsEl = document.getElementById("activeCriticalAlarms");
+
+    function setError(message) {
+      errorEl.textContent = message;
+      errorEl.hidden = false;
+      statusEl.textContent = "Unable to load summary";
+    }
+
+    function renderCounts(container, counts) {
+      container.innerHTML = "";
+
+      Object.entries(counts).forEach(([name, count]) => {
+        const item = document.createElement("li");
+        const label = document.createElement("span");
+        const value = document.createElement("span");
+
+        label.className = "label";
+        value.className = "count";
+        label.textContent = name;
+        value.textContent = count;
+
+        if (name === "Critical") {
+          label.classList.add("critical");
+        }
+        if (name === "High") {
+          label.classList.add("high");
+        }
+
+        item.append(label, value);
+        container.appendChild(item);
+      });
+    }
+
+    function renderActiveCriticalAlarms(alarms) {
+      activeCriticalAlarmsEl.innerHTML = "";
+
+      if (alarms.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "note";
+        empty.textContent = "No active Critical alarms found.";
+        activeCriticalAlarmsEl.appendChild(empty);
+        return;
+      }
+
+      alarms.forEach((alarm) => {
+        const row = document.createElement("div");
+        const main = document.createElement("div");
+        const title = document.createElement("div");
+        const detail = document.createElement("div");
+
+        row.className = "alarm-row";
+        main.className = "alarm-main";
+        title.className = "alarm-title critical";
+        detail.className = "alarm-detail";
+
+        title.textContent = `${alarm.equipment} | ${alarm.alarm}`;
+        detail.textContent = `${alarm.timestamp} | ${alarm.source}`;
+
+        main.append(title, detail);
+        row.appendChild(main);
+        activeCriticalAlarmsEl.appendChild(row);
+      });
+    }
+
+    async function loadSummary() {
+      statusEl.textContent = "Loading alarm summary...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/summary");
+        const data = await response.json();
+
+        if (!response.ok) {
+          const instruction = data.run_first ? ` Run this first: ${data.run_first}` : "";
+          throw new Error(`${data.error || "Unable to load alarm summary."}${instruction}`);
+        }
+
+        totalAlarmRecordsEl.textContent = data.total_alarm_records;
+        renderCounts(severityCountsEl, data.severity_counts);
+        renderCounts(sourceCountsEl, data.source_counts);
+        renderCounts(equipmentCountsEl, data.equipment_counts);
+        renderActiveCriticalAlarms(data.active_critical_alarms);
+        statusEl.textContent = "Summary loaded from /summary";
+      } catch (error) {
+        setError(error.message);
+      }
+    }
+
+    loadSummary();
+  </script>
+</body>
+</html>

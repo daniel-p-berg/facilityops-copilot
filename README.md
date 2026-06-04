@@ -60,7 +60,15 @@ Start the FastAPI server:
 .venv/bin/python -m uvicorn backend.main:app --reload
 ```
 
-Call the summary endpoint:
+Open the dashboard:
+
+```text
+http://127.0.0.1:8000/dashboard
+```
+
+The dashboard calls `/summary` and displays the alarm totals, counts, and active Critical alarms.
+
+Call the summary endpoint directly:
 
 ```bash
 curl http://127.0.0.1:8000/summary
