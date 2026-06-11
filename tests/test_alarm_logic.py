@@ -51,6 +51,26 @@ REQUIRED_ALARM_RULES = {
     "RULE-GEN-1-LOW-FUEL",
 }
 
+REQUIRED_CURRENT_POINT_VALUES = {
+    "CHW-P-1_RUN_STATUS",
+    "CHW-P-1_SPEED_COMMAND",
+    "CHW-P-1_SPEED_FEEDBACK",
+    "CHW-P-1_DISCHARGE_PRESSURE",
+    "UPS-A_OUTPUT_KW",
+    "UPS-A_BATTERY_STATUS",
+    "ATS-1_NORMAL_SOURCE_AVAILABLE",
+    "ATS-1_EMERGENCY_SOURCE_AVAILABLE",
+    "CRAC-2_SUPPLY_AIR_TEMP",
+    "CRAC-2_RETURN_AIR_TEMP",
+    "GEN-1_RUN_STATUS",
+    "GEN-1_FUEL_LEVEL",
+    "PDU-1_LOAD_KW",
+    "AHU-1_SUPPLY_AIR_TEMP",
+    "TEMP-DH-A-1_SPACE_TEMP",
+    "HUM-DH-A-1_RELATIVE_HUMIDITY",
+    "MTR-UTILITY-1_VOLTAGE_AB",
+}
+
 
 def get_json_from_asgi_app(app, path):
     async def make_request():
@@ -540,6 +560,173 @@ class PointAndAlarmRuleCatalogTests(unittest.TestCase):
         self.assertEqual(
             alarm_rules_by_id["RULE-UPS-A-HIGH-LOAD"]["equipment_id"],
             "UPS-A",
+        )
+
+
+class CurrentPointValueTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_counts = load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path, load_counts
+
+    def test_sample_current_point_values_csv_exists_with_required_records(self):
+        self.assertTrue(load_alarm_db.CURRENT_POINT_VALUE_FILE.exists())
+
+        with open(
+            load_alarm_db.CURRENT_POINT_VALUE_FILE,
+            mode="r",
+            encoding="utf-8",
+            newline="",
+        ) as file:
+            reader = csv.DictReader(file)
+            point_ids = {
+                row["point_id"]
+                for row in reader
+            }
+
+        self.assertTrue(REQUIRED_CURRENT_POINT_VALUES.issubset(point_ids))
+
+    def test_sqlite_loader_creates_and_loads_current_point_values_table(self):
+        temp_db_path, load_counts = self.load_temp_sample_database()
+
+        self.assertEqual(load_counts["current_point_value_records"], 17)
+        reload_counts = load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        self.assertEqual(reload_counts["current_point_value_records"], 17)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'current_point_values'
+                """
+            ).fetchone()
+            current_value_count = connection.execute(
+                "SELECT COUNT(*) FROM current_point_values"
+            ).fetchone()[0]
+            unique_point_count = connection.execute(
+                "SELECT COUNT(DISTINCT point_id) FROM current_point_values"
+            ).fetchone()[0]
+
+        self.assertIsNotNone(table_exists)
+        self.assertEqual(current_value_count, 17)
+        self.assertEqual(unique_point_count, 17)
+
+    def test_current_point_values_reference_valid_points(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            missing_point_count = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM current_point_values
+                LEFT JOIN points
+                    ON current_point_values.point_id = points.id
+                WHERE points.id IS NULL
+                """
+            ).fetchone()[0]
+
+        self.assertEqual(missing_point_count, 0)
+
+    def test_loader_normalizes_optional_current_point_values(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_path = Path(temp_dir.name)
+        temp_db_path = temp_path / "facilityops_test.sqlite3"
+        current_point_value_csv_path = temp_path / "current_point_values.csv"
+
+        write_csv_rows(
+            current_point_value_csv_path,
+            load_alarm_db.CURRENT_POINT_VALUE_COLUMNS,
+            [
+                {
+                    "id": "CPV-TEST-OPTIONAL",
+                    "point_id": "UPS-A_OUTPUT_KW",
+                    "value": "null",
+                    "quality": "",
+                    "source": "n/a",
+                    "updated_at": "none",
+                }
+            ],
+        )
+
+        load_alarm_db.load_equipment_to_sqlite(db_path=temp_db_path)
+        load_alarm_db.load_points_to_sqlite(db_path=temp_db_path)
+        load_alarm_db.load_current_point_values_to_sqlite(
+            current_point_value_csv_path,
+            temp_db_path,
+        )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            current_value_row = connection.execute(
+                """
+                SELECT value, quality, source, updated_at
+                FROM current_point_values
+                WHERE id = 'CPV-TEST-OPTIONAL'
+                """
+            ).fetchone()
+
+        self.assertEqual(current_value_row, ("", "UNKNOWN", "", ""))
+
+    def test_backend_current_point_values_returns_point_and_equipment_context(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        current_values = backend_summary.get_current_point_values(temp_db_path)
+        values_by_point_id = {
+            point_value["point_id"]: point_value
+            for point_value in current_values
+        }
+
+        self.assertEqual(len(current_values), 17)
+        self.assertEqual(
+            values_by_point_id["CHW-P-1_DISCHARGE_PRESSURE"]["equipment_id"],
+            "CHW-P-1",
+        )
+        self.assertEqual(
+            values_by_point_id["CHW-P-1_DISCHARGE_PRESSURE"]["display_name"],
+            "CHW-P-1 Discharge Pressure",
+        )
+        self.assertEqual(
+            values_by_point_id["CHW-P-1_DISCHARGE_PRESSURE"]["unit"],
+            "psi",
+        )
+
+    def test_current_point_values_endpoint_returns_data(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_current_point_values",
+                lambda: backend_summary.get_current_point_values(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/current-point-values",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertIn("current_point_values", data)
+        self.assertEqual(len(data["current_point_values"]), 17)
+
+        values_by_point_id = {
+            point_value["point_id"]: point_value
+            for point_value in data["current_point_values"]
+        }
+        self.assertEqual(
+            values_by_point_id["UPS-A_OUTPUT_KW"]["equipment_id"],
+            "UPS-A",
+        )
+        self.assertEqual(
+            values_by_point_id["UPS-A_OUTPUT_KW"]["point_name"],
+            "OUTPUT_KW",
         )
 
 

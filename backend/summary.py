@@ -253,3 +253,67 @@ def get_alarm_rule_catalog(db_path=DATABASE_FILE):
                 delay_seconds,
             ) in cursor.fetchall()
         ]
+
+
+def get_current_point_values(db_path=DATABASE_FILE):
+    """Return current point values with point and equipment context."""
+    with sqlite3.connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            SELECT
+                current_point_values.id,
+                current_point_values.point_id,
+                points.point_name,
+                points.display_name,
+                points.equipment_id,
+                COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
+                COALESCE(equipment.location, 'Unknown') AS location,
+                points.point_type,
+                points.data_type,
+                points.unit,
+                current_point_values.value,
+                current_point_values.quality,
+                current_point_values.source,
+                current_point_values.updated_at
+            FROM current_point_values
+            LEFT JOIN points
+                ON current_point_values.point_id = points.id
+            LEFT JOIN equipment
+                ON points.equipment_id = equipment.equipment
+            ORDER BY points.equipment_id ASC, points.point_name ASC
+            """
+        )
+        return [
+            {
+                "id": value_id,
+                "point_id": point_id,
+                "point_name": point_name,
+                "display_name": display_name,
+                "equipment_id": equipment_id,
+                "equipment_type": equipment_type,
+                "location": location,
+                "point_type": point_type,
+                "data_type": data_type,
+                "unit": unit,
+                "value": value,
+                "quality": quality,
+                "source": source,
+                "updated_at": updated_at,
+            }
+            for (
+                value_id,
+                point_id,
+                point_name,
+                display_name,
+                equipment_id,
+                equipment_type,
+                location,
+                point_type,
+                data_type,
+                unit,
+                value,
+                quality,
+                source,
+                updated_at,
+            ) in cursor.fetchall()
+        ]

@@ -9,6 +9,7 @@ from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
 from backend.summary import get_alarm_rule_catalog
 from backend.summary import get_alarm_summary
+from backend.summary import get_current_point_values
 from backend.summary import get_equipment_inventory
 from backend.summary import get_point_dictionary
 
@@ -66,6 +67,15 @@ def read_alarm_rules():
         return error_response
 
     return {"alarm_rules": get_alarm_rule_catalog()}
+
+
+@app.get("/current-point-values")
+def read_current_point_values():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"current_point_values": get_current_point_values()}
 
 
 @app.get("/dashboard")

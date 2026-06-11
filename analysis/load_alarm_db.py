@@ -8,6 +8,7 @@ ALARM_FILE = PROJECT_ROOT / "data" / "sample_alarms.csv"
 EQUIPMENT_FILE = PROJECT_ROOT / "data" / "sample_equipment.csv"
 POINT_FILE = PROJECT_ROOT / "data" / "sample_points.csv"
 ALARM_RULE_FILE = PROJECT_ROOT / "data" / "sample_alarm_rules.csv"
+CURRENT_POINT_VALUE_FILE = PROJECT_ROOT / "data" / "sample_current_point_values.csv"
 DATABASE_FILE = PROJECT_ROOT / "db" / "facilityops.sqlite3"
 
 ALARM_COLUMNS = (
@@ -58,6 +59,15 @@ ALARM_RULE_COLUMNS = (
     "enabled",
     "delay_seconds",
     "created_at",
+    "updated_at",
+)
+
+CURRENT_POINT_VALUE_COLUMNS = (
+    "id",
+    "point_id",
+    "value",
+    "quality",
+    "source",
     "updated_at",
 )
 
@@ -146,6 +156,23 @@ def create_alarm_rule_table(connection):
     )
 
 
+def create_current_point_value_table(connection):
+    """Create a table for current point values."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS current_point_values (
+            id TEXT PRIMARY KEY,
+            point_id TEXT NOT NULL UNIQUE,
+            value TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            source TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (point_id) REFERENCES points (id)
+        )
+        """
+    )
+
+
 def read_csv_rows(csv_path, required_columns):
     """Read CSV records and validate required columns."""
     with open(csv_path, mode="r", encoding="utf-8", newline="") as file:
@@ -209,6 +236,14 @@ def parse_enabled(value):
     raise ValueError("enabled must be one of: 1, 0, true, false, yes, no")
 
 
+def normalize_quality(value):
+    """Normalize point value quality to a predictable catalog value."""
+    if is_blank_value(value):
+        return "UNKNOWN"
+
+    return value.strip().upper()
+
+
 def read_point_rows(csv_path):
     """Read point catalog records from the sample points CSV file."""
     rows = read_csv_rows(csv_path, POINT_COLUMNS)
@@ -228,6 +263,18 @@ def read_alarm_rule_rows(csv_path):
         row["clear_value"] = optional_text(row["clear_value"])
         row["enabled"] = parse_enabled(row["enabled"])
         row["delay_seconds"] = int(row["delay_seconds"])
+
+    return rows
+
+
+def read_current_point_value_rows(csv_path):
+    """Read current point value records from the sample CSV file."""
+    rows = read_csv_rows(csv_path, CURRENT_POINT_VALUE_COLUMNS)
+    for row in rows:
+        row["value"] = optional_text(row["value"])
+        row["quality"] = normalize_quality(row["quality"])
+        row["source"] = optional_text(row["source"]).upper()
+        row["updated_at"] = optional_text(row["updated_at"])
 
     return rows
 
@@ -394,24 +441,66 @@ def load_alarm_rules_to_sqlite(csv_path=ALARM_RULE_FILE, db_path=DATABASE_FILE):
     return len(rows)
 
 
+def load_current_point_values_to_sqlite(
+    csv_path=CURRENT_POINT_VALUE_FILE,
+    db_path=DATABASE_FILE,
+):
+    """Load current point value records from CSV into SQLite."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = read_current_point_value_rows(csv_path)
+
+    with sqlite3.connect(db_path) as connection:
+        create_current_point_value_table(connection)
+        connection.execute("DELETE FROM current_point_values")
+        connection.executemany(
+            """
+            INSERT INTO current_point_values (
+                id,
+                point_id,
+                value,
+                quality,
+                source,
+                updated_at
+            )
+            VALUES (
+                :id,
+                :point_id,
+                :value,
+                :quality,
+                :source,
+                :updated_at
+            )
+            """,
+            rows,
+        )
+
+    return len(rows)
+
+
 def load_sample_data_to_sqlite(
     alarm_csv_path=ALARM_FILE,
     equipment_csv_path=EQUIPMENT_FILE,
     point_csv_path=POINT_FILE,
     alarm_rule_csv_path=ALARM_RULE_FILE,
+    current_point_value_csv_path=CURRENT_POINT_VALUE_FILE,
     db_path=DATABASE_FILE,
 ):
-    """Load sample alarm, equipment, point, and alarm rule records into SQLite."""
+    """Load sample facility records into SQLite."""
     alarm_count = load_alarms_to_sqlite(alarm_csv_path, db_path)
     equipment_count = load_equipment_to_sqlite(equipment_csv_path, db_path)
     point_count = load_points_to_sqlite(point_csv_path, db_path)
     alarm_rule_count = load_alarm_rules_to_sqlite(alarm_rule_csv_path, db_path)
+    current_point_value_count = load_current_point_values_to_sqlite(
+        current_point_value_csv_path,
+        db_path,
+    )
 
     return {
         "alarm_records": alarm_count,
         "equipment_records": equipment_count,
         "point_records": point_count,
         "alarm_rule_records": alarm_rule_count,
+        "current_point_value_records": current_point_value_count,
     }
 
 
@@ -457,6 +546,7 @@ def print_verification_summary(
     equipment_record_count=None,
     point_record_count=None,
     alarm_rule_record_count=None,
+    current_point_value_record_count=None,
 ):
     print(f"Total alarm records loaded: {summary['total_alarm_records']}")
     if equipment_record_count is not None:
@@ -465,6 +555,8 @@ def print_verification_summary(
         print(f"Point records loaded: {point_record_count}")
     if alarm_rule_record_count is not None:
         print(f"Alarm rule records loaded: {alarm_rule_record_count}")
+    if current_point_value_record_count is not None:
+        print(f"Current point value records loaded: {current_point_value_record_count}")
     print_count_section("Alarm counts by severity:", summary["severity_counts"])
     print_count_section("Alarm counts by source:", summary["source_counts"])
     print_count_section("Alarm counts by equipment:", summary["equipment_counts"])
@@ -479,6 +571,7 @@ def main():
         equipment_record_count=load_counts["equipment_records"],
         point_record_count=load_counts["point_records"],
         alarm_rule_record_count=load_counts["alarm_rule_records"],
+        current_point_value_record_count=load_counts["current_point_value_records"],
     )
 
 
