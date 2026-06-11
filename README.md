@@ -49,6 +49,8 @@ Point dictionary records are stored in `data/sample_points.csv`. Current point v
 
 Current point values can be updated manually through the dashboard or the local API. Manual updates use `MANUAL` as the current value source and do not automatically evaluate generated alarms.
 
+Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates use `SCENARIO` as the current value source and do not automatically evaluate generated alarms.
+
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values.
 
 Generated alarms are simple output records created from rule evaluations. The current implementation only creates ACTIVE generated alarms from triggered rules and marks previously ACTIVE generated alarms CLEARED when the rule no longer triggers. It does not implement acknowledgements, suppression, latching, delay timers, hysteresis, comments, shelving, or a separate alarm history table.
@@ -80,7 +82,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/generated-alarms`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, generated alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog.
+The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, alarm scenarios, generated alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog.
 
 Call the summary endpoint directly:
 
@@ -112,6 +114,18 @@ Manually update a current point value:
 curl -X PUT http://127.0.0.1:8000/current-point-values/UPS-A_OUTPUT_KW \
   -H "Content-Type: application/json" \
   -d '{"value": "245", "quality": "GOOD", "source": "MANUAL"}'
+```
+
+List alarm scenarios:
+
+```bash
+curl http://127.0.0.1:8000/scenarios
+```
+
+Apply an alarm scenario:
+
+```bash
+curl -X POST http://127.0.0.1:8000/scenarios/trigger-ups-high-load/apply
 ```
 
 Call the read-only rule evaluations endpoint:

@@ -17,7 +17,89 @@ MATCH_OPERATORS = {"==", "!="}
 TRUE_VALUES = {"true", "1", "yes", "on"}
 FALSE_VALUES = {"false", "0", "no", "off"}
 ALLOWED_QUALITIES = {"GOOD", "BAD", "STALE", "UNKNOWN"}
-ALLOWED_CURRENT_VALUE_SOURCES = {"SIMULATED", "BMS", "EPMS", "PLC", "DCIM", "MANUAL"}
+ALLOWED_CURRENT_VALUE_SOURCES = {
+    "SIMULATED",
+    "BMS",
+    "EPMS",
+    "PLC",
+    "DCIM",
+    "MANUAL",
+    "SCENARIO",
+}
+ALARM_SCENARIOS = {
+    "trigger-ups-high-load": {
+        "label": "Trigger UPS High Load",
+        "description": "Set UPS-A output kW above the high-load rule threshold.",
+        "updates": [
+            {
+                "point_id": "UPS-A_OUTPUT_KW",
+                "value": "245",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+    "normalize-ups-high-load": {
+        "label": "Normalize UPS High Load",
+        "description": "Set UPS-A output kW back below the high-load clear value.",
+        "updates": [
+            {
+                "point_id": "UPS-A_OUTPUT_KW",
+                "value": "185",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+    "trigger-crah-high-supply-temp": {
+        "label": "Trigger CRAH High Supply Temp",
+        "description": "Set CRAC-2 supply air temperature above the high-temperature rule threshold.",
+        "updates": [
+            {
+                "point_id": "CRAC-2_SUPPLY_AIR_TEMP",
+                "value": "72",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+    "normalize-crah-high-supply-temp": {
+        "label": "Normalize CRAH High Supply Temp",
+        "description": "Set CRAC-2 supply air temperature back inside the normal range.",
+        "updates": [
+            {
+                "point_id": "CRAC-2_SUPPLY_AIR_TEMP",
+                "value": "59.8",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+    "trigger-generator-low-fuel": {
+        "label": "Trigger Generator Low Fuel",
+        "description": "Set GEN-1 fuel level below the low-fuel rule threshold.",
+        "updates": [
+            {
+                "point_id": "GEN-1_FUEL_LEVEL",
+                "value": "30",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+    "normalize-generator-low-fuel": {
+        "label": "Normalize Generator Low Fuel",
+        "description": "Set GEN-1 fuel level back above the low-fuel clear value.",
+        "updates": [
+            {
+                "point_id": "GEN-1_FUEL_LEVEL",
+                "value": "82",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+}
 
 
 def current_timestamp():
@@ -695,6 +777,98 @@ def update_current_point_value(
             )
 
     return get_current_point_value(point_id, db_path)
+
+
+def get_points_by_id(connection, point_ids):
+    """Return point context keyed by point id."""
+    if not point_ids:
+        return {}
+
+    placeholders = ", ".join("?" for _point_id in point_ids)
+    cursor = connection.execute(
+        f"""
+        SELECT
+            points.id,
+            points.point_name,
+            points.display_name,
+            points.equipment_id
+        FROM points
+        WHERE points.id IN ({placeholders})
+        """,
+        point_ids,
+    )
+    return {
+        point_id: {
+            "point_id": point_id,
+            "point_name": point_name,
+            "display_name": display_name,
+            "equipment_id": equipment_id,
+        }
+        for point_id, point_name, display_name, equipment_id in cursor.fetchall()
+    }
+
+
+def get_scenarios(db_path=DATABASE_FILE):
+    """Return available deterministic alarm demo scenarios."""
+    point_ids = sorted({
+        update["point_id"]
+        for scenario in ALARM_SCENARIOS.values()
+        for update in scenario["updates"]
+    })
+
+    with sqlite3.connect(db_path) as connection:
+        points_by_id = get_points_by_id(connection, point_ids)
+
+    scenarios = []
+    for scenario_id, scenario in ALARM_SCENARIOS.items():
+        affected_points = [
+            points_by_id.get(
+                update["point_id"],
+                {
+                    "point_id": update["point_id"],
+                    "point_name": update["point_id"],
+                    "display_name": update["point_id"],
+                    "equipment_id": "",
+                },
+            )
+            for update in scenario["updates"]
+        ]
+        scenarios.append(
+            {
+                "scenario_id": scenario_id,
+                "label": scenario["label"],
+                "description": scenario["description"],
+                "affected_points": affected_points,
+            }
+        )
+
+    return scenarios
+
+
+def apply_scenario(scenario_id, db_path=DATABASE_FILE):
+    """Apply a deterministic demo scenario by updating current point values."""
+    if scenario_id not in ALARM_SCENARIOS:
+        raise LookupError(f"Scenario not found: {scenario_id}")
+
+    scenario = ALARM_SCENARIOS[scenario_id]
+    updated_values = [
+        update_current_point_value(
+            update["point_id"],
+            update["value"],
+            quality=update["quality"],
+            source=update["source"],
+            db_path=db_path,
+        )
+        for update in scenario["updates"]
+    ]
+
+    return {
+        "scenario_id": scenario_id,
+        "label": scenario["label"],
+        "description": scenario["description"],
+        "updated_count": len(updated_values),
+        "current_point_values": updated_values,
+    }
 
 
 def get_rule_evaluations(db_path=DATABASE_FILE):

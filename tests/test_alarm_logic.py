@@ -994,6 +994,166 @@ class ManualCurrentPointValueUpdateTests(unittest.TestCase):
         self.assertEqual(generated_alarms, [])
 
 
+class AlarmScenarioTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def test_scenarios_endpoint_returns_available_scenarios(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_scenarios",
+                lambda: backend_summary.get_scenarios(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(backend_main.app, "/scenarios")
+
+        scenario_ids = {
+            scenario["scenario_id"]
+            for scenario in data["scenarios"]
+        }
+        ups_scenario = [
+            scenario
+            for scenario in data["scenarios"]
+            if scenario["scenario_id"] == "trigger-ups-high-load"
+        ][0]
+
+        self.assertEqual(status, 200)
+        self.assertIn("trigger-ups-high-load", scenario_ids)
+        self.assertIn("normalize-ups-high-load", scenario_ids)
+        self.assertIn("trigger-crah-high-supply-temp", scenario_ids)
+        self.assertIn("normalize-crah-high-supply-temp", scenario_ids)
+        self.assertIn("trigger-generator-low-fuel", scenario_ids)
+        self.assertIn("normalize-generator-low-fuel", scenario_ids)
+        self.assertEqual(
+            ups_scenario["affected_points"][0]["point_id"],
+            "UPS-A_OUTPUT_KW",
+        )
+        self.assertEqual(
+            ups_scenario["affected_points"][0]["display_name"],
+            "UPS-A Output kW",
+        )
+
+    def test_trigger_scenario_updates_expected_current_point_value(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        result = backend_summary.apply_scenario(
+            "trigger-ups-high-load",
+            db_path=temp_db_path,
+        )
+        current_point_value = backend_summary.get_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            temp_db_path,
+        )
+
+        self.assertEqual(result["updated_count"], 1)
+        self.assertEqual(current_point_value["value"], "245")
+        self.assertEqual(current_point_value["quality"], "GOOD")
+        self.assertEqual(current_point_value["source"], "SCENARIO")
+
+    def test_normalize_scenario_updates_expected_current_point_value(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.apply_scenario("trigger-ups-high-load", db_path=temp_db_path)
+        backend_summary.apply_scenario("normalize-ups-high-load", db_path=temp_db_path)
+        current_point_value = backend_summary.get_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            temp_db_path,
+        )
+
+        self.assertEqual(current_point_value["value"], "185")
+        self.assertEqual(current_point_value["quality"], "GOOD")
+        self.assertEqual(current_point_value["source"], "SCENARIO")
+
+    def test_apply_scenario_endpoint_updates_current_point_value(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "apply_scenario",
+                lambda scenario_id: backend_summary.apply_scenario(
+                    scenario_id,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/scenarios/trigger-generator-low-fuel/apply",
+                method="POST",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["updated_count"], 1)
+        self.assertEqual(
+            data["current_point_values"][0]["point_id"],
+            "GEN-1_FUEL_LEVEL",
+        )
+        self.assertEqual(data["current_point_values"][0]["value"], "30")
+        self.assertEqual(data["current_point_values"][0]["source"], "SCENARIO")
+
+    def test_applying_scenario_changes_rule_evaluation_results(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.apply_scenario("trigger-generator-low-fuel", db_path=temp_db_path)
+        evaluations = backend_summary.get_rule_evaluations(temp_db_path)
+        evaluations_by_rule_id = {
+            evaluation["id"]: evaluation
+            for evaluation in evaluations
+        }
+
+        self.assertTrue(evaluations_by_rule_id["RULE-GEN-1-LOW-FUEL"]["is_triggered"])
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-GEN-1-LOW-FUEL"]["current_value"],
+            "30",
+        )
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-GEN-1-LOW-FUEL"]["source"],
+            "SCENARIO",
+        )
+
+    def test_applying_scenario_does_not_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.apply_scenario("trigger-ups-high-load", db_path=temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
+
+    def test_invalid_scenario_endpoint_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "apply_scenario",
+                lambda scenario_id: backend_summary.apply_scenario(
+                    scenario_id,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/scenarios/not-a-scenario/apply",
+                method="POST",
+            )
+
+        self.assertEqual(status, 404)
+        self.assertIn("Scenario not found", data["error"])
+
+
 class RuleEvaluationTests(unittest.TestCase):
     def load_temp_sample_database(self):
         temp_dir = tempfile.TemporaryDirectory()

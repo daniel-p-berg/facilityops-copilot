@@ -297,6 +297,12 @@
       opacity: 0.7;
     }
 
+    .scenario-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
     input,
     select {
       border: 1px solid var(--line);
@@ -364,6 +370,11 @@
         <h2>Equipment Counts</h2>
         <ul id="equipmentCounts" class="count-list"></ul>
       </div>
+    </section>
+
+    <section class="panel catalog-section">
+      <h2>Alarm Scenarios</h2>
+      <div id="scenarioButtons" class="scenario-buttons"></div>
     </section>
 
     <section class="panel catalog-section">
@@ -487,6 +498,7 @@
     const sourceCountsEl = document.getElementById("sourceCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const activeCriticalAlarmsEl = document.getElementById("activeCriticalAlarms");
+    const scenarioButtonsEl = document.getElementById("scenarioButtons");
     const generatedAlarmRowsEl = document.getElementById("generatedAlarmRows");
     const evaluateGeneratedAlarmsButton = document.getElementById("evaluateGeneratedAlarmsButton");
     const currentPointValueRowsEl = document.getElementById("currentPointValueRows");
@@ -722,6 +734,29 @@
       });
     }
 
+    function renderScenarioButtons(scenarios) {
+      scenarioButtonsEl.innerHTML = "";
+
+      if (scenarios.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "note";
+        empty.textContent = "No scenarios found.";
+        scenarioButtonsEl.appendChild(empty);
+        return;
+      }
+
+      scenarios.forEach((scenario) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = scenario.label;
+        button.title = scenario.description;
+        button.addEventListener("click", () => {
+          applyScenario(scenario.scenario_id, button);
+        });
+        scenarioButtonsEl.appendChild(button);
+      });
+    }
+
     function enabledText(enabled) {
       return enabled ? "Yes" : "No";
     }
@@ -895,6 +930,12 @@
       renderRuleEvaluations(data.rule_evaluations);
     }
 
+    async function loadScenarios() {
+      const response = await fetch("/scenarios");
+      const data = await readJsonResponse(response, "alarm scenarios");
+      renderScenarioButtons(data.scenarios);
+    }
+
     async function updateCurrentPointValue(pointId, value, quality, button) {
       button.disabled = true;
       button.textContent = "Updating...";
@@ -927,6 +968,31 @@
       }
     }
 
+    async function applyScenario(scenarioId, button) {
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "Applying...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch(`/scenarios/${encodeURIComponent(scenarioId)}/apply`, {
+          method: "POST",
+        });
+        const data = await readJsonResponse(response, "alarm scenario");
+        await Promise.all([
+          loadCurrentPointValues(),
+          loadRuleEvaluations(),
+          loadGeneratedAlarms(),
+        ]);
+        statusEl.textContent = `${data.label} applied. Generated alarms were not evaluated.`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+
     async function evaluateGeneratedAlarms() {
       evaluateGeneratedAlarmsButton.disabled = true;
       evaluateGeneratedAlarmsButton.textContent = "Evaluating...";
@@ -954,6 +1020,7 @@
       try {
         const responses = await Promise.all([
           fetch("/summary"),
+          fetch("/scenarios"),
           fetch("/generated-alarms"),
           fetch("/current-point-values"),
           fetch("/rule-evaluations"),
@@ -962,6 +1029,7 @@
         ]);
         const [
           summaryData,
+          scenariosData,
           generatedAlarmsData,
           currentPointValuesData,
           ruleEvaluationsData,
@@ -969,11 +1037,12 @@
           alarmRulesData,
         ] = await Promise.all([
           readJsonResponse(responses[0], "alarm summary"),
-          readJsonResponse(responses[1], "generated alarms"),
-          readJsonResponse(responses[2], "current point values"),
-          readJsonResponse(responses[3], "alarm rule evaluations"),
-          readJsonResponse(responses[4], "point dictionary"),
-          readJsonResponse(responses[5], "alarm rule catalog"),
+          readJsonResponse(responses[1], "alarm scenarios"),
+          readJsonResponse(responses[2], "generated alarms"),
+          readJsonResponse(responses[3], "current point values"),
+          readJsonResponse(responses[4], "alarm rule evaluations"),
+          readJsonResponse(responses[5], "point dictionary"),
+          readJsonResponse(responses[6], "alarm rule catalog"),
         ]);
 
         totalAlarmRecordsEl.textContent = summaryData.total_alarm_records;
@@ -981,6 +1050,7 @@
         renderCounts(sourceCountsEl, summaryData.source_counts);
         renderCounts(equipmentCountsEl, summaryData.equipment_counts);
         renderActiveCriticalAlarms(summaryData.active_critical_alarms);
+        renderScenarioButtons(scenariosData.scenarios);
         renderGeneratedAlarms(generatedAlarmsData.generated_alarms);
         renderCurrentPointValues(currentPointValuesData.current_point_values);
         renderRuleEvaluations(ruleEvaluationsData.rule_evaluations);

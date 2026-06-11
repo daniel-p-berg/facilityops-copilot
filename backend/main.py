@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 
+from backend.summary import apply_scenario
 from backend.summary import DATABASE_DISPLAY_PATH
 from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
@@ -16,6 +17,7 @@ from backend.summary import get_equipment_inventory
 from backend.summary import get_generated_alarms
 from backend.summary import get_point_dictionary
 from backend.summary import get_rule_evaluations
+from backend.summary import get_scenarios
 from backend.summary import update_current_point_value
 
 
@@ -141,6 +143,35 @@ def evaluate_generated_alarm_state():
         return error_response
 
     return evaluate_generated_alarms()
+
+
+@app.get("/scenarios")
+def read_scenarios():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"scenarios": get_scenarios()}
+
+
+@app.post("/scenarios/{scenario_id}/apply")
+def apply_alarm_scenario(scenario_id: str):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    try:
+        return apply_scenario(scenario_id)
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
 
 
 @app.get("/dashboard")
