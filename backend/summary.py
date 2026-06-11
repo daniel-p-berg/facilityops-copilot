@@ -1029,6 +1029,54 @@ def get_generated_alarm_counts(connection):
     return active_count, cleared_count
 
 
+def active_generated_alarm_should_clear(evaluation):
+    """Return True when an existing active generated alarm should clear."""
+    if evaluation is None:
+        return True
+
+    if not evaluation["enabled"]:
+        return True
+
+    if evaluation["is_triggered"]:
+        return False
+
+    if evaluation["rule_type"] != "analog_limit":
+        return True
+
+    if not has_value(evaluation["clear_value"]):
+        return True
+
+    if evaluation["operator"] not in ANALOG_OPERATORS:
+        return True
+
+    if normalize_text(evaluation["quality"]).upper() != "GOOD":
+        return False
+
+    parsed_current_value = parse_number(evaluation["current_value"])
+    parsed_clear_value = parse_number(evaluation["clear_value"])
+    if parsed_clear_value is None:
+        return True
+    if parsed_current_value is None:
+        return False
+
+    if evaluation["operator"] in {">", ">="}:
+        return parsed_current_value < parsed_clear_value
+
+    return parsed_current_value > parsed_clear_value
+
+
+def active_generated_alarm_note(evaluation):
+    """Return the note to store while an active generated alarm remains active."""
+    if (
+        evaluation["rule_type"] == "analog_limit"
+        and has_value(evaluation["clear_value"])
+        and evaluation["evaluation_status"] == "Normal"
+    ):
+        return "Waiting for clear value"
+
+    return evaluation["evaluation_status"]
+
+
 def evaluate_generated_alarms(db_path=DATABASE_FILE):
     """Create or update generated alarm state from current rule evaluations."""
     evaluations = get_rule_evaluations(db_path)
@@ -1045,6 +1093,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
         evaluation["id"]
         for evaluation in triggered_evaluations
     }
+    kept_active_rule_ids = set(triggered_rule_ids)
 
     timestamp = current_timestamp()
     created_count = 0
@@ -1077,7 +1126,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         evaluation["severity"],
                         normalize_text(evaluation["current_value"]),
                         timestamp,
-                        evaluation["evaluation_status"],
+                        active_generated_alarm_note(evaluation),
                         active_alarm_id,
                     ),
                 )
@@ -1113,13 +1162,50 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         timestamp,
                         "",
                         timestamp,
-                        evaluation["evaluation_status"],
+                        active_generated_alarm_note(evaluation),
                     ),
                 )
                 created_count += 1
 
+        for evaluation in evaluations:
+            if evaluation["id"] in triggered_rule_ids:
+                continue
+
+            active_alarm_id = active_generated_alarms.get(evaluation["id"])
+            if not active_alarm_id:
+                continue
+
+            if active_generated_alarm_should_clear(evaluation):
+                continue
+
+            connection.execute(
+                """
+                UPDATE generated_alarms
+                SET point_id = ?,
+                    equipment_id = ?,
+                    alarm_message = ?,
+                    severity = ?,
+                    triggered_value = ?,
+                    last_evaluated_at = ?,
+                    evaluation_note = ?
+                WHERE id = ?
+                """,
+                (
+                    evaluation["point_id"],
+                    evaluation["equipment_id"],
+                    evaluation["alarm_message"],
+                    evaluation["severity"],
+                    normalize_text(evaluation["current_value"]),
+                    timestamp,
+                    active_generated_alarm_note(evaluation),
+                    active_alarm_id,
+                ),
+            )
+            kept_active_rule_ids.add(evaluation["id"])
+            updated_count += 1
+
         for rule_id, alarm_id in active_generated_alarms.items():
-            if rule_id in triggered_rule_ids:
+            if rule_id in kept_active_rule_ids:
                 continue
 
             evaluation_note = "Rule not evaluated"

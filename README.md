@@ -45,7 +45,7 @@ Alarm scenarios are deterministic dashboard and API controls that set known curr
 
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values.
 
-Generated alarms are simple output records created from rule evaluations. The dashboard alarm summary and alarm table use generated alarms only; the old seeded sample alarm CSV is no longer the dashboard alarm source. The current implementation only creates ACTIVE generated alarms from triggered rules and marks previously ACTIVE generated alarms CLEARED when the rule no longer triggers. It does not implement acknowledgements, suppression, latching, delay timers, hysteresis, comments, shelving, or a separate alarm history table.
+Generated alarms are simple output records created from rule evaluations. The dashboard alarm summary and alarm table use generated alarms only; the old seeded sample alarm CSV is no longer the dashboard alarm source. The current implementation creates ACTIVE generated alarms from triggered rules. Analog generated alarms use `clear_value` hysteresis before clearing; boolean and enum generated alarms clear when their rule no longer triggers. It does not implement acknowledgements, suppression, latching, delay timers, comments, shelving, or a separate alarm history table.
 
 ## Local API Server
 

@@ -1414,23 +1414,55 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         return temp_db_path
 
     def trigger_ups_high_load_rule(self, db_path):
-        with sqlite3.connect(db_path) as connection:
-            connection.execute(
-                """
-                UPDATE current_point_values
-                SET value = '245'
-                WHERE point_id = 'UPS-A_OUTPUT_KW'
-                """
-            )
+        self.set_current_point_value(db_path, "UPS-A_OUTPUT_KW", "245")
 
     def clear_ups_high_load_rule(self, db_path):
+        self.set_current_point_value(db_path, "UPS-A_OUTPUT_KW", "185")
+
+    def set_current_point_value(self, db_path, point_id, value, quality="GOOD"):
         with sqlite3.connect(db_path) as connection:
             connection.execute(
                 """
                 UPDATE current_point_values
-                SET value = '185'
-                WHERE point_id = 'UPS-A_OUTPUT_KW'
-                """
+                SET value = ?,
+                    quality = ?
+                WHERE point_id = ?
+                """,
+                (value, quality, point_id),
+            )
+
+    def set_alarm_rule_values(
+        self,
+        db_path,
+        rule_id,
+        operator=None,
+        threshold_value=None,
+        clear_value=None,
+    ):
+        assignments = []
+        parameters = []
+        if operator is not None:
+            assignments.append("operator = ?")
+            parameters.append(operator)
+        if threshold_value is not None:
+            assignments.append("threshold_value = ?")
+            parameters.append(threshold_value)
+        if clear_value is not None:
+            assignments.append("clear_value = ?")
+            parameters.append(clear_value)
+
+        if not assignments:
+            return
+
+        parameters.append(rule_id)
+        with sqlite3.connect(db_path) as connection:
+            connection.execute(
+                f"""
+                UPDATE alarm_rules
+                SET {", ".join(assignments)}
+                WHERE id = ?
+                """,
+                parameters,
             )
 
     def test_loader_creates_empty_generated_alarms_table(self):
@@ -1503,6 +1535,193 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(generated_alarms[0]["state"], "CLEARED")
         self.assertNotEqual(generated_alarms[0]["cleared_at"], "")
         self.assertEqual(generated_alarms[0]["evaluation_note"], "Normal")
+
+    def test_greater_than_analog_alarm_remains_active_between_threshold_and_clear_value(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "235")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        rule_evaluations = backend_summary.get_rule_evaluations(temp_db_path)
+        ups_high_load_evaluation = [
+            evaluation
+            for evaluation in rule_evaluations
+            if evaluation["id"] == "RULE-UPS-A-HIGH-LOAD"
+        ][0]
+
+        self.assertFalse(ups_high_load_evaluation["is_triggered"])
+        self.assertEqual(ups_high_load_evaluation["evaluation_status"], "Normal")
+        self.assertEqual(summary["active_count"], 1)
+        self.assertEqual(summary["cleared_count"], 0)
+        self.assertEqual(summary["updated_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
+        self.assertEqual(generated_alarms[0]["triggered_value"], "235")
+        self.assertEqual(generated_alarms[0]["evaluation_note"], "Waiting for clear value")
+
+    def test_greater_than_analog_alarm_clears_only_below_clear_value(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "235")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "219")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+        self.assertEqual(generated_alarms[0]["evaluation_note"], "Normal")
+
+    def test_greater_equal_analog_alarm_uses_clear_value_hysteresis(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            operator=">=",
+        )
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "240")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "230")
+        keep_summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "219")
+        clear_summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(keep_summary["active_count"], 1)
+        self.assertEqual(keep_summary["cleared_count"], 0)
+        self.assertEqual(clear_summary["active_count"], 0)
+        self.assertEqual(clear_summary["cleared_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+
+    def test_less_than_analog_alarm_remains_active_between_threshold_and_clear_value(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "30")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "45")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        low_fuel_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["rule_id"] == "RULE-GEN-1-LOW-FUEL"
+        ][0]
+
+        self.assertEqual(summary["active_count"], 1)
+        self.assertEqual(summary["cleared_count"], 0)
+        self.assertEqual(summary["updated_count"], 1)
+        self.assertEqual(low_fuel_alarm["state"], "ACTIVE")
+        self.assertEqual(low_fuel_alarm["triggered_value"], "45")
+        self.assertEqual(low_fuel_alarm["evaluation_note"], "Waiting for clear value")
+
+    def test_less_than_analog_alarm_clears_only_above_clear_value(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "30")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "45")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "51")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        low_fuel_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["rule_id"] == "RULE-GEN-1-LOW-FUEL"
+        ][0]
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(low_fuel_alarm["state"], "CLEARED")
+        self.assertEqual(low_fuel_alarm["evaluation_note"], "Normal")
+
+    def test_less_equal_analog_alarm_uses_clear_value_hysteresis(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-GEN-1-LOW-FUEL",
+            operator="<=",
+        )
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "40")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "45")
+        keep_summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "51")
+        clear_summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        low_fuel_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["rule_id"] == "RULE-GEN-1-LOW-FUEL"
+        ][0]
+
+        self.assertEqual(keep_summary["active_count"], 1)
+        self.assertEqual(keep_summary["cleared_count"], 0)
+        self.assertEqual(clear_summary["active_count"], 0)
+        self.assertEqual(clear_summary["cleared_count"], 1)
+        self.assertEqual(low_fuel_alarm["state"], "CLEARED")
+
+    def test_analog_alarm_clear_behavior_falls_back_when_clear_value_is_blank(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            clear_value="",
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "UPS-A_OUTPUT_KW", "235")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+
+    def test_boolean_generated_alarm_behavior_still_clears_without_hysteresis(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_current_point_value(temp_db_path, "CHW-P-1_RUN_STATUS", "false")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "CHW-P-1_RUN_STATUS", "true")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        pump_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["rule_id"] == "RULE-CHW-P-1-FAILED-START"
+        ][0]
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(pump_alarm["state"], "CLEARED")
+        self.assertEqual(pump_alarm["evaluation_note"], "Normal")
+
+    def test_enum_generated_alarm_behavior_still_clears_without_hysteresis(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_current_point_value(temp_db_path, "UPS-A_BATTERY_STATUS", "On Battery")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.set_current_point_value(temp_db_path, "UPS-A_BATTERY_STATUS", "Normal")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        battery_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["rule_id"] == "RULE-UPS-A-ON-BATTERY"
+        ][0]
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(battery_alarm["state"], "CLEARED")
+        self.assertEqual(battery_alarm["evaluation_note"], "Normal")
 
     def test_generated_alarms_endpoint_returns_context(self):
         temp_db_path = self.load_temp_sample_database()
