@@ -191,6 +191,9 @@ def create_generated_alarm_table(connection):
             cleared_at TEXT NOT NULL,
             last_evaluated_at TEXT NOT NULL,
             evaluation_note TEXT NOT NULL,
+            acknowledged INTEGER NOT NULL DEFAULT 0,
+            acknowledged_at TEXT NOT NULL DEFAULT '',
+            acknowledged_by TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
             FOREIGN KEY (point_id) REFERENCES points (id),
             FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
@@ -206,6 +209,27 @@ def create_generated_alarm_table(connection):
             """
             ALTER TABLE generated_alarms
             ADD COLUMN pending_started_at TEXT NOT NULL DEFAULT ''
+            """
+        )
+    if "acknowledged" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN acknowledged INTEGER NOT NULL DEFAULT 0
+            """
+        )
+    if "acknowledged_at" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN acknowledged_at TEXT NOT NULL DEFAULT ''
+            """
+        )
+    if "acknowledged_by" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN acknowledged_by TEXT NOT NULL DEFAULT ''
             """
         )
 

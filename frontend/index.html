@@ -419,6 +419,10 @@
               <th>Cleared At</th>
               <th>Last Evaluated</th>
               <th>Evaluation Note</th>
+              <th>Acknowledged</th>
+              <th>Acknowledged At</th>
+              <th>Acknowledged By</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="generatedAlarmRows"></tbody>
@@ -874,7 +878,7 @@
       generatedAlarmRowsEl.innerHTML = "";
 
       if (generatedAlarms.length === 0) {
-        renderEmptyRow(generatedAlarmRowsEl, 10, "No generated alarms found.");
+        renderEmptyRow(generatedAlarmRowsEl, 14, "No generated alarms found.");
         return;
       }
 
@@ -896,6 +900,20 @@
         appendCell(row, alarm.cleared_at);
         appendCell(row, alarm.last_evaluated_at);
         appendCell(row, alarm.evaluation_note);
+        appendCell(row, alarm.acknowledged ? "Yes" : "No");
+        appendCell(row, alarm.acknowledged_at);
+        appendCell(row, alarm.acknowledged_by);
+        if (alarm.acknowledged) {
+          appendCell(row, "");
+        } else {
+          const acknowledgeButton = document.createElement("button");
+          acknowledgeButton.type = "button";
+          acknowledgeButton.textContent = "Acknowledge";
+          acknowledgeButton.addEventListener("click", () => {
+            acknowledgeGeneratedAlarm(alarm.id, acknowledgeButton);
+          });
+          appendNodeCell(row, acknowledgeButton);
+        }
         generatedAlarmRowsEl.appendChild(row);
       });
     }
@@ -1050,6 +1068,35 @@
       } finally {
         evaluateGeneratedAlarmsButton.disabled = false;
         evaluateGeneratedAlarmsButton.textContent = "Evaluate Generated Alarms";
+      }
+    }
+
+    async function acknowledgeGeneratedAlarm(alarmId, button) {
+      button.disabled = true;
+      button.textContent = "Acknowledging...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch(`/generated-alarms/${encodeURIComponent(alarmId)}/acknowledge`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            acknowledged_by: "local-operator",
+          }),
+        });
+        await readJsonResponse(response, "generated alarm acknowledgement");
+        await Promise.all([
+          loadSummary(),
+          loadGeneratedAlarms(),
+        ]);
+        statusEl.textContent = "Generated alarm acknowledged";
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Acknowledge";
       }
     }
 

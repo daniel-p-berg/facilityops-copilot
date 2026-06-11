@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 
+from backend.summary import acknowledge_generated_alarm
 from backend.summary import apply_scenario
 from backend.summary import DATABASE_DISPLAY_PATH
 from backend.summary import DATABASE_FILE
@@ -134,6 +135,27 @@ def read_generated_alarms():
         return error_response
 
     return {"generated_alarms": get_generated_alarms()}
+
+
+@app.post("/generated-alarms/{alarm_id}/acknowledge")
+def acknowledge_generated_alarm_state(alarm_id: str, payload: dict | None = Body(default=None)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    payload = payload or {}
+    try:
+        generated_alarm = acknowledge_generated_alarm(
+            alarm_id,
+            acknowledged_by=payload.get("acknowledged_by", "local-operator"),
+        )
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
+
+    return {"generated_alarm": generated_alarm}
 
 
 @app.post("/generated-alarms/evaluate")

@@ -131,7 +131,7 @@ def get_generated_alarm_count_by_column(connection, column_name, state=None):
     return {row[0]: row[1] for row in cursor.fetchall()}
 
 
-def get_generated_alarm_count(connection, state=None, severity=None):
+def get_generated_alarm_count(connection, state=None, severity=None, acknowledged=None):
     """Return generated alarm count filtered by state and severity."""
     where_clauses = []
     parameters = []
@@ -141,6 +141,9 @@ def get_generated_alarm_count(connection, state=None, severity=None):
     if severity is not None:
         where_clauses.append("severity = ?")
         parameters.append(severity)
+    if acknowledged is not None:
+        where_clauses.append("acknowledged = ?")
+        parameters.append(1 if acknowledged else 0)
 
     where_sql = ""
     if where_clauses:
@@ -166,6 +169,16 @@ def get_alarm_summary(db_path=DATABASE_FILE):
             "active_generated_alarm_count": get_generated_alarm_count(
                 connection,
                 state="ACTIVE",
+            ),
+            "active_unacknowledged_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="ACTIVE",
+                acknowledged=False,
+            ),
+            "active_acknowledged_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="ACTIVE",
+                acknowledged=True,
             ),
             "pending_generated_alarm_count": get_generated_alarm_count(
                 connection,
@@ -261,6 +274,9 @@ def ensure_generated_alarm_table(connection):
             cleared_at TEXT NOT NULL,
             last_evaluated_at TEXT NOT NULL,
             evaluation_note TEXT NOT NULL,
+            acknowledged INTEGER NOT NULL DEFAULT 0,
+            acknowledged_at TEXT NOT NULL DEFAULT '',
+            acknowledged_by TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
             FOREIGN KEY (point_id) REFERENCES points (id),
             FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
@@ -276,6 +292,27 @@ def ensure_generated_alarm_table(connection):
             """
             ALTER TABLE generated_alarms
             ADD COLUMN pending_started_at TEXT NOT NULL DEFAULT ''
+            """
+        )
+    if "acknowledged" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN acknowledged INTEGER NOT NULL DEFAULT 0
+            """
+        )
+    if "acknowledged_at" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN acknowledged_at TEXT NOT NULL DEFAULT ''
+            """
+        )
+    if "acknowledged_by" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN acknowledged_by TEXT NOT NULL DEFAULT ''
             """
         )
 
@@ -1474,7 +1511,10 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 generated_alarms.triggered_at,
                 generated_alarms.cleared_at,
                 generated_alarms.last_evaluated_at,
-                generated_alarms.evaluation_note
+                generated_alarms.evaluation_note,
+                generated_alarms.acknowledged,
+                generated_alarms.acknowledged_at,
+                generated_alarms.acknowledged_by
             FROM generated_alarms
             LEFT JOIN alarm_rules
                 ON generated_alarms.rule_id = alarm_rules.id
@@ -1515,6 +1555,9 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 "cleared_at": cleared_at,
                 "last_evaluated_at": last_evaluated_at,
                 "evaluation_note": evaluation_note,
+                "acknowledged": bool(acknowledged),
+                "acknowledged_at": acknowledged_at,
+                "acknowledged_by": acknowledged_by,
             }
             for (
                 alarm_id,
@@ -1537,5 +1580,53 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 cleared_at,
                 last_evaluated_at,
                 evaluation_note,
+                acknowledged,
+                acknowledged_at,
+                acknowledged_by,
             ) in cursor.fetchall()
         ]
+
+
+def acknowledge_generated_alarm(
+    alarm_id,
+    acknowledged_by="local-operator",
+    db_path=DATABASE_FILE,
+):
+    """Acknowledge a generated alarm and return its enriched record."""
+    operator_name = normalize_text(acknowledged_by)
+    if not has_value(operator_name):
+        operator_name = "local-operator"
+
+    with sqlite3.connect(db_path) as connection:
+        ensure_generated_alarm_table(connection)
+        alarm_exists = connection.execute(
+            """
+            SELECT 1
+            FROM generated_alarms
+            WHERE id = ?
+            """,
+            (alarm_id,),
+        ).fetchone()
+        if not alarm_exists:
+            raise LookupError(f"Generated alarm not found: {alarm_id}")
+
+        connection.execute(
+            """
+            UPDATE generated_alarms
+            SET acknowledged = 1,
+                acknowledged_at = ?,
+                acknowledged_by = ?
+            WHERE id = ?
+            """,
+            (
+                current_timestamp(),
+                operator_name,
+                alarm_id,
+            ),
+        )
+
+    for alarm in get_generated_alarms(db_path):
+        if alarm["id"] == alarm_id:
+            return alarm
+
+    raise LookupError(f"Generated alarm not found: {alarm_id}")

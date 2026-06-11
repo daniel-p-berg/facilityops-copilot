@@ -305,6 +305,8 @@ class EquipmentInventoryTests(unittest.TestCase):
 
         self.assertEqual(summary["total_generated_alarm_count"], 0)
         self.assertEqual(summary["active_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_unacknowledged_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_acknowledged_generated_alarm_count"], 0)
         self.assertEqual(summary["pending_generated_alarm_count"], 0)
         self.assertEqual(summary["active_critical_generated_alarm_count"], 0)
         self.assertEqual(summary["active_warning_generated_alarm_count"], 0)
@@ -328,6 +330,7 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("active_generated_alarm_count", dashboard_html)
         self.assertIn("pending_generated_alarm_count", dashboard_html)
         self.assertIn("Generated Alarms", dashboard_html)
+        self.assertIn("Acknowledged", dashboard_html)
         self.assertNotIn("activeCriticalAlarms", dashboard_html)
         self.assertNotIn("active_critical_alarms", dashboard_html)
         self.assertNotIn("totalAlarmRecords", dashboard_html)
@@ -1494,6 +1497,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertIsNotNone(table_exists)
         self.assertEqual(generated_alarm_count, 0)
         self.assertIn("pending_started_at", generated_alarm_columns)
+        self.assertIn("acknowledged", generated_alarm_columns)
+        self.assertIn("acknowledged_at", generated_alarm_columns)
+        self.assertIn("acknowledged_by", generated_alarm_columns)
 
     def test_evaluate_creates_active_alarm_for_triggered_rule(self):
         temp_db_path = self.load_temp_sample_database()
@@ -1508,6 +1514,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(generated_alarms[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
         self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
         self.assertEqual(generated_alarms[0]["triggered_value"], "245")
+        self.assertFalse(generated_alarms[0]["acknowledged"])
+        self.assertEqual(generated_alarms[0]["acknowledged_at"], "")
+        self.assertEqual(generated_alarms[0]["acknowledged_by"], "")
 
     def test_rule_with_delay_creates_pending_alarm_when_first_triggered(self):
         temp_db_path = self.load_temp_sample_database()
@@ -1930,6 +1939,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(alarm["equipment_id"], "UPS-A")
         self.assertEqual(alarm["equipment_type"], "UPS")
         self.assertEqual(alarm["unit"], "kW")
+        self.assertFalse(alarm["acknowledged"])
+        self.assertEqual(alarm["acknowledged_at"], "")
+        self.assertEqual(alarm["acknowledged_by"], "")
 
     def test_generated_alarm_evaluate_endpoint_creates_active_alarm(self):
         temp_db_path = self.load_temp_sample_database()
@@ -1958,6 +1970,148 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(len(generated_alarms), 1)
         self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
 
+    def test_acknowledge_generated_alarm_endpoint_sets_acknowledgement_fields(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        alarm_id = backend_summary.get_generated_alarms(temp_db_path)[0]["id"]
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "acknowledge_generated_alarm",
+                lambda alarm_id, acknowledged_by="local-operator": (
+                    backend_summary.acknowledge_generated_alarm(
+                        alarm_id,
+                        acknowledged_by=acknowledged_by,
+                        db_path=temp_db_path,
+                    )
+                ),
+            ),
+            mock.patch.object(
+                backend_summary,
+                "current_timestamp",
+                return_value="2026-05-01 13:00:00",
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                f"/generated-alarms/{alarm_id}/acknowledge",
+                method="POST",
+                body={"acknowledged_by": "operator-a"},
+            )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(data["generated_alarm"]["acknowledged"])
+        self.assertEqual(data["generated_alarm"]["acknowledged_at"], "2026-05-01 13:00:00")
+        self.assertEqual(data["generated_alarm"]["acknowledged_by"], "operator-a")
+        self.assertEqual(data["generated_alarm"]["state"], "ACTIVE")
+
+    def test_acknowledge_generated_alarm_endpoint_returns_error_for_invalid_id(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "acknowledge_generated_alarm",
+                lambda alarm_id, acknowledged_by="local-operator": (
+                    backend_summary.acknowledge_generated_alarm(
+                        alarm_id,
+                        acknowledged_by=acknowledged_by,
+                        db_path=temp_db_path,
+                    )
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/generated-alarms/not-a-real-alarm/acknowledge",
+                method="POST",
+            )
+
+        self.assertEqual(status, 404)
+        self.assertIn("Generated alarm not found", data["error"])
+
+    def test_acknowledged_active_alarm_can_later_clear_normally(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        alarm_id = backend_summary.get_generated_alarms(temp_db_path)[0]["id"]
+        backend_summary.acknowledge_generated_alarm(
+            alarm_id,
+            acknowledged_by="operator-a",
+            db_path=temp_db_path,
+        )
+
+        self.clear_ups_high_load_rule(temp_db_path)
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarm = backend_summary.get_generated_alarms(temp_db_path)[0]
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(generated_alarm["state"], "CLEARED")
+        self.assertTrue(generated_alarm["acknowledged"])
+        self.assertEqual(generated_alarm["acknowledged_by"], "operator-a")
+
+    def test_new_generated_alarm_after_cleared_acknowledged_alarm_starts_unacknowledged(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        alarm_id = backend_summary.get_generated_alarms(temp_db_path)[0]["id"]
+        backend_summary.acknowledge_generated_alarm(
+            alarm_id,
+            acknowledged_by="operator-a",
+            db_path=temp_db_path,
+        )
+
+        self.clear_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        self.trigger_ups_high_load_rule(temp_db_path)
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        active_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["state"] == "ACTIVE"
+        ][0]
+        cleared_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["state"] == "CLEARED"
+        ][0]
+
+        self.assertEqual(summary["created_count"], 1)
+        self.assertEqual(len(generated_alarms), 2)
+        self.assertFalse(active_alarm["acknowledged"])
+        self.assertEqual(active_alarm["acknowledged_at"], "")
+        self.assertEqual(active_alarm["acknowledged_by"], "")
+        self.assertTrue(cleared_alarm["acknowledged"])
+
+    def test_summary_counts_acknowledged_and_unacknowledged_active_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        self.set_current_point_value(temp_db_path, "GEN-1_FUEL_LEVEL", "30")
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        ups_alarm = [
+            alarm
+            for alarm in generated_alarms
+            if alarm["rule_id"] == "RULE-UPS-A-HIGH-LOAD"
+        ][0]
+        backend_summary.acknowledge_generated_alarm(
+            ups_alarm["id"],
+            acknowledged_by="operator-a",
+            db_path=temp_db_path,
+        )
+
+        summary = backend_summary.get_alarm_summary(temp_db_path)
+
+        self.assertEqual(summary["active_generated_alarm_count"], 2)
+        self.assertEqual(summary["active_acknowledged_generated_alarm_count"], 1)
+        self.assertEqual(summary["active_unacknowledged_generated_alarm_count"], 1)
+
     def test_summary_endpoint_returns_generated_alarm_counts(self):
         temp_db_path = self.load_temp_sample_database()
         self.trigger_ups_high_load_rule(temp_db_path)
@@ -1976,6 +2130,8 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(data["total_generated_alarm_count"], 1)
         self.assertEqual(data["active_generated_alarm_count"], 1)
+        self.assertEqual(data["active_unacknowledged_generated_alarm_count"], 1)
+        self.assertEqual(data["active_acknowledged_generated_alarm_count"], 0)
         self.assertEqual(data["pending_generated_alarm_count"], 0)
         self.assertEqual(data["active_warning_generated_alarm_count"], 1)
         self.assertEqual(data["active_critical_generated_alarm_count"], 0)
