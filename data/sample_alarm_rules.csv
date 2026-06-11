@@ -1,0 +1,8 @@
+id,point_id,rule_name,rule_type,operator,threshold_value,clear_value,severity,alarm_message,enabled,delay_seconds,created_at,updated_at
+RULE-CHW-P-1-FAILED-START,CHW-P-1_RUN_STATUS,Pump failed to start,boolean_state,==,false,true,Critical,CHW-P-1 failed to start when commanded,1,60,2026-05-01 00:00,2026-05-01 00:00
+RULE-CHW-P-1-LOW-DISCHARGE-PRESSURE,CHW-P-1_DISCHARGE_PRESSURE,Pump low discharge pressure,analog_limit,<,35,42,Warning,CHW-P-1 discharge pressure is below expected operating range,1,120,2026-05-01 00:00,2026-05-01 00:00
+RULE-UPS-A-HIGH-LOAD,UPS-A_OUTPUT_KW,UPS high load,analog_limit,>,240,220,Warning,UPS-A load is above the preferred operating range,1,300,2026-05-01 00:00,2026-05-01 00:00
+RULE-UPS-A-ON-BATTERY,UPS-A_BATTERY_STATUS,UPS on battery,enum_match,==,On Battery,Normal,Critical,UPS-A is supporting load from battery,1,15,2026-05-01 00:00,2026-05-01 00:00
+RULE-ATS-1-NORMAL-SOURCE-UNAVAILABLE,ATS-1_NORMAL_SOURCE_AVAILABLE,ATS normal source unavailable,boolean_state,==,false,true,Critical,ATS-1 normal source is unavailable,1,10,2026-05-01 00:00,2026-05-01 00:00
+RULE-CRAC-2-HIGH-SUPPLY-AIR-TEMP,CRAC-2_SUPPLY_AIR_TEMP,CRAC high supply air temperature,analog_limit,>,68,64,Warning,CRAC-2 supply air temperature is above the data hall cooling target,1,180,2026-05-01 00:00,2026-05-01 00:00
+RULE-GEN-1-LOW-FUEL,GEN-1_FUEL_LEVEL,Generator low fuel,analog_limit,<,40,50,Warning,GEN-1 fuel level is below standby readiness target,1,300,2026-05-01 00:00,2026-05-01 00:00

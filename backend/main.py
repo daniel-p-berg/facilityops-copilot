@@ -7,8 +7,10 @@ from fastapi.responses import JSONResponse
 from backend.summary import DATABASE_DISPLAY_PATH
 from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
+from backend.summary import get_alarm_rule_catalog
 from backend.summary import get_alarm_summary
 from backend.summary import get_equipment_inventory
+from backend.summary import get_point_dictionary
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +48,24 @@ def read_equipment():
         return error_response
 
     return {"equipment": get_equipment_inventory()}
+
+
+@app.get("/points")
+def read_points():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"points": get_point_dictionary()}
+
+
+@app.get("/alarm-rules")
+def read_alarm_rules():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"alarm_rules": get_alarm_rule_catalog()}
 
 
 @app.get("/dashboard")

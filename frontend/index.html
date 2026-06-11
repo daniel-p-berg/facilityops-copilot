@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FacilityOps Alarm Summary</title>
+  <title>FacilityOps Workbench</title>
   <style>
     :root {
       color-scheme: light;
@@ -30,7 +30,7 @@
     }
 
     main {
-      width: min(1120px, calc(100% - 32px));
+      width: min(1280px, calc(100% - 32px));
       margin: 0 auto;
       padding: 28px 0 40px;
     }
@@ -185,6 +185,49 @@
       margin-top: 2px;
     }
 
+    .catalog-section {
+      margin-bottom: 16px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .severity-critical {
+      color: var(--critical);
+      font-weight: 700;
+    }
+
+    .severity-warning {
+      color: var(--high);
+      font-weight: 700;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -207,10 +250,10 @@
   <main>
     <header>
       <div>
-        <h1>FacilityOps Alarm Summary</h1>
-        <div class="note">SQLite-backed BMS/EPMS alarm overview</div>
+        <h1>FacilityOps Workbench</h1>
+        <div class="note">SQLite-backed BMS/EPMS operating context</div>
       </div>
-      <div id="status" class="status">Loading alarm summary...</div>
+      <div id="status" class="status">Loading workbench...</div>
     </header>
 
     <div id="error" class="error" hidden></div>
@@ -240,6 +283,48 @@
         <ul id="equipmentCounts" class="count-list"></ul>
       </div>
     </section>
+
+    <section class="panel catalog-section">
+      <h2>Point Dictionary</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Equipment</th>
+              <th>Location</th>
+              <th>Point</th>
+              <th>Type</th>
+              <th>Data</th>
+              <th>Normal</th>
+              <th>Source</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="pointRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
+      <h2>Alarm Rule Catalog</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Equipment</th>
+              <th>Point</th>
+              <th>Rule</th>
+              <th>Type</th>
+              <th>Condition</th>
+              <th>Severity</th>
+              <th>Delay</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="alarmRuleRows"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -250,11 +335,51 @@
     const sourceCountsEl = document.getElementById("sourceCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const activeCriticalAlarmsEl = document.getElementById("activeCriticalAlarms");
+    const pointRowsEl = document.getElementById("pointRows");
+    const alarmRuleRowsEl = document.getElementById("alarmRuleRows");
 
     function setError(message) {
       errorEl.textContent = message;
       errorEl.hidden = false;
-      statusEl.textContent = "Unable to load summary";
+      statusEl.textContent = "Unable to load workbench";
+    }
+
+    function hasValue(value) {
+      if (value === null || value === undefined) {
+        return false;
+      }
+      if (typeof value === "number" && Number.isNaN(value)) {
+        return false;
+      }
+      if (typeof value === "string") {
+        const normalizedValue = value.trim().toLowerCase();
+        return !["", "null", "none", "undefined", "nan"].includes(normalizedValue);
+      }
+
+      return true;
+    }
+
+    function displayValue(value, fallback = "N/A") {
+      return hasValue(value) ? value : fallback;
+    }
+
+    function appendCell(row, value, className = "") {
+      const cell = document.createElement("td");
+      cell.textContent = displayValue(value);
+      if (className) {
+        cell.className = className;
+      }
+      row.appendChild(cell);
+    }
+
+    function renderEmptyRow(container, columnCount, message) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = columnCount;
+      cell.className = "note";
+      cell.textContent = message;
+      row.appendChild(cell);
+      container.appendChild(row);
     }
 
     function renderCounts(container, counts) {
@@ -304,8 +429,14 @@
         title.className = "alarm-title critical";
         detail.className = "alarm-detail";
 
-        title.textContent = `${alarm.equipment} | ${alarm.alarm}`;
-        detail.textContent = `${alarm.location} | ${alarm.criticality} | ${alarm.source_system}`;
+        title.textContent = [alarm.equipment, alarm.alarm]
+          .filter(hasValue)
+          .map((value) => displayValue(value))
+          .join(" | ");
+        detail.textContent = [alarm.location, alarm.criticality, alarm.source_system]
+          .filter(hasValue)
+          .map((value) => displayValue(value))
+          .join(" | ");
 
         main.append(title, detail);
         row.appendChild(main);
@@ -313,31 +444,128 @@
       });
     }
 
-    async function loadSummary() {
-      statusEl.textContent = "Loading alarm summary...";
+    function formatNormalRange(point) {
+      const unit = point.unit ? ` ${point.unit}` : "";
+
+      if (hasValue(point.normal_min) && hasValue(point.normal_max)) {
+        return `${point.normal_min} to ${point.normal_max}${unit}`;
+      }
+      if (hasValue(point.normal_min)) {
+        return `Min ${point.normal_min}${unit}`;
+      }
+      if (hasValue(point.normal_max)) {
+        return `Max ${point.normal_max}${unit}`;
+      }
+
+      return "N/A";
+    }
+
+    function renderPoints(points) {
+      pointRowsEl.innerHTML = "";
+
+      if (points.length === 0) {
+        renderEmptyRow(pointRowsEl, 8, "No point records found.");
+        return;
+      }
+
+      points.forEach((point) => {
+        const row = document.createElement("tr");
+        appendCell(row, point.equipment_id);
+        appendCell(row, point.location);
+        appendCell(row, point.display_name);
+        appendCell(row, point.point_type);
+        appendCell(row, point.data_type);
+        appendCell(row, formatNormalRange(point));
+        appendCell(row, point.source_system);
+        appendCell(row, point.description);
+        pointRowsEl.appendChild(row);
+      });
+    }
+
+    function formatRuleCondition(rule) {
+      const conditionParts = [
+        displayValue(rule.operator, ""),
+        displayValue(rule.threshold_value),
+      ].filter(hasValue);
+      const conditionText = conditionParts.length > 0
+        ? conditionParts.join(" ")
+        : "N/A";
+      const clearText = hasValue(rule.clear_value)
+        ? `; clears at ${displayValue(rule.clear_value)}`
+        : "";
+
+      return `${conditionText}${clearText}`;
+    }
+
+    function renderAlarmRules(rules) {
+      alarmRuleRowsEl.innerHTML = "";
+
+      if (rules.length === 0) {
+        renderEmptyRow(alarmRuleRowsEl, 8, "No alarm rule records found.");
+        return;
+      }
+
+      rules.forEach((rule) => {
+        const row = document.createElement("tr");
+        const severityClass = rule.severity === "Critical"
+          ? "severity-critical"
+          : rule.severity === "Warning"
+            ? "severity-warning"
+            : "";
+
+        appendCell(row, rule.equipment_id);
+        appendCell(row, rule.display_name);
+        appendCell(row, rule.rule_name);
+        appendCell(row, rule.rule_type);
+        appendCell(row, formatRuleCondition(rule));
+        appendCell(row, rule.severity, severityClass);
+        appendCell(row, hasValue(rule.delay_seconds) ? `${rule.delay_seconds}s` : null);
+        appendCell(row, rule.alarm_message);
+        alarmRuleRowsEl.appendChild(row);
+      });
+    }
+
+    async function readJsonResponse(response, label) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        const instruction = data.run_first ? ` Run this first: ${data.run_first}` : "";
+        throw new Error(`${data.error || `Unable to load ${label}.`}${instruction}`);
+      }
+
+      return data;
+    }
+
+    async function loadWorkbench() {
+      statusEl.textContent = "Loading workbench...";
       errorEl.hidden = true;
 
       try {
-        const response = await fetch("/summary");
-        const data = await response.json();
+        const responses = await Promise.all([
+          fetch("/summary"),
+          fetch("/points"),
+          fetch("/alarm-rules"),
+        ]);
+        const [summaryData, pointsData, alarmRulesData] = await Promise.all([
+          readJsonResponse(responses[0], "alarm summary"),
+          readJsonResponse(responses[1], "point dictionary"),
+          readJsonResponse(responses[2], "alarm rule catalog"),
+        ]);
 
-        if (!response.ok) {
-          const instruction = data.run_first ? ` Run this first: ${data.run_first}` : "";
-          throw new Error(`${data.error || "Unable to load alarm summary."}${instruction}`);
-        }
-
-        totalAlarmRecordsEl.textContent = data.total_alarm_records;
-        renderCounts(severityCountsEl, data.severity_counts);
-        renderCounts(sourceCountsEl, data.source_counts);
-        renderCounts(equipmentCountsEl, data.equipment_counts);
-        renderActiveCriticalAlarms(data.active_critical_alarms);
-        statusEl.textContent = "Summary loaded from /summary";
+        totalAlarmRecordsEl.textContent = summaryData.total_alarm_records;
+        renderCounts(severityCountsEl, summaryData.severity_counts);
+        renderCounts(sourceCountsEl, summaryData.source_counts);
+        renderCounts(equipmentCountsEl, summaryData.equipment_counts);
+        renderActiveCriticalAlarms(summaryData.active_critical_alarms);
+        renderPoints(pointsData.points);
+        renderAlarmRules(alarmRulesData.alarm_rules);
+        statusEl.textContent = "Workbench loaded from local API";
       } catch (error) {
         setError(error.message);
       }
     }
 
-    loadSummary();
+    loadWorkbench();
   </script>
 </body>
 </html>

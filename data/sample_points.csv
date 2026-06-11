@@ -1,0 +1,18 @@
+id,equipment_id,point_name,display_name,point_type,data_type,unit,normal_min,normal_max,source_system,description,created_at,updated_at
+CHW-P-1_RUN_STATUS,CHW-P-1,RUN_STATUS,CHW-P-1 Run Status,status,boolean,,,,BMS,Indicates whether the chilled water pump is running,2026-05-01 00:00,2026-05-01 00:00
+CHW-P-1_SPEED_COMMAND,CHW-P-1,SPEED_COMMAND,CHW-P-1 Speed Command,command,analog,%,0,100,BMS,Commanded pump speed from the BMS,2026-05-01 00:00,2026-05-01 00:00
+CHW-P-1_SPEED_FEEDBACK,CHW-P-1,SPEED_FEEDBACK,CHW-P-1 Speed Feedback,sensor,analog,%,0,100,BMS,Measured pump speed feedback,2026-05-01 00:00,2026-05-01 00:00
+CHW-P-1_DISCHARGE_PRESSURE,CHW-P-1,DISCHARGE_PRESSURE,CHW-P-1 Discharge Pressure,sensor,analog,psi,45,80,BMS,Chilled water pump discharge pressure,2026-05-01 00:00,2026-05-01 00:00
+UPS-A_OUTPUT_KW,UPS-A,OUTPUT_KW,UPS-A Output kW,sensor,analog,kW,0,225,EPMS,UPS output load in kilowatts,2026-05-01 00:00,2026-05-01 00:00
+UPS-A_BATTERY_STATUS,UPS-A,BATTERY_STATUS,UPS-A Battery Status,status,enum,,,,EPMS,UPS battery operating state,2026-05-01 00:00,2026-05-01 00:00
+ATS-1_NORMAL_SOURCE_AVAILABLE,ATS-1,NORMAL_SOURCE_AVAILABLE,ATS-1 Normal Source Available,status,boolean,,,,EPMS,Normal utility source availability at ATS-1,2026-05-01 00:00,2026-05-01 00:00
+ATS-1_EMERGENCY_SOURCE_AVAILABLE,ATS-1,EMERGENCY_SOURCE_AVAILABLE,ATS-1 Emergency Source Available,status,boolean,,,,EPMS,Emergency generator source availability at ATS-1,2026-05-01 00:00,2026-05-01 00:00
+CRAC-2_SUPPLY_AIR_TEMP,CRAC-2,SUPPLY_AIR_TEMP,CRAC-2 Supply Air Temperature,sensor,analog,deg F,52,65,BMS,Supply air temperature leaving CRAC-2,2026-05-01 00:00,2026-05-01 00:00
+CRAC-2_RETURN_AIR_TEMP,CRAC-2,RETURN_AIR_TEMP,CRAC-2 Return Air Temperature,sensor,analog,deg F,68,85,BMS,Return air temperature entering CRAC-2,2026-05-01 00:00,2026-05-01 00:00
+GEN-1_RUN_STATUS,GEN-1,RUN_STATUS,GEN-1 Run Status,status,boolean,,,,EPMS,Generator running indication,2026-05-01 00:00,2026-05-01 00:00
+GEN-1_FUEL_LEVEL,GEN-1,FUEL_LEVEL,GEN-1 Fuel Level,sensor,analog,%,50,100,EPMS,Generator day tank fuel level,2026-05-01 00:00,2026-05-01 00:00
+PDU-1_LOAD_KW,PDU-1,LOAD_KW,PDU-1 Load kW,sensor,analog,kW,0,180,EPMS,Power distribution unit load in kilowatts,2026-05-01 00:00,2026-05-01 00:00
+AHU-1_SUPPLY_AIR_TEMP,AHU-1,SUPPLY_AIR_TEMP,AHU-1 Supply Air Temperature,sensor,analog,deg F,55,68,BMS,Supply air temperature from AHU-1,2026-05-01 00:00,2026-05-01 00:00
+TEMP-DH-A-1_SPACE_TEMP,TEMP-DH-A-1,SPACE_TEMP,Data Hall A Space Temperature,sensor,analog,deg F,68,80,BMS,Cold aisle temperature in Data Hall A,2026-05-01 00:00,2026-05-01 00:00
+HUM-DH-A-1_RELATIVE_HUMIDITY,HUM-DH-A-1,RELATIVE_HUMIDITY,Data Hall A Relative Humidity,sensor,analog,%,40,60,BMS,Relative humidity in Data Hall A,2026-05-01 00:00,2026-05-01 00:00
+MTR-UTILITY-1_VOLTAGE_AB,MTR-UTILITY-1,VOLTAGE_AB,Utility Voltage A-B,sensor,analog,V,460,500,EPMS,Incoming utility phase A to B voltage,2026-05-01 00:00,2026-05-01 00:00

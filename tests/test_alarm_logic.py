@@ -1,12 +1,16 @@
+import asyncio
 import csv
+import json
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from analysis import analyze_alarms
 from analysis import generate_db_briefing
 from analysis import load_alarm_db
+from backend import main as backend_main
 from backend import summary as backend_summary
 
 
@@ -22,6 +26,91 @@ REQUIRED_EQUIPMENT = {
     "HUM-DH-A-1",
     "MTR-UTILITY-1",
 }
+
+REQUIRED_POINTS = {
+    "CHW-P-1_RUN_STATUS",
+    "CHW-P-1_SPEED_COMMAND",
+    "CHW-P-1_SPEED_FEEDBACK",
+    "CHW-P-1_DISCHARGE_PRESSURE",
+    "UPS-A_OUTPUT_KW",
+    "UPS-A_BATTERY_STATUS",
+    "ATS-1_NORMAL_SOURCE_AVAILABLE",
+    "CRAC-2_SUPPLY_AIR_TEMP",
+    "CRAC-2_RETURN_AIR_TEMP",
+    "GEN-1_RUN_STATUS",
+    "GEN-1_FUEL_LEVEL",
+}
+
+REQUIRED_ALARM_RULES = {
+    "RULE-CHW-P-1-FAILED-START",
+    "RULE-CHW-P-1-LOW-DISCHARGE-PRESSURE",
+    "RULE-UPS-A-HIGH-LOAD",
+    "RULE-UPS-A-ON-BATTERY",
+    "RULE-ATS-1-NORMAL-SOURCE-UNAVAILABLE",
+    "RULE-CRAC-2-HIGH-SUPPLY-AIR-TEMP",
+    "RULE-GEN-1-LOW-FUEL",
+}
+
+
+def get_json_from_asgi_app(app, path):
+    async def make_request():
+        messages = []
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if request_sent:
+                return {"type": "http.disconnect"}
+
+            request_sent = True
+            return {
+                "type": "http.request",
+                "body": b"",
+                "more_body": False,
+            }
+
+        async def send(message):
+            messages.append(message)
+
+        await app(
+            {
+                "type": "http",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "method": "GET",
+                "scheme": "http",
+                "path": path,
+                "raw_path": path.encode("utf-8"),
+                "query_string": b"",
+                "headers": [],
+                "client": ("testclient", 50000),
+                "server": ("testserver", 80),
+                "root_path": "",
+            },
+            receive,
+            send,
+        )
+
+        response_start = next(
+            message
+            for message in messages
+            if message["type"] == "http.response.start"
+        )
+        response_body = b"".join(
+            message.get("body", b"")
+            for message in messages
+            if message["type"] == "http.response.body"
+        )
+        return response_start["status"], json.loads(response_body.decode("utf-8"))
+
+    return asyncio.run(make_request())
+
+
+def write_csv_rows(csv_path, columns, rows):
+    with open(csv_path, mode="w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 class AlarmSummaryTests(unittest.TestCase):
@@ -193,6 +282,265 @@ class EquipmentInventoryTests(unittest.TestCase):
         self.assertEqual(alarms_by_equipment["GEN-1"]["location"], "Generator Yard")
         self.assertEqual(alarms_by_equipment["ATS-1"]["criticality"], "Critical")
         self.assertEqual(alarms_by_equipment["UPS-A"]["source_system"], "EPMS")
+
+
+class PointAndAlarmRuleCatalogTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_counts = load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path, load_counts
+
+    def test_sample_points_csv_exists_with_required_records(self):
+        self.assertTrue(load_alarm_db.POINT_FILE.exists())
+
+        with open(load_alarm_db.POINT_FILE, mode="r", encoding="utf-8", newline="") as file:
+            reader = csv.DictReader(file)
+            point_ids = {
+                row["id"]
+                for row in reader
+            }
+
+        self.assertTrue(REQUIRED_POINTS.issubset(point_ids))
+
+    def test_sample_alarm_rules_csv_exists_with_required_records(self):
+        self.assertTrue(load_alarm_db.ALARM_RULE_FILE.exists())
+
+        with open(load_alarm_db.ALARM_RULE_FILE, mode="r", encoding="utf-8", newline="") as file:
+            reader = csv.DictReader(file)
+            rule_ids = {
+                row["id"]
+                for row in reader
+            }
+
+        self.assertTrue(REQUIRED_ALARM_RULES.issubset(rule_ids))
+
+    def test_sqlite_loader_creates_and_loads_points_table(self):
+        temp_db_path, load_counts = self.load_temp_sample_database()
+
+        self.assertEqual(load_counts["point_records"], 17)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'points'
+                """
+            ).fetchone()
+            point_count = connection.execute(
+                "SELECT COUNT(*) FROM points"
+            ).fetchone()[0]
+            point_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT id FROM points"
+                )
+            }
+
+        self.assertIsNotNone(table_exists)
+        self.assertEqual(point_count, 17)
+        self.assertTrue(REQUIRED_POINTS.issubset(point_ids))
+
+    def test_sqlite_loader_creates_and_loads_alarm_rules_table(self):
+        temp_db_path, load_counts = self.load_temp_sample_database()
+
+        self.assertEqual(load_counts["alarm_rule_records"], 7)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'alarm_rules'
+                """
+            ).fetchone()
+            alarm_rule_count = connection.execute(
+                "SELECT COUNT(*) FROM alarm_rules"
+            ).fetchone()[0]
+            rule_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT id FROM alarm_rules"
+                )
+            }
+
+        self.assertIsNotNone(table_exists)
+        self.assertEqual(alarm_rule_count, 7)
+        self.assertTrue(REQUIRED_ALARM_RULES.issubset(rule_ids))
+
+    def test_backend_point_dictionary_returns_equipment_context(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        points = backend_summary.get_point_dictionary(temp_db_path)
+        points_by_id = {
+            point["id"]: point
+            for point in points
+        }
+
+        self.assertEqual(len(points), 17)
+        self.assertEqual(points_by_id["UPS-A_OUTPUT_KW"]["equipment_id"], "UPS-A")
+        self.assertEqual(points_by_id["UPS-A_OUTPUT_KW"]["location"], "Electrical Room A")
+        self.assertEqual(points_by_id["CRAC-2_SUPPLY_AIR_TEMP"]["source_system"], "BMS")
+
+    def test_backend_alarm_rule_catalog_returns_point_context(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        alarm_rules = backend_summary.get_alarm_rule_catalog(temp_db_path)
+        rules_by_id = {
+            rule["id"]: rule
+            for rule in alarm_rules
+        }
+
+        self.assertEqual(len(alarm_rules), 7)
+        self.assertEqual(
+            rules_by_id["RULE-UPS-A-ON-BATTERY"]["point_name"],
+            "BATTERY_STATUS",
+        )
+        self.assertEqual(
+            rules_by_id["RULE-ATS-1-NORMAL-SOURCE-UNAVAILABLE"]["equipment_id"],
+            "ATS-1",
+        )
+        self.assertTrue(rules_by_id["RULE-GEN-1-LOW-FUEL"]["enabled"])
+
+    def test_loader_normalizes_optional_catalog_values(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_path = Path(temp_dir.name)
+        temp_db_path = temp_path / "facilityops_test.sqlite3"
+        point_csv_path = temp_path / "points.csv"
+        alarm_rule_csv_path = temp_path / "alarm_rules.csv"
+
+        write_csv_rows(
+            point_csv_path,
+            load_alarm_db.POINT_COLUMNS,
+            [
+                {
+                    "id": "TEST_OPTIONAL_POINT",
+                    "equipment_id": "UPS-A",
+                    "point_name": "OPTIONAL_POINT",
+                    "display_name": "Optional Point",
+                    "point_type": "sensor",
+                    "data_type": "analog",
+                    "unit": "null",
+                    "normal_min": "",
+                    "normal_max": "n/a",
+                    "source_system": "SIMULATED",
+                    "description": "Optional field test point",
+                    "created_at": "2026-05-01 00:00",
+                    "updated_at": "2026-05-01 00:00",
+                }
+            ],
+        )
+        write_csv_rows(
+            alarm_rule_csv_path,
+            load_alarm_db.ALARM_RULE_COLUMNS,
+            [
+                {
+                    "id": "RULE-TEST-OPTIONAL",
+                    "point_id": "TEST_OPTIONAL_POINT",
+                    "rule_name": "Optional field test rule",
+                    "rule_type": "analog_limit",
+                    "operator": ">",
+                    "threshold_value": "",
+                    "clear_value": "null",
+                    "severity": "Info",
+                    "alarm_message": "Optional field test alarm",
+                    "enabled": "false",
+                    "delay_seconds": "0",
+                    "created_at": "2026-05-01 00:00",
+                    "updated_at": "2026-05-01 00:00",
+                }
+            ],
+        )
+
+        load_alarm_db.load_equipment_to_sqlite(db_path=temp_db_path)
+        load_alarm_db.load_points_to_sqlite(point_csv_path, temp_db_path)
+        load_alarm_db.load_alarm_rules_to_sqlite(alarm_rule_csv_path, temp_db_path)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            point_row = connection.execute(
+                """
+                SELECT unit, normal_min, normal_max
+                FROM points
+                WHERE id = 'TEST_OPTIONAL_POINT'
+                """
+            ).fetchone()
+            alarm_rule_row = connection.execute(
+                """
+                SELECT threshold_value, clear_value, enabled
+                FROM alarm_rules
+                WHERE id = 'RULE-TEST-OPTIONAL'
+                """
+            ).fetchone()
+
+        self.assertEqual(point_row, ("", None, None))
+        self.assertEqual(alarm_rule_row, ("", "", 0))
+
+    def test_points_endpoint_returns_data(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_point_dictionary",
+                lambda: backend_summary.get_point_dictionary(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(backend_main.app, "/points")
+
+        self.assertEqual(status, 200)
+        self.assertIn("points", data)
+        self.assertEqual(len(data["points"]), 17)
+
+        points_by_id = {
+            point["id"]: point
+            for point in data["points"]
+        }
+        self.assertEqual(
+            points_by_id["CHW-P-1_DISCHARGE_PRESSURE"]["equipment_id"],
+            "CHW-P-1",
+        )
+        self.assertEqual(
+            points_by_id["CHW-P-1_DISCHARGE_PRESSURE"]["location"],
+            "Central Plant",
+        )
+
+    def test_alarm_rules_endpoint_returns_data(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_alarm_rule_catalog",
+                lambda: backend_summary.get_alarm_rule_catalog(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(backend_main.app, "/alarm-rules")
+
+        self.assertEqual(status, 200)
+        self.assertIn("alarm_rules", data)
+        self.assertEqual(len(data["alarm_rules"]), 7)
+
+        alarm_rules_by_id = {
+            rule["id"]: rule
+            for rule in data["alarm_rules"]
+        }
+        self.assertEqual(
+            alarm_rules_by_id["RULE-UPS-A-HIGH-LOAD"]["point_id"],
+            "UPS-A_OUTPUT_KW",
+        )
+        self.assertEqual(
+            alarm_rules_by_id["RULE-UPS-A-HIGH-LOAD"]["equipment_id"],
+            "UPS-A",
+        )
 
 
 if __name__ == "__main__":

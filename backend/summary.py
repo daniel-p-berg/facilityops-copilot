@@ -121,3 +121,135 @@ def get_equipment_inventory(db_path=DATABASE_FILE):
                 notes,
             ) in cursor.fetchall()
         ]
+
+
+def get_point_dictionary(db_path=DATABASE_FILE):
+    """Return point catalog records with equipment context."""
+    with sqlite3.connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            SELECT
+                points.id,
+                points.equipment_id,
+                COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
+                COALESCE(equipment.location, 'Unknown') AS location,
+                COALESCE(equipment.criticality, 'Unknown') AS criticality,
+                points.point_name,
+                points.display_name,
+                points.point_type,
+                points.data_type,
+                points.unit,
+                points.normal_min,
+                points.normal_max,
+                points.source_system,
+                points.description
+            FROM points
+            LEFT JOIN equipment
+                ON points.equipment_id = equipment.equipment
+            ORDER BY points.equipment_id ASC, points.point_name ASC
+            """
+        )
+        return [
+            {
+                "id": point_id,
+                "equipment_id": equipment_id,
+                "equipment_type": equipment_type,
+                "location": location,
+                "criticality": criticality,
+                "point_name": point_name,
+                "display_name": display_name,
+                "point_type": point_type,
+                "data_type": data_type,
+                "unit": unit,
+                "normal_min": normal_min,
+                "normal_max": normal_max,
+                "source_system": source_system,
+                "description": description,
+            }
+            for (
+                point_id,
+                equipment_id,
+                equipment_type,
+                location,
+                criticality,
+                point_name,
+                display_name,
+                point_type,
+                data_type,
+                unit,
+                normal_min,
+                normal_max,
+                source_system,
+                description,
+            ) in cursor.fetchall()
+        ]
+
+
+def get_alarm_rule_catalog(db_path=DATABASE_FILE):
+    """Return alarm rule catalog records with point and equipment context."""
+    with sqlite3.connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            SELECT
+                alarm_rules.id,
+                alarm_rules.point_id,
+                points.point_name,
+                points.display_name,
+                points.equipment_id,
+                COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
+                COALESCE(equipment.location, 'Unknown') AS location,
+                alarm_rules.rule_name,
+                alarm_rules.rule_type,
+                alarm_rules.operator,
+                alarm_rules.threshold_value,
+                alarm_rules.clear_value,
+                alarm_rules.severity,
+                alarm_rules.alarm_message,
+                alarm_rules.enabled,
+                alarm_rules.delay_seconds
+            FROM alarm_rules
+            LEFT JOIN points
+                ON alarm_rules.point_id = points.id
+            LEFT JOIN equipment
+                ON points.equipment_id = equipment.equipment
+            ORDER BY points.equipment_id ASC, points.point_name ASC, alarm_rules.rule_name ASC
+            """
+        )
+        return [
+            {
+                "id": rule_id,
+                "point_id": point_id,
+                "point_name": point_name,
+                "display_name": display_name,
+                "equipment_id": equipment_id,
+                "equipment_type": equipment_type,
+                "location": location,
+                "rule_name": rule_name,
+                "rule_type": rule_type,
+                "operator": operator,
+                "threshold_value": threshold_value,
+                "clear_value": clear_value,
+                "severity": severity,
+                "alarm_message": alarm_message,
+                "enabled": bool(enabled),
+                "delay_seconds": delay_seconds,
+            }
+            for (
+                rule_id,
+                point_id,
+                point_name,
+                display_name,
+                equipment_id,
+                equipment_type,
+                location,
+                rule_name,
+                rule_type,
+                operator,
+                threshold_value,
+                clear_value,
+                severity,
+                alarm_message,
+                enabled,
+                delay_seconds,
+            ) in cursor.fetchall()
+        ]

@@ -2,13 +2,13 @@
 
 FacilityOps Copilot is a simulated BMS/EPMS monitoring stack for mission-critical facility operations.
 
-The project uses sample building automation and electrical power monitoring data to demonstrate how alarms, equipment records, and trend values can be stored, analyzed, and summarized into an operations briefing.
+The project uses sample building automation and electrical power monitoring data to demonstrate how alarms, equipment records, point catalogs, and alarm rule catalogs can be stored, analyzed, and summarized into an operations briefing.
 
 ## Project Goals
 
 - Practice Git and GitHub workflow
 - Build a simple full-stack application over time
-- Model realistic BMS/EPMS alarm and trend data
+- Model realistic BMS/EPMS alarm, equipment, point, and alarm rule data
 - Create a local database for operational records
 - Expose summary data through a backend API
 - Build a simple dashboard for operations review
@@ -19,15 +19,15 @@ The project uses sample building automation and electrical power monitoring data
 
 The first version uses simulated data only. It does not connect to live BMS, EPMS, Niagara, Schneider, BACnet, Modbus, or customer systems.
 
-## Local SQLite Alarm Database
+## Local SQLite Facility Database
 
-The sample alarm CSV can be loaded into a local SQLite database:
+The sample alarm, equipment, point, and alarm rule CSV files can be loaded into a local SQLite database:
 
 ```bash
 python3 analysis/load_alarm_db.py
 ```
 
-The loader reads `data/sample_alarms.csv`, creates `db/facilityops.sqlite3`, and prints a verification summary with total records and alarm counts by severity, source, and equipment.
+The loader reads the sample CSV files in `data/`, creates `db/facilityops.sqlite3`, and prints a verification summary with total records and alarm counts by severity, source, and equipment.
 
 After loading the database, generate a database-backed daily briefing:
 
@@ -44,6 +44,8 @@ Generated database files are local development artifacts and are ignored by git.
 The simulated facility is **Northstar Data Hall**, a fictional mission-critical data hall documented in `docs/facility_model.md`.
 
 Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQLite with the alarm data. The inventory adds context such as equipment type, location, criticality, and source system.
+
+Point dictionary records are stored in `data/sample_points.csv`. Alarm rule catalog records are stored in `data/sample_alarm_rules.csv`. The current rule catalog is read-only reference data; rules are not evaluated and do not generate alarms yet.
 
 ## Local API Server
 
@@ -72,7 +74,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary` and displays the alarm totals, counts, and active Critical alarms.
+The dashboard calls `/summary`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, the point dictionary, and the alarm rule catalog.
 
 Call the summary endpoint directly:
 
@@ -84,6 +86,18 @@ Call the equipment inventory endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/equipment
+```
+
+Call the point dictionary endpoint:
+
+```bash
+curl http://127.0.0.1:8000/points
+```
+
+Call the alarm rule catalog endpoint:
+
+```bash
+curl http://127.0.0.1:8000/alarm-rules
 ```
 
 The `.venv` folder is local development environment data and should not be committed.
