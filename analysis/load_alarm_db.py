@@ -339,6 +339,15 @@ def load_alarms_to_sqlite(csv_path=ALARM_FILE, db_path=DATABASE_FILE):
     return len(rows)
 
 
+def reset_legacy_alarms(db_path=DATABASE_FILE):
+    """Create and clear the legacy sample alarm table."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(db_path) as connection:
+        create_alarm_table(connection)
+        connection.execute("DELETE FROM alarms")
+
+
 def load_equipment_to_sqlite(csv_path=EQUIPMENT_FILE, db_path=DATABASE_FILE):
     """Load sample equipment records from CSV into SQLite."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -520,7 +529,7 @@ def load_sample_data_to_sqlite(
     db_path=DATABASE_FILE,
 ):
     """Load sample facility records into SQLite."""
-    alarm_count = load_alarms_to_sqlite(alarm_csv_path, db_path)
+    reset_legacy_alarms(db_path)
     equipment_count = load_equipment_to_sqlite(equipment_csv_path, db_path)
     point_count = load_points_to_sqlite(point_csv_path, db_path)
     alarm_rule_count = load_alarm_rules_to_sqlite(alarm_rule_csv_path, db_path)
@@ -531,7 +540,7 @@ def load_sample_data_to_sqlite(
     reset_generated_alarms(db_path)
 
     return {
-        "alarm_records": alarm_count,
+        "alarm_records": 0,
         "equipment_records": equipment_count,
         "point_records": point_count,
         "alarm_rule_records": alarm_rule_count,
@@ -558,6 +567,7 @@ def get_group_counts(connection, column_name):
 def get_alarm_counts(db_path=DATABASE_FILE):
     """Return alarm counts by severity, source, and equipment from SQLite."""
     with sqlite3.connect(db_path) as connection:
+        create_alarm_table(connection)
         total_records = connection.execute(
             "SELECT COUNT(*) FROM alarms"
         ).fetchone()[0]
@@ -570,6 +580,35 @@ def get_alarm_counts(db_path=DATABASE_FILE):
         }
 
 
+def get_generated_alarm_summary(db_path=DATABASE_FILE):
+    """Return generated alarm counts from SQLite."""
+    with sqlite3.connect(db_path) as connection:
+        create_generated_alarm_table(connection)
+        total_records = connection.execute(
+            "SELECT COUNT(*) FROM generated_alarms"
+        ).fetchone()[0]
+        active_records = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM generated_alarms
+            WHERE state = 'ACTIVE'
+            """
+        ).fetchone()[0]
+        cleared_records = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM generated_alarms
+            WHERE state = 'CLEARED'
+            """
+        ).fetchone()[0]
+
+    return {
+        "total_generated_alarm_records": total_records,
+        "active_generated_alarm_records": active_records,
+        "cleared_generated_alarm_records": cleared_records,
+    }
+
+
 def print_count_section(title, counts):
     print(title)
     for name, count in counts.items():
@@ -577,13 +616,13 @@ def print_count_section(title, counts):
 
 
 def print_verification_summary(
-    summary,
+    generated_alarm_summary,
     equipment_record_count=None,
     point_record_count=None,
     alarm_rule_record_count=None,
     current_point_value_record_count=None,
 ):
-    print(f"Total alarm records loaded: {summary['total_alarm_records']}")
+    print("Legacy alarm records loaded: 0")
     if equipment_record_count is not None:
         print(f"Equipment records loaded: {equipment_record_count}")
     if point_record_count is not None:
@@ -592,17 +631,26 @@ def print_verification_summary(
         print(f"Alarm rule records loaded: {alarm_rule_record_count}")
     if current_point_value_record_count is not None:
         print(f"Current point value records loaded: {current_point_value_record_count}")
-    print_count_section("Alarm counts by severity:", summary["severity_counts"])
-    print_count_section("Alarm counts by source:", summary["source_counts"])
-    print_count_section("Alarm counts by equipment:", summary["equipment_counts"])
+    print(
+        "Generated alarm records present: "
+        f"{generated_alarm_summary['total_generated_alarm_records']}"
+    )
+    print(
+        "Active generated alarm records: "
+        f"{generated_alarm_summary['active_generated_alarm_records']}"
+    )
+    print(
+        "Cleared generated alarm records: "
+        f"{generated_alarm_summary['cleared_generated_alarm_records']}"
+    )
 
 
 def main():
     load_counts = load_sample_data_to_sqlite()
-    summary = get_alarm_counts()
+    generated_alarm_summary = get_generated_alarm_summary()
     print(f"SQLite database generated: {DATABASE_FILE}")
     print_verification_summary(
-        summary,
+        generated_alarm_summary,
         equipment_record_count=load_counts["equipment_records"],
         point_record_count=load_counts["point_records"],
         alarm_rule_record_count=load_counts["alarm_rule_records"],

@@ -15,6 +15,7 @@
       --accent: #0f766e;
       --critical: #b42318;
       --high: #b54708;
+      --warning: #b54708;
     }
 
     * {
@@ -77,7 +78,7 @@
 
     .overview {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 16px;
       margin-bottom: 16px;
     }
@@ -158,6 +159,11 @@
 
     .high {
       color: var(--high);
+      font-weight: 700;
+    }
+
+    .warning {
+      color: var(--warning);
       font-weight: 700;
     }
 
@@ -348,26 +354,34 @@
 
     <section class="overview">
       <div class="panel total">
-        <div id="totalAlarmRecords" class="total-value">--</div>
-        <div class="total-label">Total alarm records</div>
+        <div id="activeGeneratedAlarmCount" class="total-value">--</div>
+        <div class="total-label">Active generated alarms</div>
       </div>
-      <div class="panel">
-        <h2>Active Critical Alarms</h2>
-        <div id="activeCriticalAlarms" class="alarm-list"></div>
+      <div class="panel total">
+        <div id="activeCriticalGeneratedAlarmCount" class="total-value">--</div>
+        <div class="total-label">Active Critical generated alarms</div>
+      </div>
+      <div class="panel total">
+        <div id="activeWarningGeneratedAlarmCount" class="total-value">--</div>
+        <div class="total-label">Active Warning generated alarms</div>
+      </div>
+      <div class="panel total">
+        <div id="clearedGeneratedAlarmCount" class="total-value">--</div>
+        <div class="total-label">Cleared generated alarms</div>
       </div>
     </section>
 
     <section class="grid">
       <div class="panel">
-        <h2>Severity Counts</h2>
+        <h2>Active Severity Counts</h2>
         <ul id="severityCounts" class="count-list"></ul>
       </div>
       <div class="panel">
-        <h2>Source Counts</h2>
-        <ul id="sourceCounts" class="count-list"></ul>
+        <h2>Generated State Counts</h2>
+        <ul id="stateCounts" class="count-list"></ul>
       </div>
       <div class="panel">
-        <h2>Equipment Counts</h2>
+        <h2>Active Equipment Counts</h2>
         <ul id="equipmentCounts" class="count-list"></ul>
       </div>
     </section>
@@ -493,11 +507,13 @@
   <script>
     const statusEl = document.getElementById("status");
     const errorEl = document.getElementById("error");
-    const totalAlarmRecordsEl = document.getElementById("totalAlarmRecords");
+    const activeGeneratedAlarmCountEl = document.getElementById("activeGeneratedAlarmCount");
+    const activeCriticalGeneratedAlarmCountEl = document.getElementById("activeCriticalGeneratedAlarmCount");
+    const activeWarningGeneratedAlarmCountEl = document.getElementById("activeWarningGeneratedAlarmCount");
+    const clearedGeneratedAlarmCountEl = document.getElementById("clearedGeneratedAlarmCount");
     const severityCountsEl = document.getElementById("severityCounts");
-    const sourceCountsEl = document.getElementById("sourceCounts");
+    const stateCountsEl = document.getElementById("stateCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
-    const activeCriticalAlarmsEl = document.getElementById("activeCriticalAlarms");
     const scenarioButtonsEl = document.getElementById("scenarioButtons");
     const generatedAlarmRowsEl = document.getElementById("generatedAlarmRows");
     const evaluateGeneratedAlarmsButton = document.getElementById("evaluateGeneratedAlarmsButton");
@@ -559,7 +575,22 @@
     function renderCounts(container, counts) {
       container.innerHTML = "";
 
-      Object.entries(counts).forEach(([name, count]) => {
+      const entries = Object.entries(counts || {});
+      if (entries.length === 0) {
+        const item = document.createElement("li");
+        const label = document.createElement("span");
+        const value = document.createElement("span");
+
+        label.className = "label";
+        value.className = "count";
+        label.textContent = "None";
+        value.textContent = "0";
+        item.append(label, value);
+        container.appendChild(item);
+        return;
+      }
+
+      entries.forEach(([name, count]) => {
         const item = document.createElement("li");
         const label = document.createElement("span");
         const value = document.createElement("span");
@@ -575,47 +606,29 @@
         if (name === "High") {
           label.classList.add("high");
         }
+        if (name === "Warning") {
+          label.classList.add("warning");
+        }
 
         item.append(label, value);
         container.appendChild(item);
       });
     }
 
-    function renderActiveCriticalAlarms(alarms) {
-      activeCriticalAlarmsEl.innerHTML = "";
-
-      if (alarms.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "note";
-        empty.textContent = "No active Critical alarms found.";
-        activeCriticalAlarmsEl.appendChild(empty);
-        return;
-      }
-
-      alarms.forEach((alarm) => {
-        const row = document.createElement("div");
-        const main = document.createElement("div");
-        const title = document.createElement("div");
-        const detail = document.createElement("div");
-
-        row.className = "alarm-row";
-        main.className = "alarm-main";
-        title.className = "alarm-title critical";
-        detail.className = "alarm-detail";
-
-        title.textContent = [alarm.equipment, alarm.alarm]
-          .filter(hasValue)
-          .map((value) => displayValue(value))
-          .join(" | ");
-        detail.textContent = [alarm.location, alarm.criticality, alarm.source_system]
-          .filter(hasValue)
-          .map((value) => displayValue(value))
-          .join(" | ");
-
-        main.append(title, detail);
-        row.appendChild(main);
-        activeCriticalAlarmsEl.appendChild(row);
-      });
+    function renderSummary(summary) {
+      activeGeneratedAlarmCountEl.textContent = displayValue(summary.active_generated_alarm_count, "0");
+      activeCriticalGeneratedAlarmCountEl.textContent = displayValue(
+        summary.active_critical_generated_alarm_count,
+        "0",
+      );
+      activeWarningGeneratedAlarmCountEl.textContent = displayValue(
+        summary.active_warning_generated_alarm_count,
+        "0",
+      );
+      clearedGeneratedAlarmCountEl.textContent = displayValue(summary.cleared_generated_alarm_count, "0");
+      renderCounts(severityCountsEl, summary.active_generated_alarm_severity_counts);
+      renderCounts(stateCountsEl, summary.generated_alarm_state_counts);
+      renderCounts(equipmentCountsEl, summary.active_generated_alarm_equipment_counts);
     }
 
     function formatNormalRange(point) {
@@ -912,6 +925,12 @@
       return data;
     }
 
+    async function loadSummary() {
+      const response = await fetch("/summary");
+      const data = await readJsonResponse(response, "alarm summary");
+      renderSummary(data);
+    }
+
     async function loadGeneratedAlarms() {
       const response = await fetch("/generated-alarms");
       const data = await readJsonResponse(response, "generated alarms");
@@ -955,6 +974,7 @@
         });
         await readJsonResponse(response, "current point value update");
         await Promise.all([
+          loadSummary(),
           loadCurrentPointValues(),
           loadRuleEvaluations(),
           loadGeneratedAlarms(),
@@ -980,6 +1000,7 @@
         });
         const data = await readJsonResponse(response, "alarm scenario");
         await Promise.all([
+          loadSummary(),
           loadCurrentPointValues(),
           loadRuleEvaluations(),
           loadGeneratedAlarms(),
@@ -1003,7 +1024,10 @@
           method: "POST",
         });
         const data = await readJsonResponse(response, "generated alarm evaluation");
-        await loadGeneratedAlarms();
+        await Promise.all([
+          loadSummary(),
+          loadGeneratedAlarms(),
+        ]);
         statusEl.textContent = `Generated alarms evaluated: ${data.created_count} created, ${data.cleared_count} cleared`;
       } catch (error) {
         setError(error.message);
@@ -1045,11 +1069,7 @@
           readJsonResponse(responses[6], "alarm rule catalog"),
         ]);
 
-        totalAlarmRecordsEl.textContent = summaryData.total_alarm_records;
-        renderCounts(severityCountsEl, summaryData.severity_counts);
-        renderCounts(sourceCountsEl, summaryData.source_counts);
-        renderCounts(equipmentCountsEl, summaryData.equipment_counts);
-        renderActiveCriticalAlarms(summaryData.active_critical_alarms);
+        renderSummary(summaryData);
         renderScenarioButtons(scenariosData.scenarios);
         renderGeneratedAlarms(generatedAlarmsData.generated_alarms);
         renderCurrentPointValues(currentPointValuesData.current_point_values);

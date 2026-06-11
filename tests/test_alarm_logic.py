@@ -258,7 +258,7 @@ class EquipmentInventoryTests(unittest.TestCase):
         temp_db_path, load_counts = self.load_temp_sample_database()
 
         self.assertNotEqual(temp_db_path, load_alarm_db.DATABASE_FILE)
-        self.assertEqual(load_counts["alarm_records"], 10)
+        self.assertEqual(load_counts["alarm_records"], 0)
         self.assertEqual(load_counts["equipment_records"], 10)
 
         with sqlite3.connect(temp_db_path) as connection:
@@ -273,9 +273,13 @@ class EquipmentInventoryTests(unittest.TestCase):
             equipment_count = connection.execute(
                 "SELECT COUNT(*) FROM equipment"
             ).fetchone()[0]
+            legacy_alarm_count = connection.execute(
+                "SELECT COUNT(*) FROM alarms"
+            ).fetchone()[0]
 
         self.assertIsNotNone(table_exists)
         self.assertEqual(equipment_count, 10)
+        self.assertEqual(legacy_alarm_count, 0)
 
     def test_equipment_table_includes_key_critical_equipment(self):
         temp_db_path, _load_counts = self.load_temp_sample_database()
@@ -294,22 +298,38 @@ class EquipmentInventoryTests(unittest.TestCase):
 
         self.assertEqual(equipment_names, {"UPS-A", "GEN-1", "ATS-1"})
 
-    def test_backend_summary_includes_equipment_context_for_active_critical_alarms(self):
+    def test_backend_summary_starts_with_empty_generated_alarm_counts(self):
         temp_db_path, _load_counts = self.load_temp_sample_database()
 
         summary = backend_summary.get_alarm_summary(temp_db_path)
-        active_critical_alarms = summary["active_critical_alarms"]
-        alarms_by_equipment = {
-            alarm["equipment"]: alarm
-            for alarm in active_critical_alarms
-        }
 
-        self.assertEqual(len(active_critical_alarms), 3)
-        self.assertEqual(set(alarms_by_equipment), {"UPS-A", "GEN-1", "ATS-1"})
-        self.assertEqual(alarms_by_equipment["UPS-A"]["location"], "Electrical Room A")
-        self.assertEqual(alarms_by_equipment["GEN-1"]["location"], "Generator Yard")
-        self.assertEqual(alarms_by_equipment["ATS-1"]["criticality"], "Critical")
-        self.assertEqual(alarms_by_equipment["UPS-A"]["source_system"], "EPMS")
+        self.assertEqual(summary["total_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_critical_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_warning_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_info_generated_alarm_count"], 0)
+        self.assertEqual(summary["cleared_generated_alarm_count"], 0)
+        self.assertEqual(summary["active_generated_alarm_severity_counts"], {})
+        self.assertEqual(summary["generated_alarm_state_counts"], {})
+        self.assertEqual(summary["active_generated_alarm_equipment_counts"], {})
+        self.assertNotIn("active_critical_alarms", summary)
+        self.assertNotIn("total_alarm_records", summary)
+        self.assertNotIn("source_counts", summary)
+
+
+class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
+    def test_dashboard_uses_generated_alarm_summary_fields(self):
+        frontend_file = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+        dashboard_html = frontend_file.read_text(encoding="utf-8")
+
+        self.assertIn("activeGeneratedAlarmCount", dashboard_html)
+        self.assertIn("active_generated_alarm_count", dashboard_html)
+        self.assertIn("Generated Alarms", dashboard_html)
+        self.assertNotIn("activeCriticalAlarms", dashboard_html)
+        self.assertNotIn("active_critical_alarms", dashboard_html)
+        self.assertNotIn("totalAlarmRecords", dashboard_html)
+        self.assertNotIn("total_alarm_records", dashboard_html)
+        self.assertNotIn("sourceCounts", dashboard_html)
 
 
 class PointAndAlarmRuleCatalogTests(unittest.TestCase):
@@ -1130,6 +1150,28 @@ class AlarmScenarioTests(unittest.TestCase):
 
         self.assertEqual(generated_alarms, [])
 
+    def test_applying_scenario_does_not_update_generated_summary_until_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.apply_scenario("trigger-ups-high-load", db_path=temp_db_path)
+        summary_before_evaluation = backend_summary.get_alarm_summary(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        summary_after_evaluation = backend_summary.get_alarm_summary(temp_db_path)
+
+        self.assertEqual(summary_before_evaluation["total_generated_alarm_count"], 0)
+        self.assertEqual(summary_before_evaluation["active_generated_alarm_count"], 0)
+        self.assertEqual(summary_after_evaluation["total_generated_alarm_count"], 1)
+        self.assertEqual(summary_after_evaluation["active_generated_alarm_count"], 1)
+        self.assertEqual(summary_after_evaluation["active_warning_generated_alarm_count"], 1)
+        self.assertEqual(
+            summary_after_evaluation["active_generated_alarm_severity_counts"],
+            {"Warning": 1},
+        )
+        self.assertEqual(
+            summary_after_evaluation["active_generated_alarm_equipment_counts"],
+            {"UPS-A": 1},
+        )
+
     def test_invalid_scenario_endpoint_returns_error(self):
         temp_db_path = self.load_temp_sample_database()
 
@@ -1519,6 +1561,32 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(data["active_count"], 1)
         self.assertEqual(len(generated_alarms), 1)
         self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
+
+    def test_summary_endpoint_returns_generated_alarm_counts(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_alarm_summary",
+                lambda: backend_summary.get_alarm_summary(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(backend_main.app, "/summary")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["total_generated_alarm_count"], 1)
+        self.assertEqual(data["active_generated_alarm_count"], 1)
+        self.assertEqual(data["active_warning_generated_alarm_count"], 1)
+        self.assertEqual(data["active_critical_generated_alarm_count"], 0)
+        self.assertEqual(data["cleared_generated_alarm_count"], 0)
+        self.assertEqual(data["active_generated_alarm_severity_counts"], {"Warning": 1})
+        self.assertEqual(data["active_generated_alarm_equipment_counts"], {"UPS-A": 1})
+        self.assertNotIn("total_alarm_records", data)
+        self.assertNotIn("active_critical_alarms", data)
 
 
 if __name__ == "__main__":

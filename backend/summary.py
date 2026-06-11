@@ -10,7 +10,7 @@ DATABASE_FILE = PROJECT_ROOT / "db" / "facilityops.sqlite3"
 DATABASE_DISPLAY_PATH = Path("db") / "facilityops.sqlite3"
 LOADER_COMMAND = "python3 analysis/load_alarm_db.py"
 
-COUNT_COLUMNS = {"severity", "source", "equipment"}
+GENERATED_ALARM_COUNT_COLUMNS = {"severity", "state", "equipment_id"}
 BLANK_VALUES = {"", "null", "none", "n/a"}
 ANALOG_OPERATORS = {">", ">=", "<", "<="}
 MATCH_OPERATORS = {"==", "!="}
@@ -107,80 +107,99 @@ def current_timestamp():
     return datetime.now(UTC).replace(microsecond=0, tzinfo=None).isoformat(sep=" ")
 
 
-def get_count_by_column(connection, column_name):
-    """Return alarm counts grouped by a trusted alarms table column."""
-    if column_name not in COUNT_COLUMNS:
+def get_generated_alarm_count_by_column(connection, column_name, state=None):
+    """Return generated alarm counts grouped by a trusted column."""
+    if column_name not in GENERATED_ALARM_COUNT_COLUMNS:
         raise ValueError(f"Unsupported count column: {column_name}")
+
+    where_clause = ""
+    parameters = ()
+    if state is not None:
+        where_clause = "WHERE state = ?"
+        parameters = (state,)
 
     cursor = connection.execute(
         f"""
         SELECT {column_name}, COUNT(*) AS alarm_count
-        FROM alarms
+        FROM generated_alarms
+        {where_clause}
         GROUP BY {column_name}
         ORDER BY alarm_count DESC, {column_name} ASC
-        """
+        """,
+        parameters,
     )
     return {row[0]: row[1] for row in cursor.fetchall()}
 
 
-def get_active_critical_alarms(connection):
-    """Return active Critical alarms with equipment context."""
-    cursor = connection.execute(
-        """
-        SELECT
-            alarms.timestamp,
-            alarms.source,
-            alarms.equipment,
-            COALESCE(equipment.equipment_type, alarms.equipment_type) AS equipment_type,
-            COALESCE(equipment.location, 'Unknown') AS location,
-            COALESCE(equipment.criticality, 'Unknown') AS criticality,
-            COALESCE(equipment.source_system, alarms.source) AS source_system,
-            alarms.alarm
-        FROM alarms
-        LEFT JOIN equipment
-            ON alarms.equipment = equipment.equipment
-        WHERE alarms.severity = 'Critical'
-          AND alarms.status = 'Active'
-        ORDER BY alarms.timestamp ASC, alarms.source ASC, alarms.equipment ASC
-        """
-    )
-    return [
-        {
-            "timestamp": timestamp,
-            "source": source,
-            "equipment": equipment_name,
-            "equipment_type": equipment_type,
-            "location": location,
-            "criticality": criticality,
-            "source_system": source_system,
-            "alarm": alarm,
-        }
-        for (
-            timestamp,
-            source,
-            equipment_name,
-            equipment_type,
-            location,
-            criticality,
-            source_system,
-            alarm,
-        ) in cursor.fetchall()
-    ]
+def get_generated_alarm_count(connection, state=None, severity=None):
+    """Return generated alarm count filtered by state and severity."""
+    where_clauses = []
+    parameters = []
+    if state is not None:
+        where_clauses.append("state = ?")
+        parameters.append(state)
+    if severity is not None:
+        where_clauses.append("severity = ?")
+        parameters.append(severity)
+
+    where_sql = ""
+    if where_clauses:
+        where_sql = f"WHERE {' AND '.join(where_clauses)}"
+
+    return connection.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM generated_alarms
+        {where_sql}
+        """,
+        parameters,
+    ).fetchone()[0]
 
 
 def get_alarm_summary(db_path=DATABASE_FILE):
-    """Read alarm summary data from SQLite."""
+    """Read generated alarm summary data from SQLite."""
     with sqlite3.connect(db_path) as connection:
-        total_alarm_records = connection.execute(
-            "SELECT COUNT(*) FROM alarms"
-        ).fetchone()[0]
+        ensure_generated_alarm_table(connection)
 
         return {
-            "total_alarm_records": total_alarm_records,
-            "severity_counts": get_count_by_column(connection, "severity"),
-            "source_counts": get_count_by_column(connection, "source"),
-            "equipment_counts": get_count_by_column(connection, "equipment"),
-            "active_critical_alarms": get_active_critical_alarms(connection),
+            "total_generated_alarm_count": get_generated_alarm_count(connection),
+            "active_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="ACTIVE",
+            ),
+            "active_critical_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="ACTIVE",
+                severity="Critical",
+            ),
+            "active_warning_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="ACTIVE",
+                severity="Warning",
+            ),
+            "active_info_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="ACTIVE",
+                severity="Info",
+            ),
+            "cleared_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="CLEARED",
+            ),
+            "active_generated_alarm_severity_counts": get_generated_alarm_count_by_column(
+                connection,
+                "severity",
+                state="ACTIVE",
+            ),
+            "generated_alarm_state_counts": get_generated_alarm_count_by_column(
+                connection,
+                "state",
+            ),
+            "active_generated_alarm_equipment_counts": get_generated_alarm_count_by_column(
+                connection,
+                "equipment_id",
+                state="ACTIVE",
+            ),
         }
 
 
