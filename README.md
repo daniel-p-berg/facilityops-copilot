@@ -47,7 +47,9 @@ Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQL
 
 Point dictionary records are stored in `data/sample_points.csv`. Current point values are stored in `data/sample_current_point_values.csv`. Alarm rule catalog records are stored in `data/sample_alarm_rules.csv`.
 
-Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. They do not create generated alarms, alarm lifecycle state, acknowledgements, suppression, latching, clearing, or history.
+Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values.
+
+Generated alarms are simple output records created from rule evaluations. The current implementation only creates ACTIVE generated alarms from triggered rules and marks previously ACTIVE generated alarms CLEARED when the rule no longer triggers. It does not implement acknowledgements, suppression, latching, delay timers, hysteresis, comments, shelving, or a separate alarm history table.
 
 ## Local API Server
 
@@ -76,7 +78,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog.
+The dashboard calls `/summary`, `/generated-alarms`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, generated alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog.
 
 Call the summary endpoint directly:
 
@@ -106,6 +108,18 @@ Call the read-only rule evaluations endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/rule-evaluations
+```
+
+Call the generated alarms endpoint:
+
+```bash
+curl http://127.0.0.1:8000/generated-alarms
+```
+
+Run generated alarm evaluation:
+
+```bash
+curl -X POST http://127.0.0.1:8000/generated-alarms/evaluate
 ```
 
 Call the alarm rule catalog endpoint:

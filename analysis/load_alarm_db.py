@@ -173,6 +173,31 @@ def create_current_point_value_table(connection):
     )
 
 
+def create_generated_alarm_table(connection):
+    """Create a table for generated alarm state records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS generated_alarms (
+            id TEXT PRIMARY KEY,
+            rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            alarm_message TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            state TEXT NOT NULL,
+            triggered_value TEXT NOT NULL,
+            triggered_at TEXT NOT NULL,
+            cleared_at TEXT NOT NULL,
+            last_evaluated_at TEXT NOT NULL,
+            evaluation_note TEXT NOT NULL,
+            FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
+
+
 def read_csv_rows(csv_path, required_columns):
     """Read CSV records and validate required columns."""
     with open(csv_path, mode="r", encoding="utf-8", newline="") as file:
@@ -477,6 +502,15 @@ def load_current_point_values_to_sqlite(
     return len(rows)
 
 
+def reset_generated_alarms(db_path=DATABASE_FILE):
+    """Create and clear generated alarm state output records."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(db_path) as connection:
+        create_generated_alarm_table(connection)
+        connection.execute("DELETE FROM generated_alarms")
+
+
 def load_sample_data_to_sqlite(
     alarm_csv_path=ALARM_FILE,
     equipment_csv_path=EQUIPMENT_FILE,
@@ -494,6 +528,7 @@ def load_sample_data_to_sqlite(
         current_point_value_csv_path,
         db_path,
     )
+    reset_generated_alarms(db_path)
 
     return {
         "alarm_records": alarm_count,

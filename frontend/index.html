@@ -259,6 +259,44 @@
       font-weight: 700;
     }
 
+    .state-active {
+      color: var(--critical);
+      font-weight: 700;
+    }
+
+    .state-cleared {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section-heading h2 {
+      margin-bottom: 0;
+    }
+
+    button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 7px 10px;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.7;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -312,6 +350,31 @@
       <div class="panel">
         <h2>Equipment Counts</h2>
         <ul id="equipmentCounts" class="count-list"></ul>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
+      <div class="section-heading">
+        <h2>Generated Alarms</h2>
+        <button id="evaluateGeneratedAlarmsButton" type="button">Evaluate Generated Alarms</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Equipment</th>
+              <th>Alarm Message</th>
+              <th>Severity</th>
+              <th>State</th>
+              <th>Triggered Value</th>
+              <th>Triggered At</th>
+              <th>Cleared At</th>
+              <th>Last Evaluated</th>
+              <th>Evaluation Note</th>
+            </tr>
+          </thead>
+          <tbody id="generatedAlarmRows"></tbody>
+        </table>
       </div>
     </section>
 
@@ -410,6 +473,8 @@
     const sourceCountsEl = document.getElementById("sourceCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const activeCriticalAlarmsEl = document.getElementById("activeCriticalAlarms");
+    const generatedAlarmRowsEl = document.getElementById("generatedAlarmRows");
+    const evaluateGeneratedAlarmsButton = document.getElementById("evaluateGeneratedAlarmsButton");
     const currentPointValueRowsEl = document.getElementById("currentPointValueRows");
     const ruleEvaluationRowsEl = document.getElementById("ruleEvaluationRows");
     const pointRowsEl = document.getElementById("pointRows");
@@ -630,6 +695,19 @@
       return "triggered-no";
     }
 
+    function stateClass(state) {
+      const normalizedState = displayValue(state, "").toLowerCase();
+
+      if (normalizedState === "active") {
+        return "state-active";
+      }
+      if (normalizedState === "cleared") {
+        return "state-cleared";
+      }
+
+      return "";
+    }
+
     function formatRuleCondition(rule) {
       const conditionParts = [
         displayValue(rule.operator, ""),
@@ -670,6 +748,35 @@
         appendCell(row, hasValue(rule.delay_seconds) ? `${rule.delay_seconds}s` : null);
         appendCell(row, rule.alarm_message);
         alarmRuleRowsEl.appendChild(row);
+      });
+    }
+
+    function renderGeneratedAlarms(generatedAlarms) {
+      generatedAlarmRowsEl.innerHTML = "";
+
+      if (generatedAlarms.length === 0) {
+        renderEmptyRow(generatedAlarmRowsEl, 9, "No generated alarms found.");
+        return;
+      }
+
+      generatedAlarms.forEach((alarm) => {
+        const row = document.createElement("tr");
+        const severityClass = alarm.severity === "Critical"
+          ? "severity-critical"
+          : alarm.severity === "Warning"
+            ? "severity-warning"
+            : "";
+
+        appendCell(row, alarm.equipment_id);
+        appendCell(row, alarm.alarm_message);
+        appendCell(row, alarm.severity, severityClass);
+        appendCell(row, alarm.state, stateClass(alarm.state));
+        appendCell(row, alarm.triggered_value);
+        appendCell(row, alarm.triggered_at);
+        appendCell(row, alarm.cleared_at);
+        appendCell(row, alarm.last_evaluated_at);
+        appendCell(row, alarm.evaluation_note);
+        generatedAlarmRowsEl.appendChild(row);
       });
     }
 
@@ -714,6 +821,32 @@
       return data;
     }
 
+    async function loadGeneratedAlarms() {
+      const response = await fetch("/generated-alarms");
+      const data = await readJsonResponse(response, "generated alarms");
+      renderGeneratedAlarms(data.generated_alarms);
+    }
+
+    async function evaluateGeneratedAlarms() {
+      evaluateGeneratedAlarmsButton.disabled = true;
+      evaluateGeneratedAlarmsButton.textContent = "Evaluating...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/generated-alarms/evaluate", {
+          method: "POST",
+        });
+        const data = await readJsonResponse(response, "generated alarm evaluation");
+        await loadGeneratedAlarms();
+        statusEl.textContent = `Generated alarms evaluated: ${data.created_count} created, ${data.cleared_count} cleared`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        evaluateGeneratedAlarmsButton.disabled = false;
+        evaluateGeneratedAlarmsButton.textContent = "Evaluate Generated Alarms";
+      }
+    }
+
     async function loadWorkbench() {
       statusEl.textContent = "Loading workbench...";
       errorEl.hidden = true;
@@ -721,17 +854,26 @@
       try {
         const responses = await Promise.all([
           fetch("/summary"),
+          fetch("/generated-alarms"),
           fetch("/current-point-values"),
           fetch("/rule-evaluations"),
           fetch("/points"),
           fetch("/alarm-rules"),
         ]);
-        const [summaryData, currentPointValuesData, ruleEvaluationsData, pointsData, alarmRulesData] = await Promise.all([
+        const [
+          summaryData,
+          generatedAlarmsData,
+          currentPointValuesData,
+          ruleEvaluationsData,
+          pointsData,
+          alarmRulesData,
+        ] = await Promise.all([
           readJsonResponse(responses[0], "alarm summary"),
-          readJsonResponse(responses[1], "current point values"),
-          readJsonResponse(responses[2], "alarm rule evaluations"),
-          readJsonResponse(responses[3], "point dictionary"),
-          readJsonResponse(responses[4], "alarm rule catalog"),
+          readJsonResponse(responses[1], "generated alarms"),
+          readJsonResponse(responses[2], "current point values"),
+          readJsonResponse(responses[3], "alarm rule evaluations"),
+          readJsonResponse(responses[4], "point dictionary"),
+          readJsonResponse(responses[5], "alarm rule catalog"),
         ]);
 
         totalAlarmRecordsEl.textContent = summaryData.total_alarm_records;
@@ -739,6 +881,7 @@
         renderCounts(sourceCountsEl, summaryData.source_counts);
         renderCounts(equipmentCountsEl, summaryData.equipment_counts);
         renderActiveCriticalAlarms(summaryData.active_critical_alarms);
+        renderGeneratedAlarms(generatedAlarmsData.generated_alarms);
         renderCurrentPointValues(currentPointValuesData.current_point_values);
         renderRuleEvaluations(ruleEvaluationsData.rule_evaluations);
         renderPoints(pointsData.points);
@@ -749,6 +892,7 @@
       }
     }
 
+    evaluateGeneratedAlarmsButton.addEventListener("click", evaluateGeneratedAlarms);
     loadWorkbench();
   </script>
 </body>

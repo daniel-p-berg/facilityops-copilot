@@ -72,7 +72,7 @@ REQUIRED_CURRENT_POINT_VALUES = {
 }
 
 
-def get_json_from_asgi_app(app, path):
+def get_json_from_asgi_app(app, path, method="GET"):
     async def make_request():
         messages = []
         request_sent = False
@@ -97,7 +97,7 @@ def get_json_from_asgi_app(app, path):
                 "type": "http",
                 "asgi": {"version": "3.0"},
                 "http_version": "1.1",
-                "method": "GET",
+                "method": method,
                 "scheme": "http",
                 "path": path,
                 "raw_path": path.encode("utf-8"),
@@ -936,6 +936,165 @@ class RuleEvaluationTests(unittest.TestCase):
         self.assertEqual(ups_high_load["quality"], "GOOD")
         self.assertFalse(ups_high_load["is_triggered"])
         self.assertEqual(ups_high_load["evaluation_status"], "Normal")
+
+
+class GeneratedAlarmStateTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def trigger_ups_high_load_rule(self, db_path):
+        with sqlite3.connect(db_path) as connection:
+            connection.execute(
+                """
+                UPDATE current_point_values
+                SET value = '245'
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            )
+
+    def clear_ups_high_load_rule(self, db_path):
+        with sqlite3.connect(db_path) as connection:
+            connection.execute(
+                """
+                UPDATE current_point_values
+                SET value = '185'
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            )
+
+    def test_loader_creates_empty_generated_alarms_table(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'generated_alarms'
+                """
+            ).fetchone()
+            generated_alarm_count = connection.execute(
+                "SELECT COUNT(*) FROM generated_alarms"
+            ).fetchone()[0]
+
+        self.assertIsNotNone(table_exists)
+        self.assertEqual(generated_alarm_count, 0)
+
+    def test_evaluate_creates_active_alarm_for_triggered_rule(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["created_count"], 1)
+        self.assertEqual(summary["active_count"], 1)
+        self.assertEqual(len(generated_alarms), 1)
+        self.assertEqual(generated_alarms[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
+        self.assertEqual(generated_alarms[0]["triggered_value"], "245")
+
+    def test_rerunning_evaluation_does_not_duplicate_active_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        first_summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        second_summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            active_alarm_count = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM generated_alarms
+                WHERE rule_id = 'RULE-UPS-A-HIGH-LOAD'
+                  AND state = 'ACTIVE'
+                """
+            ).fetchone()[0]
+
+        self.assertEqual(first_summary["created_count"], 1)
+        self.assertEqual(second_summary["created_count"], 0)
+        self.assertEqual(second_summary["updated_count"], 1)
+        self.assertEqual(active_alarm_count, 1)
+
+    def test_evaluate_clears_active_alarm_when_rule_is_no_longer_triggered(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.clear_ups_high_load_rule(temp_db_path)
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(len(generated_alarms), 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+        self.assertNotEqual(generated_alarms[0]["cleared_at"], "")
+        self.assertEqual(generated_alarms[0]["evaluation_note"], "Normal")
+
+    def test_generated_alarms_endpoint_returns_context(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_generated_alarms",
+                lambda: backend_summary.get_generated_alarms(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/generated-alarms",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertIn("generated_alarms", data)
+        self.assertEqual(len(data["generated_alarms"]), 1)
+
+        alarm = data["generated_alarms"][0]
+        self.assertEqual(alarm["rule_id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(alarm["rule_name"], "UPS high load")
+        self.assertEqual(alarm["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(alarm["point_name"], "OUTPUT_KW")
+        self.assertEqual(alarm["display_name"], "UPS-A Output kW")
+        self.assertEqual(alarm["equipment_id"], "UPS-A")
+        self.assertEqual(alarm["equipment_type"], "UPS")
+        self.assertEqual(alarm["unit"], "kW")
+
+    def test_generated_alarm_evaluate_endpoint_creates_active_alarm(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "evaluate_generated_alarms",
+                lambda: backend_summary.evaluate_generated_alarms(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/generated-alarms/evaluate",
+                method="POST",
+            )
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["created_count"], 1)
+        self.assertEqual(data["active_count"], 1)
+        self.assertEqual(len(generated_alarms), 1)
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
 
 
 if __name__ == "__main__":

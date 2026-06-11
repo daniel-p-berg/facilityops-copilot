@@ -7,10 +7,12 @@ from fastapi.responses import JSONResponse
 from backend.summary import DATABASE_DISPLAY_PATH
 from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
+from backend.summary import evaluate_generated_alarms
 from backend.summary import get_alarm_rule_catalog
 from backend.summary import get_alarm_summary
 from backend.summary import get_current_point_values
 from backend.summary import get_equipment_inventory
+from backend.summary import get_generated_alarms
 from backend.summary import get_point_dictionary
 from backend.summary import get_rule_evaluations
 
@@ -86,6 +88,24 @@ def read_rule_evaluations():
         return error_response
 
     return {"rule_evaluations": get_rule_evaluations()}
+
+
+@app.get("/generated-alarms")
+def read_generated_alarms():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"generated_alarms": get_generated_alarms()}
+
+
+@app.post("/generated-alarms/evaluate")
+def evaluate_generated_alarm_state():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return evaluate_generated_alarms()
 
 
 @app.get("/dashboard")

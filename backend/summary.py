@@ -1,4 +1,7 @@
 import sqlite3
+import uuid
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
 
@@ -13,6 +16,11 @@ ANALOG_OPERATORS = {">", ">=", "<", "<="}
 MATCH_OPERATORS = {"==", "!="}
 TRUE_VALUES = {"true", "1", "yes", "on"}
 FALSE_VALUES = {"false", "0", "no", "off"}
+
+
+def current_timestamp():
+    """Return a simple UTC timestamp for generated alarm state."""
+    return datetime.now(UTC).replace(microsecond=0, tzinfo=None).isoformat(sep=" ")
 
 
 def get_count_by_column(connection, column_name):
@@ -126,6 +134,31 @@ def get_equipment_inventory(db_path=DATABASE_FILE):
                 notes,
             ) in cursor.fetchall()
         ]
+
+
+def ensure_generated_alarm_table(connection):
+    """Create generated alarm state table if the loader has not run yet."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS generated_alarms (
+            id TEXT PRIMARY KEY,
+            rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            alarm_message TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            state TEXT NOT NULL,
+            triggered_value TEXT NOT NULL,
+            triggered_at TEXT NOT NULL,
+            cleared_at TEXT NOT NULL,
+            last_evaluated_at TEXT NOT NULL,
+            evaluation_note TEXT NOT NULL,
+            FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
 
 
 def has_value(value):
@@ -563,3 +596,258 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
             )
 
         return evaluations
+
+
+def generated_alarm_id(rule_id):
+    """Create a generated alarm record id."""
+    return f"GA-{rule_id}-{uuid.uuid4().hex[:12]}"
+
+
+def get_active_generated_alarms_by_rule(connection):
+    """Return active generated alarm ids keyed by rule id."""
+    cursor = connection.execute(
+        """
+        SELECT id, rule_id
+        FROM generated_alarms
+        WHERE state = 'ACTIVE'
+        """
+    )
+    return {
+        rule_id: alarm_id
+        for alarm_id, rule_id in cursor.fetchall()
+    }
+
+
+def get_generated_alarm_counts(connection):
+    """Return generated alarm counts by state."""
+    active_count = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM generated_alarms
+        WHERE state = 'ACTIVE'
+        """
+    ).fetchone()[0]
+    cleared_count = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM generated_alarms
+        WHERE state = 'CLEARED'
+        """
+    ).fetchone()[0]
+
+    return active_count, cleared_count
+
+
+def evaluate_generated_alarms(db_path=DATABASE_FILE):
+    """Create or update generated alarm state from current rule evaluations."""
+    evaluations = get_rule_evaluations(db_path)
+    evaluations_by_rule_id = {
+        evaluation["id"]: evaluation
+        for evaluation in evaluations
+    }
+    triggered_evaluations = [
+        evaluation
+        for evaluation in evaluations
+        if evaluation["enabled"] and evaluation["is_triggered"]
+    ]
+    triggered_rule_ids = {
+        evaluation["id"]
+        for evaluation in triggered_evaluations
+    }
+
+    timestamp = current_timestamp()
+    created_count = 0
+    updated_count = 0
+    cleared_this_run_count = 0
+
+    with sqlite3.connect(db_path) as connection:
+        ensure_generated_alarm_table(connection)
+        active_generated_alarms = get_active_generated_alarms_by_rule(connection)
+
+        for evaluation in triggered_evaluations:
+            active_alarm_id = active_generated_alarms.get(evaluation["id"])
+            if active_alarm_id:
+                connection.execute(
+                    """
+                    UPDATE generated_alarms
+                    SET point_id = ?,
+                        equipment_id = ?,
+                        alarm_message = ?,
+                        severity = ?,
+                        triggered_value = ?,
+                        last_evaluated_at = ?,
+                        evaluation_note = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        evaluation["point_id"],
+                        evaluation["equipment_id"],
+                        evaluation["alarm_message"],
+                        evaluation["severity"],
+                        normalize_text(evaluation["current_value"]),
+                        timestamp,
+                        evaluation["evaluation_status"],
+                        active_alarm_id,
+                    ),
+                )
+                updated_count += 1
+            else:
+                connection.execute(
+                    """
+                    INSERT INTO generated_alarms (
+                        id,
+                        rule_id,
+                        point_id,
+                        equipment_id,
+                        alarm_message,
+                        severity,
+                        state,
+                        triggered_value,
+                        triggered_at,
+                        cleared_at,
+                        last_evaluated_at,
+                        evaluation_note
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        generated_alarm_id(evaluation["id"]),
+                        evaluation["id"],
+                        evaluation["point_id"],
+                        evaluation["equipment_id"],
+                        evaluation["alarm_message"],
+                        evaluation["severity"],
+                        "ACTIVE",
+                        normalize_text(evaluation["current_value"]),
+                        timestamp,
+                        "",
+                        timestamp,
+                        evaluation["evaluation_status"],
+                    ),
+                )
+                created_count += 1
+
+        for rule_id, alarm_id in active_generated_alarms.items():
+            if rule_id in triggered_rule_ids:
+                continue
+
+            evaluation_note = "Rule not evaluated"
+            if rule_id in evaluations_by_rule_id:
+                evaluation_note = evaluations_by_rule_id[rule_id]["evaluation_status"]
+
+            connection.execute(
+                """
+                UPDATE generated_alarms
+                SET state = 'CLEARED',
+                    cleared_at = ?,
+                    last_evaluated_at = ?,
+                    evaluation_note = ?
+                WHERE id = ?
+                """,
+                (
+                    timestamp,
+                    timestamp,
+                    evaluation_note,
+                    alarm_id,
+                ),
+            )
+            cleared_this_run_count += 1
+
+        active_count, total_cleared_count = get_generated_alarm_counts(connection)
+
+    return {
+        "active_count": active_count,
+        "cleared_count": cleared_this_run_count,
+        "total_cleared_count": total_cleared_count,
+        "created_count": created_count,
+        "updated_count": updated_count,
+    }
+
+
+def get_generated_alarms(db_path=DATABASE_FILE):
+    """Return generated alarms with rule, point, and equipment context."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_generated_alarm_table(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                generated_alarms.id,
+                generated_alarms.rule_id,
+                alarm_rules.rule_name,
+                generated_alarms.point_id,
+                points.point_name,
+                points.display_name,
+                generated_alarms.equipment_id,
+                COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
+                COALESCE(equipment.location, 'Unknown') AS location,
+                points.data_type,
+                points.unit,
+                generated_alarms.alarm_message,
+                generated_alarms.severity,
+                generated_alarms.state,
+                generated_alarms.triggered_value,
+                generated_alarms.triggered_at,
+                generated_alarms.cleared_at,
+                generated_alarms.last_evaluated_at,
+                generated_alarms.evaluation_note
+            FROM generated_alarms
+            LEFT JOIN alarm_rules
+                ON generated_alarms.rule_id = alarm_rules.id
+            LEFT JOIN points
+                ON generated_alarms.point_id = points.id
+            LEFT JOIN equipment
+                ON generated_alarms.equipment_id = equipment.equipment
+            ORDER BY
+                CASE generated_alarms.state
+                    WHEN 'ACTIVE' THEN 0
+                    ELSE 1
+                END,
+                generated_alarms.last_evaluated_at DESC,
+                generated_alarms.equipment_id ASC,
+                generated_alarms.alarm_message ASC
+            """
+        )
+        return [
+            {
+                "id": alarm_id,
+                "rule_id": rule_id,
+                "rule_name": rule_name,
+                "point_id": point_id,
+                "point_name": point_name,
+                "display_name": display_name,
+                "equipment_id": equipment_id,
+                "equipment_type": equipment_type,
+                "location": location,
+                "data_type": data_type,
+                "unit": unit,
+                "alarm_message": alarm_message,
+                "severity": severity,
+                "state": state,
+                "triggered_value": triggered_value,
+                "triggered_at": triggered_at,
+                "cleared_at": cleared_at,
+                "last_evaluated_at": last_evaluated_at,
+                "evaluation_note": evaluation_note,
+            }
+            for (
+                alarm_id,
+                rule_id,
+                rule_name,
+                point_id,
+                point_name,
+                display_name,
+                equipment_id,
+                equipment_type,
+                location,
+                data_type,
+                unit,
+                alarm_message,
+                severity,
+                state,
+                triggered_value,
+                triggered_at,
+                cleared_at,
+                last_evaluated_at,
+                evaluation_note,
+            ) in cursor.fetchall()
+        ]
