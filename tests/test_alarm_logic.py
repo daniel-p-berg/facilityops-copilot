@@ -72,10 +72,18 @@ REQUIRED_CURRENT_POINT_VALUES = {
 }
 
 
-def get_json_from_asgi_app(app, path, method="GET"):
+def get_json_from_asgi_app(app, path, method="GET", body=None):
     async def make_request():
         messages = []
         request_sent = False
+        request_body = b""
+        request_headers = []
+        if body is not None:
+            request_body = json.dumps(body).encode("utf-8")
+            request_headers = [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(request_body)).encode("utf-8")),
+            ]
 
         async def receive():
             nonlocal request_sent
@@ -85,7 +93,7 @@ def get_json_from_asgi_app(app, path, method="GET"):
             request_sent = True
             return {
                 "type": "http.request",
-                "body": b"",
+                "body": request_body,
                 "more_body": False,
             }
 
@@ -102,7 +110,7 @@ def get_json_from_asgi_app(app, path, method="GET"):
                 "path": path,
                 "raw_path": path.encode("utf-8"),
                 "query_string": b"",
-                "headers": [],
+                "headers": request_headers,
                 "client": ("testclient", 50000),
                 "server": ("testserver", 80),
                 "root_path": "",
@@ -728,6 +736,262 @@ class CurrentPointValueTests(unittest.TestCase):
             values_by_point_id["UPS-A_OUTPUT_KW"]["point_name"],
             "OUTPUT_KW",
         )
+
+
+class ManualCurrentPointValueUpdateTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def test_updating_existing_current_point_value_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        current_point_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(current_point_value["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(current_point_value["value"], "245")
+        self.assertEqual(current_point_value["quality"], "GOOD")
+        self.assertEqual(current_point_value["source"], "MANUAL")
+        self.assertEqual(current_point_value["equipment_id"], "UPS-A")
+        self.assertEqual(current_point_value["display_name"], "UPS-A Output kW")
+
+    def test_creating_current_point_value_for_existing_point_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            connection.execute(
+                """
+                DELETE FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            )
+
+        current_point_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "210",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(current_point_value["id"], "CPV-UPS-A_OUTPUT_KW")
+        self.assertEqual(current_point_value["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(current_point_value["value"], "210")
+        self.assertEqual(current_point_value["source"], "MANUAL")
+
+    def test_invalid_manual_update_inputs_raise_predictable_errors(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(LookupError):
+            backend_summary.update_current_point_value(
+                "DOES_NOT_EXIST",
+                "1",
+                db_path=temp_db_path,
+            )
+        with self.assertRaises(ValueError):
+            backend_summary.update_current_point_value(
+                "UPS-A_OUTPUT_KW",
+                "245",
+                quality="INVALID",
+                db_path=temp_db_path,
+            )
+        with self.assertRaises(ValueError):
+            backend_summary.update_current_point_value(
+                "UPS-A_OUTPUT_KW",
+                "245",
+                source="INVALID",
+                db_path=temp_db_path,
+            )
+
+    def test_update_endpoint_returns_context(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_current_point_value",
+                lambda point_id, value, quality="GOOD", source="MANUAL": (
+                    backend_summary.update_current_point_value(
+                        point_id,
+                        value,
+                        quality=quality,
+                        source=source,
+                        db_path=temp_db_path,
+                    )
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/current-point-values/UPS-A_OUTPUT_KW",
+                method="PUT",
+                body={
+                    "value": "245",
+                    "quality": "GOOD",
+                    "source": "MANUAL",
+                },
+            )
+
+        self.assertEqual(status, 200)
+        current_point_value = data["current_point_value"]
+        self.assertEqual(current_point_value["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(current_point_value["value"], "245")
+        self.assertEqual(current_point_value["quality"], "GOOD")
+        self.assertEqual(current_point_value["source"], "MANUAL")
+        self.assertEqual(current_point_value["equipment_id"], "UPS-A")
+        self.assertEqual(current_point_value["point_name"], "OUTPUT_KW")
+        self.assertEqual(current_point_value["unit"], "kW")
+
+    def test_update_endpoint_returns_error_for_invalid_point_id(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_current_point_value",
+                lambda point_id, value, quality="GOOD", source="MANUAL": (
+                    backend_summary.update_current_point_value(
+                        point_id,
+                        value,
+                        quality=quality,
+                        source=source,
+                        db_path=temp_db_path,
+                    )
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/current-point-values/DOES_NOT_EXIST",
+                method="PUT",
+                body={
+                    "value": "1",
+                    "quality": "GOOD",
+                    "source": "MANUAL",
+                },
+            )
+
+        self.assertEqual(status, 404)
+        self.assertIn("Point not found", data["error"])
+
+    def test_update_endpoint_returns_error_for_invalid_quality(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_current_point_value",
+                lambda point_id, value, quality="GOOD", source="MANUAL": (
+                    backend_summary.update_current_point_value(
+                        point_id,
+                        value,
+                        quality=quality,
+                        source=source,
+                        db_path=temp_db_path,
+                    )
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/current-point-values/UPS-A_OUTPUT_KW",
+                method="PUT",
+                body={
+                    "value": "245",
+                    "quality": "INVALID",
+                    "source": "MANUAL",
+                },
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("quality must be one of", data["error"])
+
+    def test_update_endpoint_returns_error_for_invalid_source(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_current_point_value",
+                lambda point_id, value, quality="GOOD", source="MANUAL": (
+                    backend_summary.update_current_point_value(
+                        point_id,
+                        value,
+                        quality=quality,
+                        source=source,
+                        db_path=temp_db_path,
+                    )
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/current-point-values/UPS-A_OUTPUT_KW",
+                method="PUT",
+                body={
+                    "value": "245",
+                    "quality": "GOOD",
+                    "source": "INVALID",
+                },
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("source must be one of", data["error"])
+
+    def test_rule_evaluations_reflect_manual_updates(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        evaluations = backend_summary.get_rule_evaluations(temp_db_path)
+        evaluations_by_rule_id = {
+            evaluation["id"]: evaluation
+            for evaluation in evaluations
+        }
+
+        self.assertTrue(evaluations_by_rule_id["RULE-UPS-A-HIGH-LOAD"]["is_triggered"])
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-UPS-A-HIGH-LOAD"]["current_value"],
+            "245",
+        )
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-UPS-A-HIGH-LOAD"]["source"],
+            "MANUAL",
+        )
+
+    def test_manual_update_does_not_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
 
 
 class RuleEvaluationTests(unittest.TestCase):

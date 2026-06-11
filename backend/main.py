@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from fastapi import Body
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
@@ -15,6 +16,7 @@ from backend.summary import get_equipment_inventory
 from backend.summary import get_generated_alarms
 from backend.summary import get_point_dictionary
 from backend.summary import get_rule_evaluations
+from backend.summary import update_current_point_value
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +81,39 @@ def read_current_point_values():
         return error_response
 
     return {"current_point_values": get_current_point_values()}
+
+
+@app.put("/current-point-values/{point_id}")
+def update_point_value(point_id: str, payload: dict = Body(...)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    if "value" not in payload:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Missing required field: value"},
+        )
+
+    try:
+        current_point_value = update_current_point_value(
+            point_id,
+            payload["value"],
+            quality=payload.get("quality", "GOOD"),
+            source=payload.get("source", "MANUAL"),
+        )
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
+
+    return {"current_point_value": current_point_value}
 
 
 @app.get("/rule-evaluations")

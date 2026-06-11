@@ -47,6 +47,8 @@ Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQL
 
 Point dictionary records are stored in `data/sample_points.csv`. Current point values are stored in `data/sample_current_point_values.csv`. Alarm rule catalog records are stored in `data/sample_alarm_rules.csv`.
 
+Current point values can be updated manually through the dashboard or the local API. Manual updates use `MANUAL` as the current value source and do not automatically evaluate generated alarms.
+
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values.
 
 Generated alarms are simple output records created from rule evaluations. The current implementation only creates ACTIVE generated alarms from triggered rules and marks previously ACTIVE generated alarms CLEARED when the rule no longer triggers. It does not implement acknowledgements, suppression, latching, delay timers, hysteresis, comments, shelving, or a separate alarm history table.
@@ -102,6 +104,14 @@ Call the current point values endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/current-point-values
+```
+
+Manually update a current point value:
+
+```bash
+curl -X PUT http://127.0.0.1:8000/current-point-values/UPS-A_OUTPUT_KW \
+  -H "Content-Type: application/json" \
+  -d '{"value": "245", "quality": "GOOD", "source": "MANUAL"}'
 ```
 
 Call the read-only rule evaluations endpoint:

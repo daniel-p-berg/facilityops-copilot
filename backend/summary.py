@@ -16,6 +16,8 @@ ANALOG_OPERATORS = {">", ">=", "<", "<="}
 MATCH_OPERATORS = {"==", "!="}
 TRUE_VALUES = {"true", "1", "yes", "on"}
 FALSE_VALUES = {"false", "0", "no", "off"}
+ALLOWED_QUALITIES = {"GOOD", "BAD", "STALE", "UNKNOWN"}
+ALLOWED_CURRENT_VALUE_SOURCES = {"SIMULATED", "BMS", "EPMS", "PLC", "DCIM", "MANUAL"}
 
 
 def current_timestamp():
@@ -161,6 +163,23 @@ def ensure_generated_alarm_table(connection):
     )
 
 
+def ensure_current_point_value_table(connection):
+    """Create current point value table if the loader has not run yet."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS current_point_values (
+            id TEXT PRIMARY KEY,
+            point_id TEXT NOT NULL UNIQUE,
+            value TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            source TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (point_id) REFERENCES points (id)
+        )
+        """
+    )
+
+
 def has_value(value):
     """Return True when an API/database field contains a meaningful value."""
     if value is None:
@@ -175,6 +194,31 @@ def normalize_text(value):
         return ""
 
     return str(value).strip()
+
+
+def current_point_value_id(point_id):
+    """Create a stable current point value id for a point."""
+    return f"CPV-{point_id}"
+
+
+def normalize_quality(value):
+    """Normalize and validate current point value quality."""
+    normalized_value = normalize_text(value).upper()
+    if normalized_value not in ALLOWED_QUALITIES:
+        allowed_values = ", ".join(sorted(ALLOWED_QUALITIES))
+        raise ValueError(f"quality must be one of: {allowed_values}")
+
+    return normalized_value
+
+
+def normalize_current_value_source(value):
+    """Normalize and validate current point value source."""
+    normalized_value = normalize_text(value).upper()
+    if normalized_value not in ALLOWED_CURRENT_VALUE_SOURCES:
+        allowed_values = ", ".join(sorted(ALLOWED_CURRENT_VALUE_SOURCES))
+        raise ValueError(f"source must be one of: {allowed_values}")
+
+    return normalized_value
 
 
 def parse_number(value):
@@ -438,6 +482,7 @@ def get_alarm_rule_catalog(db_path=DATABASE_FILE):
 def get_current_point_values(db_path=DATABASE_FILE):
     """Return current point values with point and equipment context."""
     with sqlite3.connect(db_path) as connection:
+        ensure_current_point_value_table(connection)
         cursor = connection.execute(
             """
             SELECT
@@ -497,6 +542,159 @@ def get_current_point_values(db_path=DATABASE_FILE):
                 updated_at,
             ) in cursor.fetchall()
         ]
+
+
+def get_current_point_value(point_id, db_path=DATABASE_FILE):
+    """Return one current point value with point and equipment context."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_current_point_value_table(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                current_point_values.id,
+                current_point_values.point_id,
+                points.point_name,
+                points.display_name,
+                points.equipment_id,
+                COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
+                COALESCE(equipment.location, 'Unknown') AS location,
+                points.point_type,
+                points.data_type,
+                points.unit,
+                current_point_values.value,
+                current_point_values.quality,
+                current_point_values.source,
+                current_point_values.updated_at
+            FROM current_point_values
+            LEFT JOIN points
+                ON current_point_values.point_id = points.id
+            LEFT JOIN equipment
+                ON points.equipment_id = equipment.equipment
+            WHERE current_point_values.point_id = ?
+            """,
+            (point_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        (
+            value_id,
+            current_point_id,
+            point_name,
+            display_name,
+            equipment_id,
+            equipment_type,
+            location,
+            point_type,
+            data_type,
+            unit,
+            value,
+            quality,
+            source,
+            updated_at,
+        ) = row
+
+        return {
+            "id": value_id,
+            "point_id": current_point_id,
+            "point_name": point_name,
+            "display_name": display_name,
+            "equipment_id": equipment_id,
+            "equipment_type": equipment_type,
+            "location": location,
+            "point_type": point_type,
+            "data_type": data_type,
+            "unit": unit,
+            "value": value,
+            "quality": quality,
+            "source": source,
+            "updated_at": updated_at,
+        }
+
+
+def point_exists(connection, point_id):
+    """Return True when a point id exists in the point dictionary."""
+    row = connection.execute(
+        """
+        SELECT 1
+        FROM points
+        WHERE id = ?
+        """,
+        (point_id,),
+    ).fetchone()
+    return row is not None
+
+
+def update_current_point_value(
+    point_id,
+    value,
+    quality="GOOD",
+    source="MANUAL",
+    db_path=DATABASE_FILE,
+):
+    """Update or create the current value for an existing point."""
+    normalized_value = normalize_text(value)
+    normalized_quality = normalize_quality(quality)
+    normalized_source = normalize_current_value_source(source)
+    updated_at = current_timestamp()
+
+    with sqlite3.connect(db_path) as connection:
+        ensure_current_point_value_table(connection)
+        if not point_exists(connection, point_id):
+            raise LookupError(f"Point not found: {point_id}")
+
+        existing_row = connection.execute(
+            """
+            SELECT id
+            FROM current_point_values
+            WHERE point_id = ?
+            """,
+            (point_id,),
+        ).fetchone()
+
+        if existing_row:
+            connection.execute(
+                """
+                UPDATE current_point_values
+                SET value = ?,
+                    quality = ?,
+                    source = ?,
+                    updated_at = ?
+                WHERE point_id = ?
+                """,
+                (
+                    normalized_value,
+                    normalized_quality,
+                    normalized_source,
+                    updated_at,
+                    point_id,
+                ),
+            )
+        else:
+            connection.execute(
+                """
+                INSERT INTO current_point_values (
+                    id,
+                    point_id,
+                    value,
+                    quality,
+                    source,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    current_point_value_id(point_id),
+                    point_id,
+                    normalized_value,
+                    normalized_quality,
+                    normalized_source,
+                    updated_at,
+                ),
+            )
+
+    return get_current_point_value(point_id, db_path)
 
 
 def get_rule_evaluations(db_path=DATABASE_FILE):
