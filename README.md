@@ -39,6 +39,12 @@ The database-backed briefing is written to `reports/daily_briefing_from_db.md`.
 
 Generated database files are local development artifacts and are ignored by git.
 
+## Facility And Equipment Context
+
+The simulated facility is **Northstar Data Hall**, a fictional mission-critical data hall documented in `docs/facility_model.md`.
+
+Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQLite with the alarm data. The inventory adds context such as equipment type, location, criticality, and source system.
+
 ## Local API Server
 
 Create a local virtual environment and install the API dependencies:
@@ -72,6 +78,12 @@ Call the summary endpoint directly:
 
 ```bash
 curl http://127.0.0.1:8000/summary
+```
+
+Call the equipment inventory endpoint:
+
+```bash
+curl http://127.0.0.1:8000/equipment
 ```
 
 The `.venv` folder is local development environment data and should not be committed.

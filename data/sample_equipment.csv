@@ -1,0 +1,11 @@
+equipment,equipment_type,location,criticality,source_system,notes
+UPS-A,UPS,Electrical Room A,Critical,EPMS,Primary UPS serving Data Hall A critical load
+GEN-1,Generator,Generator Yard,Critical,EPMS,Standby generator for utility outage support
+ATS-1,ATS,Electrical Room A,Critical,EPMS,Automatic transfer switch feeding UPS-A
+PDU-1,PDU,Data Hall A,Critical,EPMS,Power distribution unit serving rack rows A1 through A4
+CRAC-2,CRAC,Data Hall A,High,BMS,Computer room air conditioner supporting data hall cooling
+AHU-1,Air Handler,Mechanical Room 1,High,BMS,Air handler serving support spaces and makeup air
+CHW-P-1,Chilled Water Pump,Central Plant,High,BMS,Primary chilled water pump for data hall cooling loop
+TEMP-DH-A-1,Temperature Sensor,Data Hall A,Medium,BMS,Temperature sensor monitoring cold aisle conditions
+HUM-DH-A-1,Humidity Sensor,Data Hall A,Medium,BMS,Humidity sensor monitoring data hall air conditions
+MTR-UTILITY-1,Electrical Meter,Utility Service Entrance,Critical,EPMS,Utility meter for incoming service monitoring

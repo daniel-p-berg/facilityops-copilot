@@ -1,78 +1,23 @@
-import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 
+from backend.summary import DATABASE_DISPLAY_PATH
+from backend.summary import DATABASE_FILE
+from backend.summary import LOADER_COMMAND
+from backend.summary import get_alarm_summary
+from backend.summary import get_equipment_inventory
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATABASE_FILE = PROJECT_ROOT / "db" / "facilityops.sqlite3"
 FRONTEND_FILE = PROJECT_ROOT / "frontend" / "index.html"
-DATABASE_DISPLAY_PATH = Path("db") / "facilityops.sqlite3"
-LOADER_COMMAND = "python3 analysis/load_alarm_db.py"
-
-COUNT_COLUMNS = {"severity", "source", "equipment"}
 
 app = FastAPI(title="FacilityOps Copilot API")
 
 
-def get_count_by_column(connection, column_name):
-    """Return alarm counts grouped by a trusted alarms table column."""
-    if column_name not in COUNT_COLUMNS:
-        raise ValueError(f"Unsupported count column: {column_name}")
-
-    cursor = connection.execute(
-        f"""
-        SELECT {column_name}, COUNT(*) AS alarm_count
-        FROM alarms
-        GROUP BY {column_name}
-        ORDER BY alarm_count DESC, {column_name} ASC
-        """
-    )
-    return {row[0]: row[1] for row in cursor.fetchall()}
-
-
-def get_active_critical_alarms(connection):
-    """Return active Critical alarms as JSON-ready dictionaries."""
-    cursor = connection.execute(
-        """
-        SELECT timestamp, source, equipment, alarm
-        FROM alarms
-        WHERE severity = 'Critical'
-          AND status = 'Active'
-        ORDER BY timestamp ASC, source ASC, equipment ASC
-        """
-    )
-    return [
-        {
-            "timestamp": timestamp,
-            "source": source,
-            "equipment": equipment,
-            "alarm": alarm,
-        }
-        for timestamp, source, equipment, alarm in cursor.fetchall()
-    ]
-
-
-def get_alarm_summary(db_path=DATABASE_FILE):
-    """Read alarm summary data from SQLite."""
-    with sqlite3.connect(db_path) as connection:
-        total_alarm_records = connection.execute(
-            "SELECT COUNT(*) FROM alarms"
-        ).fetchone()[0]
-
-        return {
-            "total_alarm_records": total_alarm_records,
-            "severity_counts": get_count_by_column(connection, "severity"),
-            "source_counts": get_count_by_column(connection, "source"),
-            "equipment_counts": get_count_by_column(connection, "equipment"),
-            "active_critical_alarms": get_active_critical_alarms(connection),
-        }
-
-
-@app.get("/summary")
-def read_summary():
+def database_not_found_response():
     if not DATABASE_FILE.exists():
         return JSONResponse(
             status_code=404,
@@ -82,7 +27,25 @@ def read_summary():
             },
         )
 
+    return None
+
+
+@app.get("/summary")
+def read_summary():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
     return get_alarm_summary()
+
+
+@app.get("/equipment")
+def read_equipment():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"equipment": get_equipment_inventory()}
 
 
 @app.get("/dashboard")

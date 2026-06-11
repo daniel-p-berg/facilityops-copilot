@@ -5,6 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ALARM_FILE = PROJECT_ROOT / "data" / "sample_alarms.csv"
+EQUIPMENT_FILE = PROJECT_ROOT / "data" / "sample_equipment.csv"
 DATABASE_FILE = PROJECT_ROOT / "db" / "facilityops.sqlite3"
 
 ALARM_COLUMNS = (
@@ -15,6 +16,15 @@ ALARM_COLUMNS = (
     "alarm",
     "severity",
     "status",
+)
+
+EQUIPMENT_COLUMNS = (
+    "equipment",
+    "equipment_type",
+    "location",
+    "criticality",
+    "source_system",
+    "notes",
 )
 
 
@@ -36,19 +46,45 @@ def create_alarm_table(connection):
     )
 
 
-def read_alarm_rows(csv_path):
-    """Read alarm records from the sample CSV file."""
+def create_equipment_table(connection):
+    """Create a table for sample facility equipment records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS equipment (
+            equipment TEXT PRIMARY KEY,
+            equipment_type TEXT NOT NULL,
+            location TEXT NOT NULL,
+            criticality TEXT NOT NULL,
+            source_system TEXT NOT NULL,
+            notes TEXT NOT NULL
+        )
+        """
+    )
+
+
+def read_csv_rows(csv_path, required_columns):
+    """Read CSV records and validate required columns."""
     with open(csv_path, mode="r", encoding="utf-8", newline="") as file:
         reader = csv.DictReader(file)
-        missing_columns = set(ALARM_COLUMNS) - set(reader.fieldnames or [])
+        missing_columns = set(required_columns) - set(reader.fieldnames or [])
         if missing_columns:
             missing = ", ".join(sorted(missing_columns))
             raise ValueError(f"Missing required CSV columns: {missing}")
 
         return [
-            {column: row[column] for column in ALARM_COLUMNS}
+            {column: row[column] for column in required_columns}
             for row in reader
         ]
+
+
+def read_alarm_rows(csv_path):
+    """Read alarm records from the sample CSV file."""
+    return read_csv_rows(csv_path, ALARM_COLUMNS)
+
+
+def read_equipment_rows(csv_path):
+    """Read equipment records from the sample equipment CSV file."""
+    return read_csv_rows(csv_path, EQUIPMENT_COLUMNS)
 
 
 def load_alarms_to_sqlite(csv_path=ALARM_FILE, db_path=DATABASE_FILE):
@@ -84,6 +120,54 @@ def load_alarms_to_sqlite(csv_path=ALARM_FILE, db_path=DATABASE_FILE):
         )
 
     return len(rows)
+
+
+def load_equipment_to_sqlite(csv_path=EQUIPMENT_FILE, db_path=DATABASE_FILE):
+    """Load sample equipment records from CSV into SQLite."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = read_equipment_rows(csv_path)
+
+    with sqlite3.connect(db_path) as connection:
+        create_equipment_table(connection)
+        connection.execute("DELETE FROM equipment")
+        connection.executemany(
+            """
+            INSERT INTO equipment (
+                equipment,
+                equipment_type,
+                location,
+                criticality,
+                source_system,
+                notes
+            )
+            VALUES (
+                :equipment,
+                :equipment_type,
+                :location,
+                :criticality,
+                :source_system,
+                :notes
+            )
+            """,
+            rows,
+        )
+
+    return len(rows)
+
+
+def load_sample_data_to_sqlite(
+    alarm_csv_path=ALARM_FILE,
+    equipment_csv_path=EQUIPMENT_FILE,
+    db_path=DATABASE_FILE,
+):
+    """Load sample alarm and equipment records into SQLite."""
+    alarm_count = load_alarms_to_sqlite(alarm_csv_path, db_path)
+    equipment_count = load_equipment_to_sqlite(equipment_csv_path, db_path)
+
+    return {
+        "alarm_records": alarm_count,
+        "equipment_records": equipment_count,
+    }
 
 
 def get_group_counts(connection, column_name):
@@ -123,18 +207,23 @@ def print_count_section(title, counts):
         print(f"- {name}: {count}")
 
 
-def print_verification_summary(summary):
+def print_verification_summary(summary, equipment_record_count=None):
     print(f"Total alarm records loaded: {summary['total_alarm_records']}")
+    if equipment_record_count is not None:
+        print(f"Equipment records loaded: {equipment_record_count}")
     print_count_section("Alarm counts by severity:", summary["severity_counts"])
     print_count_section("Alarm counts by source:", summary["source_counts"])
     print_count_section("Alarm counts by equipment:", summary["equipment_counts"])
 
 
 def main():
-    load_alarms_to_sqlite()
+    load_counts = load_sample_data_to_sqlite()
     summary = get_alarm_counts()
     print(f"SQLite database generated: {DATABASE_FILE}")
-    print_verification_summary(summary)
+    print_verification_summary(
+        summary,
+        equipment_record_count=load_counts["equipment_records"],
+    )
 
 
 if __name__ == "__main__":

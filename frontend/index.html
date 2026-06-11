@@ -305,7 +305,7 @@
         detail.className = "alarm-detail";
 
         title.textContent = `${alarm.equipment} | ${alarm.alarm}`;
-        detail.textContent = `${alarm.timestamp} | ${alarm.source}`;
+        detail.textContent = `${alarm.location} | ${alarm.criticality} | ${alarm.source_system}`;
 
         main.append(title, detail);
         row.appendChild(main);
