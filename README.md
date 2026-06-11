@@ -45,7 +45,9 @@ The simulated facility is **Northstar Data Hall**, a fictional mission-critical 
 
 Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQLite with the alarm data. The inventory adds context such as equipment type, location, criticality, and source system.
 
-Point dictionary records are stored in `data/sample_points.csv`. Current point values are stored in `data/sample_current_point_values.csv`. Alarm rule catalog records are stored in `data/sample_alarm_rules.csv`. The current rule catalog is read-only reference data; rules are not evaluated and do not generate alarms yet.
+Point dictionary records are stored in `data/sample_points.csv`. Current point values are stored in `data/sample_current_point_values.csv`. Alarm rule catalog records are stored in `data/sample_alarm_rules.csv`.
+
+Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. They do not create generated alarms, alarm lifecycle state, acknowledgements, suppression, latching, clearing, or history.
 
 ## Local API Server
 
@@ -74,7 +76,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/current-point-values`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, current point values, the point dictionary, and the alarm rule catalog.
+The dashboard calls `/summary`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays alarm totals, active Critical alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog.
 
 Call the summary endpoint directly:
 
@@ -98,6 +100,12 @@ Call the current point values endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/current-point-values
+```
+
+Call the read-only rule evaluations endpoint:
+
+```bash
+curl http://127.0.0.1:8000/rule-evaluations
 ```
 
 Call the alarm rule catalog endpoint:

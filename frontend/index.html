@@ -244,6 +244,21 @@
       font-weight: 700;
     }
 
+    .triggered-yes {
+      color: var(--critical);
+      font-weight: 700;
+    }
+
+    .triggered-note {
+      color: var(--high);
+      font-weight: 700;
+    }
+
+    .triggered-no {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -322,6 +337,29 @@
     </section>
 
     <section class="panel catalog-section">
+      <h2>Alarm Rule Evaluations</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Equipment</th>
+              <th>Rule Name</th>
+              <th>Point Name</th>
+              <th>Current Value</th>
+              <th>Unit</th>
+              <th>Condition</th>
+              <th>Severity</th>
+              <th>Enabled</th>
+              <th>Quality</th>
+              <th>Triggered</th>
+            </tr>
+          </thead>
+          <tbody id="ruleEvaluationRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
       <h2>Point Dictionary</h2>
       <div class="table-wrap">
         <table>
@@ -373,6 +411,7 @@
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const activeCriticalAlarmsEl = document.getElementById("activeCriticalAlarms");
     const currentPointValueRowsEl = document.getElementById("currentPointValueRows");
+    const ruleEvaluationRowsEl = document.getElementById("ruleEvaluationRows");
     const pointRowsEl = document.getElementById("pointRows");
     const alarmRuleRowsEl = document.getElementById("alarmRuleRows");
 
@@ -562,6 +601,35 @@
       });
     }
 
+    function enabledText(enabled) {
+      return enabled ? "Yes" : "No";
+    }
+
+    function triggeredText(evaluation) {
+      if (!evaluation.enabled) {
+        return "Disabled";
+      }
+      if (evaluation.is_triggered) {
+        return "Yes";
+      }
+      if (evaluation.evaluation_status === "Normal") {
+        return "No";
+      }
+
+      return displayValue(evaluation.evaluation_status);
+    }
+
+    function triggeredClass(evaluation) {
+      if (evaluation.is_triggered) {
+        return "triggered-yes";
+      }
+      if (!evaluation.enabled || evaluation.evaluation_status !== "Normal") {
+        return "triggered-note";
+      }
+
+      return "triggered-no";
+    }
+
     function formatRuleCondition(rule) {
       const conditionParts = [
         displayValue(rule.operator, ""),
@@ -605,6 +673,36 @@
       });
     }
 
+    function renderRuleEvaluations(ruleEvaluations) {
+      ruleEvaluationRowsEl.innerHTML = "";
+
+      if (ruleEvaluations.length === 0) {
+        renderEmptyRow(ruleEvaluationRowsEl, 10, "No alarm rule evaluations found.");
+        return;
+      }
+
+      ruleEvaluations.forEach((evaluation) => {
+        const row = document.createElement("tr");
+        const severityClass = evaluation.severity === "Critical"
+          ? "severity-critical"
+          : evaluation.severity === "Warning"
+            ? "severity-warning"
+            : "";
+
+        appendCell(row, evaluation.equipment_id);
+        appendCell(row, evaluation.rule_name);
+        appendCell(row, evaluation.point_name);
+        appendCell(row, evaluation.current_value);
+        appendCell(row, evaluation.unit);
+        appendCell(row, formatRuleCondition(evaluation));
+        appendCell(row, evaluation.severity, severityClass);
+        appendCell(row, enabledText(evaluation.enabled));
+        appendCell(row, evaluation.quality, qualityClass(evaluation.quality));
+        appendCell(row, triggeredText(evaluation), triggeredClass(evaluation));
+        ruleEvaluationRowsEl.appendChild(row);
+      });
+    }
+
     async function readJsonResponse(response, label) {
       const data = await response.json();
 
@@ -624,14 +722,16 @@
         const responses = await Promise.all([
           fetch("/summary"),
           fetch("/current-point-values"),
+          fetch("/rule-evaluations"),
           fetch("/points"),
           fetch("/alarm-rules"),
         ]);
-        const [summaryData, currentPointValuesData, pointsData, alarmRulesData] = await Promise.all([
+        const [summaryData, currentPointValuesData, ruleEvaluationsData, pointsData, alarmRulesData] = await Promise.all([
           readJsonResponse(responses[0], "alarm summary"),
           readJsonResponse(responses[1], "current point values"),
-          readJsonResponse(responses[2], "point dictionary"),
-          readJsonResponse(responses[3], "alarm rule catalog"),
+          readJsonResponse(responses[2], "alarm rule evaluations"),
+          readJsonResponse(responses[3], "point dictionary"),
+          readJsonResponse(responses[4], "alarm rule catalog"),
         ]);
 
         totalAlarmRecordsEl.textContent = summaryData.total_alarm_records;
@@ -640,6 +740,7 @@
         renderCounts(equipmentCountsEl, summaryData.equipment_counts);
         renderActiveCriticalAlarms(summaryData.active_critical_alarms);
         renderCurrentPointValues(currentPointValuesData.current_point_values);
+        renderRuleEvaluations(ruleEvaluationsData.rule_evaluations);
         renderPoints(pointsData.points);
         renderAlarmRules(alarmRulesData.alarm_rules);
         statusEl.textContent = "Workbench loaded from local API";

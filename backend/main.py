@@ -12,6 +12,7 @@ from backend.summary import get_alarm_summary
 from backend.summary import get_current_point_values
 from backend.summary import get_equipment_inventory
 from backend.summary import get_point_dictionary
+from backend.summary import get_rule_evaluations
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +77,15 @@ def read_current_point_values():
         return error_response
 
     return {"current_point_values": get_current_point_values()}
+
+
+@app.get("/rule-evaluations")
+def read_rule_evaluations():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"rule_evaluations": get_rule_evaluations()}
 
 
 @app.get("/dashboard")

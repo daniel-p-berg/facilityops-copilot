@@ -730,5 +730,213 @@ class CurrentPointValueTests(unittest.TestCase):
         )
 
 
+class RuleEvaluationTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def test_enabled_analog_rules_evaluate_correctly(self):
+        triggered_result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            "245",
+            "GOOD",
+            enabled=True,
+        )
+        normal_result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            "185",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(triggered_result["is_triggered"])
+        self.assertEqual(triggered_result["evaluation_status"], "Triggered")
+        self.assertFalse(normal_result["is_triggered"])
+        self.assertEqual(normal_result["evaluation_status"], "Normal")
+
+    def test_enabled_boolean_rules_evaluate_correctly(self):
+        triggered_result = backend_summary.evaluate_alarm_rule(
+            "boolean_state",
+            "==",
+            "false",
+            "false",
+            "GOOD",
+            enabled=True,
+        )
+        normal_result = backend_summary.evaluate_alarm_rule(
+            "boolean_state",
+            "==",
+            "false",
+            "true",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(triggered_result["is_triggered"])
+        self.assertEqual(triggered_result["evaluation_status"], "Triggered")
+        self.assertFalse(normal_result["is_triggered"])
+        self.assertEqual(normal_result["evaluation_status"], "Normal")
+
+    def test_enabled_enum_rules_evaluate_correctly(self):
+        triggered_result = backend_summary.evaluate_alarm_rule(
+            "enum_match",
+            "==",
+            "On Battery",
+            "on battery",
+            "GOOD",
+            enabled=True,
+        )
+        normal_result = backend_summary.evaluate_alarm_rule(
+            "enum_match",
+            "==",
+            "On Battery",
+            "Normal",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(triggered_result["is_triggered"])
+        self.assertEqual(triggered_result["evaluation_status"], "Triggered")
+        self.assertFalse(normal_result["is_triggered"])
+        self.assertEqual(normal_result["evaluation_status"], "Normal")
+
+    def test_disabled_rules_do_not_trigger(self):
+        result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            "245",
+            "GOOD",
+            enabled=False,
+        )
+
+        self.assertFalse(result["is_triggered"])
+        self.assertEqual(result["evaluation_status"], "Disabled")
+
+    def test_missing_or_invalid_values_do_not_crash_evaluation(self):
+        missing_value_result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            None,
+            "GOOD",
+            enabled=True,
+        )
+        bad_quality_result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            "245",
+            "BAD",
+            enabled=True,
+        )
+        invalid_analog_result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            "not-a-number",
+            "GOOD",
+            enabled=True,
+        )
+        unsupported_operator_result = backend_summary.evaluate_alarm_rule(
+            "analog_limit",
+            "=",
+            "240",
+            "245",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertFalse(missing_value_result["is_triggered"])
+        self.assertEqual(missing_value_result["evaluation_status"], "No current value")
+        self.assertFalse(bad_quality_result["is_triggered"])
+        self.assertEqual(bad_quality_result["evaluation_status"], "Bad quality")
+        self.assertFalse(invalid_analog_result["is_triggered"])
+        self.assertEqual(invalid_analog_result["evaluation_status"], "Invalid analog value")
+        self.assertFalse(unsupported_operator_result["is_triggered"])
+        self.assertEqual(
+            unsupported_operator_result["evaluation_status"],
+            "Unsupported operator",
+        )
+
+    def test_rule_evaluations_handle_missing_and_invalid_current_values(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            connection.execute(
+                """
+                DELETE FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            )
+            connection.execute(
+                """
+                UPDATE current_point_values
+                SET value = 'not-a-number'
+                WHERE point_id = 'GEN-1_FUEL_LEVEL'
+                """
+            )
+
+        evaluations = backend_summary.get_rule_evaluations(temp_db_path)
+        evaluations_by_rule_id = {
+            evaluation["id"]: evaluation
+            for evaluation in evaluations
+        }
+
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-UPS-A-HIGH-LOAD"]["evaluation_status"],
+            "No current value",
+        )
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-GEN-1-LOW-FUEL"]["evaluation_status"],
+            "Invalid analog value",
+        )
+
+    def test_rule_evaluations_endpoint_returns_all_rules_with_context(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_rule_evaluations",
+                lambda: backend_summary.get_rule_evaluations(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/rule-evaluations",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertIn("rule_evaluations", data)
+        self.assertEqual(len(data["rule_evaluations"]), 7)
+
+        evaluations_by_rule_id = {
+            evaluation["id"]: evaluation
+            for evaluation in data["rule_evaluations"]
+        }
+        ups_high_load = evaluations_by_rule_id["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertEqual(ups_high_load["equipment_id"], "UPS-A")
+        self.assertEqual(ups_high_load["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(ups_high_load["point_name"], "OUTPUT_KW")
+        self.assertEqual(ups_high_load["display_name"], "UPS-A Output kW")
+        self.assertEqual(ups_high_load["data_type"], "analog")
+        self.assertEqual(ups_high_load["unit"], "kW")
+        self.assertEqual(ups_high_load["current_value"], "185")
+        self.assertEqual(ups_high_load["quality"], "GOOD")
+        self.assertFalse(ups_high_load["is_triggered"])
+        self.assertEqual(ups_high_load["evaluation_status"], "Normal")
+
+
 if __name__ == "__main__":
     unittest.main()
