@@ -186,6 +186,7 @@ def create_generated_alarm_table(connection):
             severity TEXT NOT NULL,
             state TEXT NOT NULL,
             triggered_value TEXT NOT NULL,
+            pending_started_at TEXT NOT NULL DEFAULT '',
             triggered_at TEXT NOT NULL,
             cleared_at TEXT NOT NULL,
             last_evaluated_at TEXT NOT NULL,
@@ -196,6 +197,17 @@ def create_generated_alarm_table(connection):
         )
         """
     )
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(generated_alarms)")
+    }
+    if "pending_started_at" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN pending_started_at TEXT NOT NULL DEFAULT ''
+            """
+        )
 
 
 def read_csv_rows(csv_path, required_columns):
@@ -594,6 +606,13 @@ def get_generated_alarm_summary(db_path=DATABASE_FILE):
             WHERE state = 'ACTIVE'
             """
         ).fetchone()[0]
+        pending_records = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM generated_alarms
+            WHERE state = 'PENDING'
+            """
+        ).fetchone()[0]
         cleared_records = connection.execute(
             """
             SELECT COUNT(*)
@@ -605,6 +624,7 @@ def get_generated_alarm_summary(db_path=DATABASE_FILE):
     return {
         "total_generated_alarm_records": total_records,
         "active_generated_alarm_records": active_records,
+        "pending_generated_alarm_records": pending_records,
         "cleared_generated_alarm_records": cleared_records,
     }
 
@@ -638,6 +658,10 @@ def print_verification_summary(
     print(
         "Active generated alarm records: "
         f"{generated_alarm_summary['active_generated_alarm_records']}"
+    )
+    print(
+        "Pending generated alarm records: "
+        f"{generated_alarm_summary['pending_generated_alarm_records']}"
     )
     print(
         "Cleared generated alarm records: "

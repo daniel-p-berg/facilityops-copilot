@@ -275,6 +275,11 @@
       font-weight: 700;
     }
 
+    .state-pending {
+      color: var(--high);
+      font-weight: 700;
+    }
+
     .section-heading {
       display: flex;
       align-items: center;
@@ -358,6 +363,10 @@
         <div class="total-label">Active generated alarms</div>
       </div>
       <div class="panel total">
+        <div id="pendingGeneratedAlarmCount" class="total-value">--</div>
+        <div class="total-label">Pending generated alarms</div>
+      </div>
+      <div class="panel total">
         <div id="activeCriticalGeneratedAlarmCount" class="total-value">--</div>
         <div class="total-label">Active Critical generated alarms</div>
       </div>
@@ -405,6 +414,7 @@
               <th>Severity</th>
               <th>State</th>
               <th>Triggered Value</th>
+              <th>Pending Since</th>
               <th>Triggered At</th>
               <th>Cleared At</th>
               <th>Last Evaluated</th>
@@ -508,6 +518,7 @@
     const statusEl = document.getElementById("status");
     const errorEl = document.getElementById("error");
     const activeGeneratedAlarmCountEl = document.getElementById("activeGeneratedAlarmCount");
+    const pendingGeneratedAlarmCountEl = document.getElementById("pendingGeneratedAlarmCount");
     const activeCriticalGeneratedAlarmCountEl = document.getElementById("activeCriticalGeneratedAlarmCount");
     const activeWarningGeneratedAlarmCountEl = document.getElementById("activeWarningGeneratedAlarmCount");
     const clearedGeneratedAlarmCountEl = document.getElementById("clearedGeneratedAlarmCount");
@@ -617,6 +628,7 @@
 
     function renderSummary(summary) {
       activeGeneratedAlarmCountEl.textContent = displayValue(summary.active_generated_alarm_count, "0");
+      pendingGeneratedAlarmCountEl.textContent = displayValue(summary.pending_generated_alarm_count, "0");
       activeCriticalGeneratedAlarmCountEl.textContent = displayValue(
         summary.active_critical_generated_alarm_count,
         "0",
@@ -808,6 +820,9 @@
       if (normalizedState === "cleared") {
         return "state-cleared";
       }
+      if (normalizedState === "pending") {
+        return "state-pending";
+      }
 
       return "";
     }
@@ -859,7 +874,7 @@
       generatedAlarmRowsEl.innerHTML = "";
 
       if (generatedAlarms.length === 0) {
-        renderEmptyRow(generatedAlarmRowsEl, 9, "No generated alarms found.");
+        renderEmptyRow(generatedAlarmRowsEl, 10, "No generated alarms found.");
         return;
       }
 
@@ -876,6 +891,7 @@
         appendCell(row, alarm.severity, severityClass);
         appendCell(row, alarm.state, stateClass(alarm.state));
         appendCell(row, alarm.triggered_value);
+        appendCell(row, alarm.pending_started_at);
         appendCell(row, alarm.triggered_at);
         appendCell(row, alarm.cleared_at);
         appendCell(row, alarm.last_evaluated_at);

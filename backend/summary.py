@@ -167,6 +167,10 @@ def get_alarm_summary(db_path=DATABASE_FILE):
                 connection,
                 state="ACTIVE",
             ),
+            "pending_generated_alarm_count": get_generated_alarm_count(
+                connection,
+                state="PENDING",
+            ),
             "active_critical_generated_alarm_count": get_generated_alarm_count(
                 connection,
                 state="ACTIVE",
@@ -252,6 +256,7 @@ def ensure_generated_alarm_table(connection):
             severity TEXT NOT NULL,
             state TEXT NOT NULL,
             triggered_value TEXT NOT NULL,
+            pending_started_at TEXT NOT NULL DEFAULT '',
             triggered_at TEXT NOT NULL,
             cleared_at TEXT NOT NULL,
             last_evaluated_at TEXT NOT NULL,
@@ -262,6 +267,17 @@ def ensure_generated_alarm_table(connection):
         )
         """
     )
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(generated_alarms)")
+    }
+    if "pending_started_at" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE generated_alarms
+            ADD COLUMN pending_started_at TEXT NOT NULL DEFAULT ''
+            """
+        )
 
 
 def ensure_current_point_value_table(connection):
@@ -915,7 +931,8 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
                 current_point_values.source,
                 alarm_rules.operator,
                 alarm_rules.threshold_value,
-                alarm_rules.clear_value
+                alarm_rules.clear_value,
+                alarm_rules.delay_seconds
             FROM alarm_rules
             LEFT JOIN points
                 ON alarm_rules.point_id = points.id
@@ -949,6 +966,7 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
             operator,
             threshold_value,
             clear_value,
+            delay_seconds,
         ) in cursor.fetchall():
             enabled_flag = bool(enabled)
             result = evaluate_alarm_rule(
@@ -981,6 +999,7 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
                     "operator": operator,
                     "threshold_value": threshold_value,
                     "clear_value": clear_value,
+                    "delay_seconds": delay_seconds,
                     "is_triggered": result["is_triggered"],
                     "evaluation_status": result["evaluation_status"],
                 }
@@ -994,19 +1013,33 @@ def generated_alarm_id(rule_id):
     return f"GA-{rule_id}-{uuid.uuid4().hex[:12]}"
 
 
-def get_active_generated_alarms_by_rule(connection):
-    """Return active generated alarm ids keyed by rule id."""
+def get_open_generated_alarms_by_rule(connection):
+    """Return pending or active generated alarm records keyed by rule id."""
     cursor = connection.execute(
         """
-        SELECT id, rule_id
+        SELECT id, rule_id, state, pending_started_at
         FROM generated_alarms
-        WHERE state = 'ACTIVE'
+        WHERE state IN ('PENDING', 'ACTIVE')
+        ORDER BY
+            CASE state
+                WHEN 'ACTIVE' THEN 0
+                ELSE 1
+            END,
+            last_evaluated_at DESC
         """
     )
-    return {
-        rule_id: alarm_id
-        for alarm_id, rule_id in cursor.fetchall()
-    }
+    open_alarms = {}
+    for alarm_id, rule_id, state, pending_started_at in cursor.fetchall():
+        if rule_id in open_alarms:
+            continue
+
+        open_alarms[rule_id] = {
+            "id": alarm_id,
+            "state": state,
+            "pending_started_at": pending_started_at,
+        }
+
+    return open_alarms
 
 
 def get_generated_alarm_counts(connection):
@@ -1018,6 +1051,13 @@ def get_generated_alarm_counts(connection):
         WHERE state = 'ACTIVE'
         """
     ).fetchone()[0]
+    pending_count = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM generated_alarms
+        WHERE state = 'PENDING'
+        """
+    ).fetchone()[0]
     cleared_count = connection.execute(
         """
         SELECT COUNT(*)
@@ -1026,7 +1066,43 @@ def get_generated_alarm_counts(connection):
         """
     ).fetchone()[0]
 
-    return active_count, cleared_count
+    return active_count, pending_count, cleared_count
+
+
+def parse_delay_seconds(value):
+    """Parse rule delay seconds, treating blank or invalid values as no delay."""
+    if not has_value(value):
+        return 0
+
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_timestamp(value):
+    """Parse local ISO-style UTC timestamps used by the app."""
+    if not has_value(value):
+        return None
+
+    try:
+        return datetime.fromisoformat(normalize_text(value))
+    except ValueError:
+        return None
+
+
+def pending_delay_has_elapsed(pending_started_at, delay_seconds, timestamp):
+    """Return True when a pending alarm has satisfied its configured delay."""
+    if delay_seconds <= 0:
+        return True
+
+    started_at = parse_timestamp(pending_started_at)
+    evaluated_at = parse_timestamp(timestamp)
+    if started_at is None or evaluated_at is None:
+        return True
+
+    elapsed_seconds = (evaluated_at - started_at).total_seconds()
+    return elapsed_seconds >= delay_seconds
 
 
 def active_generated_alarm_should_clear(evaluation):
@@ -1089,11 +1165,6 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
         for evaluation in evaluations
         if evaluation["enabled"] and evaluation["is_triggered"]
     ]
-    triggered_rule_ids = {
-        evaluation["id"]
-        for evaluation in triggered_evaluations
-    }
-    kept_active_rule_ids = set(triggered_rule_ids)
 
     timestamp = current_timestamp()
     created_count = 0
@@ -1102,11 +1173,14 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
 
     with sqlite3.connect(db_path) as connection:
         ensure_generated_alarm_table(connection)
-        active_generated_alarms = get_active_generated_alarms_by_rule(connection)
+        open_generated_alarms = get_open_generated_alarms_by_rule(connection)
+        handled_open_rule_ids = set()
 
         for evaluation in triggered_evaluations:
-            active_alarm_id = active_generated_alarms.get(evaluation["id"])
-            if active_alarm_id:
+            delay_seconds = parse_delay_seconds(evaluation["delay_seconds"])
+            open_alarm = open_generated_alarms.get(evaluation["id"])
+
+            if open_alarm and open_alarm["state"] == "ACTIVE":
                 connection.execute(
                     """
                     UPDATE generated_alarms
@@ -1127,11 +1201,79 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         normalize_text(evaluation["current_value"]),
                         timestamp,
                         active_generated_alarm_note(evaluation),
-                        active_alarm_id,
+                        open_alarm["id"],
                     ),
                 )
                 updated_count += 1
-            else:
+                handled_open_rule_ids.add(evaluation["id"])
+                continue
+
+            if open_alarm and open_alarm["state"] == "PENDING":
+                pending_started_at = open_alarm["pending_started_at"] or timestamp
+                if pending_delay_has_elapsed(
+                    pending_started_at,
+                    delay_seconds,
+                    timestamp,
+                ):
+                    connection.execute(
+                        """
+                        UPDATE generated_alarms
+                        SET point_id = ?,
+                            equipment_id = ?,
+                            alarm_message = ?,
+                            severity = ?,
+                            state = 'ACTIVE',
+                            triggered_value = ?,
+                            pending_started_at = ?,
+                            triggered_at = ?,
+                            last_evaluated_at = ?,
+                            evaluation_note = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            evaluation["point_id"],
+                            evaluation["equipment_id"],
+                            evaluation["alarm_message"],
+                            evaluation["severity"],
+                            normalize_text(evaluation["current_value"]),
+                            pending_started_at,
+                            timestamp,
+                            timestamp,
+                            active_generated_alarm_note(evaluation),
+                            open_alarm["id"],
+                        ),
+                    )
+                else:
+                    connection.execute(
+                        """
+                        UPDATE generated_alarms
+                        SET point_id = ?,
+                            equipment_id = ?,
+                            alarm_message = ?,
+                            severity = ?,
+                            triggered_value = ?,
+                            pending_started_at = ?,
+                            last_evaluated_at = ?,
+                            evaluation_note = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            evaluation["point_id"],
+                            evaluation["equipment_id"],
+                            evaluation["alarm_message"],
+                            evaluation["severity"],
+                            normalize_text(evaluation["current_value"]),
+                            pending_started_at,
+                            timestamp,
+                            "Pending delay",
+                            open_alarm["id"],
+                        ),
+                    )
+                updated_count += 1
+                handled_open_rule_ids.add(evaluation["id"])
+                continue
+
+            if delay_seconds > 0:
                 connection.execute(
                     """
                     INSERT INTO generated_alarms (
@@ -1143,12 +1285,13 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         severity,
                         state,
                         triggered_value,
+                        pending_started_at,
                         triggered_at,
                         cleared_at,
                         last_evaluated_at,
                         evaluation_note
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         generated_alarm_id(evaluation["id"]),
@@ -1157,55 +1300,116 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         evaluation["equipment_id"],
                         evaluation["alarm_message"],
                         evaluation["severity"],
-                        "ACTIVE",
+                        "PENDING",
                         normalize_text(evaluation["current_value"]),
                         timestamp,
                         "",
+                        "",
                         timestamp,
-                        active_generated_alarm_note(evaluation),
+                        "Pending delay",
                     ),
                 )
                 created_count += 1
-
-        for evaluation in evaluations:
-            if evaluation["id"] in triggered_rule_ids:
-                continue
-
-            active_alarm_id = active_generated_alarms.get(evaluation["id"])
-            if not active_alarm_id:
-                continue
-
-            if active_generated_alarm_should_clear(evaluation):
                 continue
 
             connection.execute(
                 """
+                INSERT INTO generated_alarms (
+                    id,
+                    rule_id,
+                    point_id,
+                    equipment_id,
+                    alarm_message,
+                    severity,
+                    state,
+                    triggered_value,
+                    pending_started_at,
+                    triggered_at,
+                    cleared_at,
+                    last_evaluated_at,
+                    evaluation_note
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    generated_alarm_id(evaluation["id"]),
+                    evaluation["id"],
+                    evaluation["point_id"],
+                    evaluation["equipment_id"],
+                    evaluation["alarm_message"],
+                    evaluation["severity"],
+                    "ACTIVE",
+                    normalize_text(evaluation["current_value"]),
+                    "",
+                    timestamp,
+                    "",
+                    timestamp,
+                    active_generated_alarm_note(evaluation),
+                ),
+            )
+            created_count += 1
+
+        for evaluation in evaluations:
+            if evaluation["id"] in handled_open_rule_ids:
+                continue
+
+            open_alarm = open_generated_alarms.get(evaluation["id"])
+            if not open_alarm:
+                continue
+
+            if (
+                open_alarm["state"] == "ACTIVE"
+                and not active_generated_alarm_should_clear(evaluation)
+            ):
+                connection.execute(
+                    """
+                    UPDATE generated_alarms
+                    SET point_id = ?,
+                        equipment_id = ?,
+                        alarm_message = ?,
+                        severity = ?,
+                        triggered_value = ?,
+                        last_evaluated_at = ?,
+                        evaluation_note = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        evaluation["point_id"],
+                        evaluation["equipment_id"],
+                        evaluation["alarm_message"],
+                        evaluation["severity"],
+                        normalize_text(evaluation["current_value"]),
+                        timestamp,
+                        active_generated_alarm_note(evaluation),
+                        open_alarm["id"],
+                    ),
+                )
+                handled_open_rule_ids.add(evaluation["id"])
+                updated_count += 1
+                continue
+
+            evaluation_note = evaluation["evaluation_status"]
+            connection.execute(
+                """
                 UPDATE generated_alarms
-                SET point_id = ?,
-                    equipment_id = ?,
-                    alarm_message = ?,
-                    severity = ?,
-                    triggered_value = ?,
+                SET state = 'CLEARED',
+                    cleared_at = ?,
                     last_evaluated_at = ?,
                     evaluation_note = ?
                 WHERE id = ?
                 """,
                 (
-                    evaluation["point_id"],
-                    evaluation["equipment_id"],
-                    evaluation["alarm_message"],
-                    evaluation["severity"],
-                    normalize_text(evaluation["current_value"]),
                     timestamp,
-                    active_generated_alarm_note(evaluation),
-                    active_alarm_id,
+                    timestamp,
+                    evaluation_note,
+                    open_alarm["id"],
                 ),
             )
-            kept_active_rule_ids.add(evaluation["id"])
-            updated_count += 1
+            handled_open_rule_ids.add(evaluation["id"])
+            cleared_this_run_count += 1
 
-        for rule_id, alarm_id in active_generated_alarms.items():
-            if rule_id in kept_active_rule_ids:
+        for rule_id, open_alarm in open_generated_alarms.items():
+            if rule_id in handled_open_rule_ids:
                 continue
 
             evaluation_note = "Rule not evaluated"
@@ -1225,15 +1429,18 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     timestamp,
                     timestamp,
                     evaluation_note,
-                    alarm_id,
+                    open_alarm["id"],
                 ),
             )
             cleared_this_run_count += 1
 
-        active_count, total_cleared_count = get_generated_alarm_counts(connection)
+        active_count, pending_count, total_cleared_count = get_generated_alarm_counts(
+            connection,
+        )
 
     return {
         "active_count": active_count,
+        "pending_count": pending_count,
         "cleared_count": cleared_this_run_count,
         "total_cleared_count": total_cleared_count,
         "created_count": created_count,
@@ -1263,6 +1470,7 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 generated_alarms.severity,
                 generated_alarms.state,
                 generated_alarms.triggered_value,
+                generated_alarms.pending_started_at,
                 generated_alarms.triggered_at,
                 generated_alarms.cleared_at,
                 generated_alarms.last_evaluated_at,
@@ -1277,7 +1485,8 @@ def get_generated_alarms(db_path=DATABASE_FILE):
             ORDER BY
                 CASE generated_alarms.state
                     WHEN 'ACTIVE' THEN 0
-                    ELSE 1
+                    WHEN 'PENDING' THEN 1
+                    ELSE 2
                 END,
                 generated_alarms.last_evaluated_at DESC,
                 generated_alarms.equipment_id ASC,
@@ -1301,6 +1510,7 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 "severity": severity,
                 "state": state,
                 "triggered_value": triggered_value,
+                "pending_started_at": pending_started_at,
                 "triggered_at": triggered_at,
                 "cleared_at": cleared_at,
                 "last_evaluated_at": last_evaluated_at,
@@ -1322,6 +1532,7 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 severity,
                 state,
                 triggered_value,
+                pending_started_at,
                 triggered_at,
                 cleared_at,
                 last_evaluated_at,

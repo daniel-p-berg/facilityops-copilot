@@ -305,6 +305,7 @@ class EquipmentInventoryTests(unittest.TestCase):
 
         self.assertEqual(summary["total_generated_alarm_count"], 0)
         self.assertEqual(summary["active_generated_alarm_count"], 0)
+        self.assertEqual(summary["pending_generated_alarm_count"], 0)
         self.assertEqual(summary["active_critical_generated_alarm_count"], 0)
         self.assertEqual(summary["active_warning_generated_alarm_count"], 0)
         self.assertEqual(summary["active_info_generated_alarm_count"], 0)
@@ -323,7 +324,9 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         dashboard_html = frontend_file.read_text(encoding="utf-8")
 
         self.assertIn("activeGeneratedAlarmCount", dashboard_html)
+        self.assertIn("pendingGeneratedAlarmCount", dashboard_html)
         self.assertIn("active_generated_alarm_count", dashboard_html)
+        self.assertIn("pending_generated_alarm_count", dashboard_html)
         self.assertIn("Generated Alarms", dashboard_html)
         self.assertNotIn("activeCriticalAlarms", dashboard_html)
         self.assertNotIn("active_critical_alarms", dashboard_html)
@@ -1160,17 +1163,14 @@ class AlarmScenarioTests(unittest.TestCase):
 
         self.assertEqual(summary_before_evaluation["total_generated_alarm_count"], 0)
         self.assertEqual(summary_before_evaluation["active_generated_alarm_count"], 0)
+        self.assertEqual(summary_before_evaluation["pending_generated_alarm_count"], 0)
         self.assertEqual(summary_after_evaluation["total_generated_alarm_count"], 1)
-        self.assertEqual(summary_after_evaluation["active_generated_alarm_count"], 1)
-        self.assertEqual(summary_after_evaluation["active_warning_generated_alarm_count"], 1)
-        self.assertEqual(
-            summary_after_evaluation["active_generated_alarm_severity_counts"],
-            {"Warning": 1},
-        )
-        self.assertEqual(
-            summary_after_evaluation["active_generated_alarm_equipment_counts"],
-            {"UPS-A": 1},
-        )
+        self.assertEqual(summary_after_evaluation["active_generated_alarm_count"], 0)
+        self.assertEqual(summary_after_evaluation["pending_generated_alarm_count"], 1)
+        self.assertEqual(summary_after_evaluation["active_warning_generated_alarm_count"], 0)
+        self.assertEqual(summary_after_evaluation["active_generated_alarm_severity_counts"], {})
+        self.assertEqual(summary_after_evaluation["generated_alarm_state_counts"], {"PENDING": 1})
+        self.assertEqual(summary_after_evaluation["active_generated_alarm_equipment_counts"], {})
 
     def test_invalid_scenario_endpoint_returns_error(self):
         temp_db_path = self.load_temp_sample_database()
@@ -1411,6 +1411,8 @@ class GeneratedAlarmStateTests(unittest.TestCase):
 
         temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
         load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        with sqlite3.connect(temp_db_path) as connection:
+            connection.execute("UPDATE alarm_rules SET delay_seconds = 0")
         return temp_db_path
 
     def trigger_ups_high_load_rule(self, db_path):
@@ -1438,6 +1440,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         operator=None,
         threshold_value=None,
         clear_value=None,
+        delay_seconds=None,
     ):
         assignments = []
         parameters = []
@@ -1450,6 +1453,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         if clear_value is not None:
             assignments.append("clear_value = ?")
             parameters.append(clear_value)
+        if delay_seconds is not None:
+            assignments.append("delay_seconds = ?")
+            parameters.append(delay_seconds)
 
         if not assignments:
             return
@@ -1480,9 +1486,14 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             generated_alarm_count = connection.execute(
                 "SELECT COUNT(*) FROM generated_alarms"
             ).fetchone()[0]
+            generated_alarm_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(generated_alarms)")
+            }
 
         self.assertIsNotNone(table_exists)
         self.assertEqual(generated_alarm_count, 0)
+        self.assertIn("pending_started_at", generated_alarm_columns)
 
     def test_evaluate_creates_active_alarm_for_triggered_rule(self):
         temp_db_path = self.load_temp_sample_database()
@@ -1497,6 +1508,171 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(generated_alarms[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
         self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
         self.assertEqual(generated_alarms[0]["triggered_value"], "245")
+
+    def test_rule_with_delay_creates_pending_alarm_when_first_triggered(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:00:00",
+        ):
+            summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        alarm_summary = backend_summary.get_alarm_summary(temp_db_path)
+
+        self.assertEqual(summary["created_count"], 1)
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["pending_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "PENDING")
+        self.assertEqual(generated_alarms[0]["pending_started_at"], "2026-05-01 12:00:00")
+        self.assertEqual(generated_alarms[0]["triggered_at"], "")
+        self.assertEqual(generated_alarms[0]["evaluation_note"], "Pending delay")
+        self.assertEqual(alarm_summary["active_generated_alarm_count"], 0)
+        self.assertEqual(alarm_summary["pending_generated_alarm_count"], 1)
+        self.assertEqual(alarm_summary["active_warning_generated_alarm_count"], 0)
+        self.assertEqual(alarm_summary["generated_alarm_state_counts"], {"PENDING": 1})
+        self.assertEqual(alarm_summary["active_generated_alarm_severity_counts"], {})
+
+    def test_pending_alarm_remains_pending_before_delay_elapses(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            side_effect=[
+                "2026-05-01 12:00:00",
+                "2026-05-01 12:04:59",
+            ],
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+            summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["pending_count"], 1)
+        self.assertEqual(summary["updated_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "PENDING")
+        self.assertEqual(generated_alarms[0]["pending_started_at"], "2026-05-01 12:00:00")
+        self.assertEqual(generated_alarms[0]["triggered_at"], "")
+        self.assertEqual(generated_alarms[0]["last_evaluated_at"], "2026-05-01 12:04:59")
+
+    def test_pending_alarm_becomes_active_after_delay_elapses(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            side_effect=[
+                "2026-05-01 12:00:00",
+                "2026-05-01 12:05:00",
+            ],
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+            summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["active_count"], 1)
+        self.assertEqual(summary["pending_count"], 0)
+        self.assertEqual(summary["updated_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
+        self.assertEqual(generated_alarms[0]["pending_started_at"], "2026-05-01 12:00:00")
+        self.assertEqual(generated_alarms[0]["triggered_at"], "2026-05-01 12:05:00")
+        self.assertEqual(generated_alarms[0]["evaluation_note"], "Triggered")
+
+    def test_pending_alarm_clears_if_rule_returns_normal_before_delay_elapses(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:00:00",
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.clear_ups_high_load_rule(temp_db_path)
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:01:00",
+        ):
+            summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["active_count"], 0)
+        self.assertEqual(summary["pending_count"], 0)
+        self.assertEqual(summary["cleared_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+        self.assertEqual(generated_alarms[0]["pending_started_at"], "2026-05-01 12:00:00")
+        self.assertEqual(generated_alarms[0]["triggered_at"], "")
+        self.assertEqual(generated_alarms[0]["cleared_at"], "2026-05-01 12:01:00")
+        self.assertEqual(generated_alarms[0]["evaluation_note"], "Normal")
+
+    def test_blank_delay_seconds_creates_active_alarm_immediately(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds="",
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["created_count"], 1)
+        self.assertEqual(summary["active_count"], 1)
+        self.assertEqual(summary["pending_count"], 0)
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
+
+    def test_rule_evaluations_remain_stateless_when_generated_alarm_is_pending(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        evaluations = backend_summary.get_rule_evaluations(temp_db_path)
+        ups_high_load = [
+            evaluation
+            for evaluation in evaluations
+            if evaluation["id"] == "RULE-UPS-A-HIGH-LOAD"
+        ][0]
+
+        self.assertTrue(ups_high_load["is_triggered"])
+        self.assertEqual(ups_high_load["evaluation_status"], "Triggered")
+        self.assertNotIn("state", ups_high_load)
 
     def test_rerunning_evaluation_does_not_duplicate_active_alarms(self):
         temp_db_path = self.load_temp_sample_database()
@@ -1778,6 +1954,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(data["created_count"], 1)
         self.assertEqual(data["active_count"], 1)
+        self.assertEqual(data["pending_count"], 0)
         self.assertEqual(len(generated_alarms), 1)
         self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
 
@@ -1799,6 +1976,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(data["total_generated_alarm_count"], 1)
         self.assertEqual(data["active_generated_alarm_count"], 1)
+        self.assertEqual(data["pending_generated_alarm_count"], 0)
         self.assertEqual(data["active_warning_generated_alarm_count"], 1)
         self.assertEqual(data["active_critical_generated_alarm_count"], 0)
         self.assertEqual(data["cleared_generated_alarm_count"], 0)
