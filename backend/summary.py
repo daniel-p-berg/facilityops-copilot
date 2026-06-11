@@ -16,6 +16,15 @@ ANALOG_OPERATORS = {">", ">=", "<", "<="}
 MATCH_OPERATORS = {"==", "!="}
 TRUE_VALUES = {"true", "1", "yes", "on"}
 FALSE_VALUES = {"false", "0", "no", "off"}
+ALLOWED_ALARM_RULE_SEVERITIES = {"Critical", "Warning", "Info"}
+EDITABLE_ALARM_RULE_FIELDS = {
+    "threshold_value",
+    "clear_value",
+    "delay_seconds",
+    "severity",
+    "alarm_message",
+    "enabled",
+}
 ALLOWED_QUALITIES = {"GOOD", "BAD", "STALE", "UNKNOWN"}
 ALLOWED_CURRENT_VALUE_SOURCES = {
     "SIMULATED",
@@ -375,6 +384,64 @@ def normalize_current_value_source(value):
     return normalized_value
 
 
+def normalize_optional_catalog_text(value):
+    """Normalize optional catalog values to the same blank style as the loader."""
+    if not has_value(value):
+        return ""
+
+    return normalize_text(value)
+
+
+def normalize_alarm_rule_severity(value):
+    """Normalize and validate an editable alarm rule severity."""
+    normalized_value = normalize_text(value).lower()
+    severity_by_name = {
+        severity.lower(): severity
+        for severity in ALLOWED_ALARM_RULE_SEVERITIES
+    }
+    if normalized_value not in severity_by_name:
+        allowed_values = ", ".join(sorted(ALLOWED_ALARM_RULE_SEVERITIES))
+        raise ValueError(f"severity must be one of: {allowed_values}")
+
+    return severity_by_name[normalized_value]
+
+
+def parse_enabled_flag(value):
+    """Parse an enabled flag into a predictable SQLite integer."""
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if value is None:
+        raise ValueError("enabled must be one of: 1, 0, true, false, yes, no")
+
+    normalized_value = normalize_text(value).lower()
+    if normalized_value in {"1", "true", "yes"}:
+        return 1
+    if normalized_value in {"0", "false", "no"}:
+        return 0
+
+    raise ValueError("enabled must be one of: 1, 0, true, false, yes, no")
+
+
+def parse_non_negative_delay_seconds(value):
+    """Parse editable delay_seconds into a non-negative integer."""
+    if isinstance(value, bool):
+        raise ValueError("delay_seconds must be a non-negative integer")
+    if not has_value(value):
+        return 0
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError("delay_seconds must be a non-negative integer")
+
+    try:
+        delay_seconds = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("delay_seconds must be a non-negative integer") from None
+
+    if delay_seconds < 0:
+        raise ValueError("delay_seconds must be a non-negative integer")
+
+    return delay_seconds
+
+
 def parse_number(value):
     """Safely parse a numeric point or threshold value."""
     if not has_value(value):
@@ -584,7 +651,8 @@ def get_alarm_rule_catalog(db_path=DATABASE_FILE):
                 alarm_rules.severity,
                 alarm_rules.alarm_message,
                 alarm_rules.enabled,
-                alarm_rules.delay_seconds
+                alarm_rules.delay_seconds,
+                alarm_rules.updated_at
             FROM alarm_rules
             LEFT JOIN points
                 ON alarm_rules.point_id = points.id
@@ -611,6 +679,7 @@ def get_alarm_rule_catalog(db_path=DATABASE_FILE):
                 "alarm_message": alarm_message,
                 "enabled": bool(enabled),
                 "delay_seconds": delay_seconds,
+                "updated_at": updated_at,
             }
             for (
                 rule_id,
@@ -629,8 +698,79 @@ def get_alarm_rule_catalog(db_path=DATABASE_FILE):
                 alarm_message,
                 enabled,
                 delay_seconds,
+                updated_at,
             ) in cursor.fetchall()
         ]
+
+
+def get_alarm_rule(rule_id, db_path=DATABASE_FILE):
+    """Return one enriched alarm rule catalog record by id."""
+    for rule in get_alarm_rule_catalog(db_path):
+        if rule["id"] == rule_id:
+            return rule
+
+    return None
+
+
+def update_alarm_rule(rule_id, updates, db_path=DATABASE_FILE):
+    """Update editable fields for an existing alarm rule."""
+    if updates is None:
+        updates = {}
+    if not isinstance(updates, dict):
+        raise ValueError("alarm rule update body must be an object")
+
+    unsupported_fields = sorted(set(updates) - EDITABLE_ALARM_RULE_FIELDS)
+    if unsupported_fields:
+        field_list = ", ".join(unsupported_fields)
+        raise ValueError(f"Unsupported alarm rule field(s): {field_list}")
+
+    with sqlite3.connect(db_path) as connection:
+        rule_exists = connection.execute(
+            """
+            SELECT 1
+            FROM alarm_rules
+            WHERE id = ?
+            """,
+            (rule_id,),
+        ).fetchone()
+        if not rule_exists:
+            raise LookupError(f"Alarm rule not found: {rule_id}")
+
+        assignments = []
+        parameters = []
+        if "threshold_value" in updates:
+            assignments.append("threshold_value = ?")
+            parameters.append(normalize_optional_catalog_text(updates["threshold_value"]))
+        if "clear_value" in updates:
+            assignments.append("clear_value = ?")
+            parameters.append(normalize_optional_catalog_text(updates["clear_value"]))
+        if "delay_seconds" in updates:
+            assignments.append("delay_seconds = ?")
+            parameters.append(parse_non_negative_delay_seconds(updates["delay_seconds"]))
+        if "severity" in updates:
+            assignments.append("severity = ?")
+            parameters.append(normalize_alarm_rule_severity(updates["severity"]))
+        if "alarm_message" in updates:
+            assignments.append("alarm_message = ?")
+            parameters.append(normalize_text(updates["alarm_message"]))
+        if "enabled" in updates:
+            assignments.append("enabled = ?")
+            parameters.append(parse_enabled_flag(updates["enabled"]))
+
+        if assignments:
+            assignments.append("updated_at = ?")
+            parameters.append(current_timestamp())
+            parameters.append(rule_id)
+            connection.execute(
+                f"""
+                UPDATE alarm_rules
+                SET {", ".join(assignments)}
+                WHERE id = ?
+                """,
+                parameters,
+            )
+
+    return get_alarm_rule(rule_id, db_path)
 
 
 def get_current_point_values(db_path=DATABASE_FILE):

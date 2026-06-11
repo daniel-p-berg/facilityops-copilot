@@ -327,6 +327,15 @@
       width: 8rem;
     }
 
+    .short-input {
+      width: 7rem;
+    }
+
+    .message-input {
+      min-width: 18rem;
+      width: 22rem;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -506,10 +515,14 @@
               <th>Point</th>
               <th>Rule</th>
               <th>Type</th>
-              <th>Condition</th>
-              <th>Severity</th>
+              <th>Operator</th>
+              <th>Threshold</th>
+              <th>Clear</th>
               <th>Delay</th>
+              <th>Severity</th>
+              <th>Enabled</th>
               <th>Message</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="alarmRuleRows"></tbody>
@@ -717,12 +730,42 @@
       return select;
     }
 
-    function createValueInput(value) {
+    function createValueInput(value, className = "value-input") {
       const input = document.createElement("input");
-      input.className = "value-input";
+      input.className = className;
       input.value = displayValue(value, "");
       input.type = "text";
       return input;
+    }
+
+    function createSeveritySelect(selectedSeverity) {
+      const select = document.createElement("select");
+      ["Critical", "Warning", "Info"].forEach((severity) => {
+        const option = document.createElement("option");
+        option.value = severity;
+        option.textContent = severity;
+        option.selected = displayValue(selectedSeverity, "Warning") === severity;
+        select.appendChild(option);
+      });
+
+      return select;
+    }
+
+    function createEnabledSelect(selectedEnabled) {
+      const select = document.createElement("select");
+      const selectedValue = selectedEnabled ? "true" : "false";
+      [
+        ["true", "Yes"],
+        ["false", "No"],
+      ].forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.selected = selectedValue === value;
+        select.appendChild(option);
+      });
+
+      return select;
     }
 
     function renderCurrentPointValues(currentPointValues) {
@@ -850,26 +893,49 @@
       alarmRuleRowsEl.innerHTML = "";
 
       if (rules.length === 0) {
-        renderEmptyRow(alarmRuleRowsEl, 8, "No alarm rule records found.");
+        renderEmptyRow(alarmRuleRowsEl, 12, "No alarm rule records found.");
         return;
       }
 
       rules.forEach((rule) => {
         const row = document.createElement("tr");
-        const severityClass = rule.severity === "Critical"
-          ? "severity-critical"
-          : rule.severity === "Warning"
-            ? "severity-warning"
-            : "";
+        const thresholdInput = createValueInput(rule.threshold_value, "short-input");
+        const clearInput = createValueInput(rule.clear_value, "short-input");
+        const delayInput = createValueInput(rule.delay_seconds, "short-input");
+        const severitySelect = createSeveritySelect(rule.severity);
+        const enabledSelect = createEnabledSelect(rule.enabled);
+        const messageInput = createValueInput(rule.alarm_message, "message-input");
+        const updateButton = document.createElement("button");
+
+        updateButton.type = "button";
+        updateButton.textContent = "Update Rule";
+        updateButton.addEventListener("click", () => {
+          updateAlarmRule(
+            rule.id,
+            {
+              threshold_value: thresholdInput.value,
+              clear_value: clearInput.value,
+              delay_seconds: delayInput.value,
+              severity: severitySelect.value,
+              enabled: enabledSelect.value === "true",
+              alarm_message: messageInput.value,
+            },
+            updateButton,
+          );
+        });
 
         appendCell(row, rule.equipment_id);
         appendCell(row, rule.display_name);
         appendCell(row, rule.rule_name);
         appendCell(row, rule.rule_type);
-        appendCell(row, formatRuleCondition(rule));
-        appendCell(row, rule.severity, severityClass);
-        appendCell(row, hasValue(rule.delay_seconds) ? `${rule.delay_seconds}s` : null);
-        appendCell(row, rule.alarm_message);
+        appendCell(row, rule.operator);
+        appendNodeCell(row, thresholdInput);
+        appendNodeCell(row, clearInput);
+        appendNodeCell(row, delayInput);
+        appendNodeCell(row, severitySelect);
+        appendNodeCell(row, enabledSelect);
+        appendNodeCell(row, messageInput);
+        appendNodeCell(row, updateButton);
         alarmRuleRowsEl.appendChild(row);
       });
     }
@@ -987,6 +1053,41 @@
       const response = await fetch("/scenarios");
       const data = await readJsonResponse(response, "alarm scenarios");
       renderScenarioButtons(data.scenarios);
+    }
+
+    async function loadAlarmRules() {
+      const response = await fetch("/alarm-rules");
+      const data = await readJsonResponse(response, "alarm rule catalog");
+      renderAlarmRules(data.alarm_rules);
+    }
+
+    async function updateAlarmRule(ruleId, values, button) {
+      button.disabled = true;
+      button.textContent = "Updating...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch(`/alarm-rules/${encodeURIComponent(ruleId)}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(values),
+        });
+        await readJsonResponse(response, "alarm rule update");
+        await Promise.all([
+          loadSummary(),
+          loadAlarmRules(),
+          loadRuleEvaluations(),
+          loadGeneratedAlarms(),
+        ]);
+        statusEl.textContent = `${ruleId} updated. Generated alarms were not evaluated.`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Update Rule";
+      }
     }
 
     async function updateCurrentPointValue(pointId, value, quality, button) {

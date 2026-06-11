@@ -19,6 +19,7 @@ from backend.summary import get_generated_alarms
 from backend.summary import get_point_dictionary
 from backend.summary import get_rule_evaluations
 from backend.summary import get_scenarios
+from backend.summary import update_alarm_rule
 from backend.summary import update_current_point_value
 
 
@@ -75,6 +76,28 @@ def read_alarm_rules():
         return error_response
 
     return {"alarm_rules": get_alarm_rule_catalog()}
+
+
+@app.put("/alarm-rules/{rule_id}")
+def update_alarm_rule_state(rule_id: str, payload: dict = Body(...)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    try:
+        alarm_rule = update_alarm_rule(rule_id, payload)
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
+
+    return {"alarm_rule": alarm_rule}
 
 
 @app.get("/current-point-values")

@@ -41,6 +41,8 @@ Point dictionary records are stored in `data/sample_points.csv`. Current point v
 
 Current point values can be updated manually through the dashboard or the local API. Manual updates use `MANUAL` as the current value source and do not automatically evaluate generated alarms.
 
+Existing alarm rules can be edited through the dashboard or the local API for local demo tuning. Rule edits are limited to thresholds, clear values, delay, severity, enabled state, and alarm message; they do not automatically evaluate or rewrite generated alarms.
+
 Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates use `SCENARIO` as the current value source and do not automatically evaluate generated alarms.
 
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values.
@@ -74,7 +76,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog.
+The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values and existing alarm rules can be updated from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
 
@@ -144,6 +146,14 @@ Call the alarm rule catalog endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/alarm-rules
+```
+
+Update an existing alarm rule:
+
+```bash
+curl -X PUT http://127.0.0.1:8000/alarm-rules/RULE-UPS-A-HIGH-LOAD \
+  -H "Content-Type: application/json" \
+  -d '{"threshold_value":"250","clear_value":"230","delay_seconds":60,"severity":"Warning","enabled":true,"alarm_message":"UPS-A load is above edited threshold"}'
 ```
 
 The `.venv` folder is local development environment data and should not be committed.

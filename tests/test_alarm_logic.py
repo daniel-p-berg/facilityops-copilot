@@ -1020,6 +1020,294 @@ class ManualCurrentPointValueUpdateTests(unittest.TestCase):
         self.assertEqual(generated_alarms, [])
 
 
+class AlarmRuleEditingTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def rule_by_id(self, db_path, rule_id):
+        alarm_rules = backend_summary.get_alarm_rule_catalog(db_path)
+        return {
+            rule["id"]: rule
+            for rule in alarm_rules
+        }[rule_id]
+
+    def evaluations_by_rule_id(self, db_path):
+        return {
+            evaluation["id"]: evaluation
+            for evaluation in backend_summary.get_rule_evaluations(db_path)
+        }
+
+    def test_updating_threshold_value_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"threshold_value": "250"},
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["threshold_value"], "250")
+        self.assertEqual(
+            self.rule_by_id(temp_db_path, "RULE-UPS-A-HIGH-LOAD")["threshold_value"],
+            "250",
+        )
+
+    def test_updating_clear_value_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"clear_value": "225"},
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["clear_value"], "225")
+
+    def test_blank_threshold_and_clear_values_normalize_to_empty_strings(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {
+                "threshold_value": "null",
+                "clear_value": "",
+            },
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["threshold_value"], "")
+        self.assertEqual(alarm_rule["clear_value"], "")
+
+    def test_updating_delay_seconds_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"delay_seconds": "45"},
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["delay_seconds"], 45)
+
+    def test_updating_severity_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"severity": "Critical"},
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["severity"], "Critical")
+
+    def test_updating_enabled_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"enabled": "false"},
+            db_path=temp_db_path,
+        )
+
+        self.assertFalse(alarm_rule["enabled"])
+
+    def test_alarm_rule_update_endpoint_returns_context(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_alarm_rule",
+                lambda rule_id, payload: backend_summary.update_alarm_rule(
+                    rule_id,
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules/RULE-UPS-A-HIGH-LOAD",
+                method="PUT",
+                body={
+                    "threshold_value": "250",
+                    "clear_value": "230",
+                    "delay_seconds": 30,
+                    "severity": "Critical",
+                    "alarm_message": "UPS-A load is above edited threshold",
+                    "enabled": True,
+                },
+            )
+
+        self.assertEqual(status, 200)
+        alarm_rule = data["alarm_rule"]
+        self.assertEqual(alarm_rule["id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(alarm_rule["threshold_value"], "250")
+        self.assertEqual(alarm_rule["clear_value"], "230")
+        self.assertEqual(alarm_rule["delay_seconds"], 30)
+        self.assertEqual(alarm_rule["severity"], "Critical")
+        self.assertTrue(alarm_rule["enabled"])
+        self.assertEqual(alarm_rule["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(alarm_rule["equipment_id"], "UPS-A")
+        self.assertEqual(alarm_rule["point_name"], "OUTPUT_KW")
+
+    def test_alarm_rule_update_endpoint_returns_error_for_invalid_rule_id(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_alarm_rule",
+                lambda rule_id, payload: backend_summary.update_alarm_rule(
+                    rule_id,
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules/DOES-NOT-EXIST",
+                method="PUT",
+                body={"threshold_value": "250"},
+            )
+
+        self.assertEqual(status, 404)
+        self.assertIn("Alarm rule not found", data["error"])
+
+    def test_alarm_rule_update_endpoint_returns_error_for_invalid_severity(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_alarm_rule",
+                lambda rule_id, payload: backend_summary.update_alarm_rule(
+                    rule_id,
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules/RULE-UPS-A-HIGH-LOAD",
+                method="PUT",
+                body={"severity": "Emergency"},
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("severity must be one of", data["error"])
+
+    def test_alarm_rule_update_endpoint_returns_error_for_invalid_delay_seconds(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "update_alarm_rule",
+                lambda rule_id, payload: backend_summary.update_alarm_rule(
+                    rule_id,
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules/RULE-UPS-A-HIGH-LOAD",
+                method="PUT",
+                body={"delay_seconds": "-1"},
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("delay_seconds must be a non-negative integer", data["error"])
+
+    def test_invalid_enabled_value_returns_predictable_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.update_alarm_rule(
+                "RULE-UPS-A-HIGH-LOAD",
+                {"enabled": "maybe"},
+                db_path=temp_db_path,
+            )
+
+    def test_read_only_alarm_rule_fields_cannot_be_updated(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.update_alarm_rule(
+                "RULE-UPS-A-HIGH-LOAD",
+                {"point_id": "GEN-1_FUEL_LEVEL"},
+                db_path=temp_db_path,
+            )
+
+    def test_disabling_rule_makes_rule_evaluation_disabled(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            db_path=temp_db_path,
+        )
+
+        backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"enabled": False},
+            db_path=temp_db_path,
+        )
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertFalse(evaluation["enabled"])
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "Disabled")
+
+    def test_updating_threshold_changes_rule_evaluation_result(self):
+        temp_db_path = self.load_temp_sample_database()
+        evaluation_before = self.evaluations_by_rule_id(temp_db_path)[
+            "RULE-UPS-A-HIGH-LOAD"
+        ]
+
+        backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"threshold_value": "180"},
+            db_path=temp_db_path,
+        )
+        evaluation_after = self.evaluations_by_rule_id(temp_db_path)[
+            "RULE-UPS-A-HIGH-LOAD"
+        ]
+
+        self.assertFalse(evaluation_before["is_triggered"])
+        self.assertTrue(evaluation_after["is_triggered"])
+        self.assertEqual(evaluation_after["threshold_value"], "180")
+
+    def test_updating_rule_does_not_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            db_path=temp_db_path,
+        )
+
+        backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {"threshold_value": "230"},
+            db_path=temp_db_path,
+        )
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
+
+
 class AlarmScenarioTests(unittest.TestCase):
     def load_temp_sample_database(self):
         temp_dir = tempfile.TemporaryDirectory()
