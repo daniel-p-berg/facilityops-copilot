@@ -10,6 +10,7 @@ from unittest import mock
 from analysis import analyze_alarms
 from analysis import generate_db_briefing
 from analysis import load_alarm_db
+from backend.adapters.csv_replay_driver import CsvReplayDriver
 from backend.adapters.simulated_driver import SimulatedDriver
 from backend.domain import alarm_evaluator
 from backend import main as backend_main
@@ -336,6 +337,8 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("Acknowledged", dashboard_html)
         self.assertIn("Read Simulated Driver Samples", dashboard_html)
         self.assertIn("/drivers/simulated/read", dashboard_html)
+        self.assertIn("Read CSV Replay Samples", dashboard_html)
+        self.assertIn("/drivers/csv-replay/read", dashboard_html)
         self.assertNotIn("activeCriticalAlarms", dashboard_html)
         self.assertNotIn("active_critical_alarms", dashboard_html)
         self.assertNotIn("totalAlarmRecords", dashboard_html)
@@ -1515,6 +1518,152 @@ class SimulatedDriverIngestTests(unittest.TestCase):
         self.assertEqual(summary["failed_samples"][0]["point_id"], "DOES-NOT-EXIST")
         self.assertIn("Point not found", summary["failed_samples"][0]["error"])
         self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "205")
+
+
+class CsvReplayDriverIngestTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def current_values_by_point(self, db_path):
+        return {
+            point_value["point_id"]: point_value
+            for point_value in backend_summary.get_current_point_values(db_path)
+        }
+
+    def replay_driver(self, csv_path=None):
+        return CsvReplayDriver(csv_path or backend_main.REPLAY_SAMPLE_FILE)
+
+    def test_csv_replay_driver_reads_deterministic_sample_dictionaries(self):
+        samples = self.replay_driver().read_samples()
+
+        self.assertEqual(len(samples), 5)
+        self.assertEqual(
+            [sample["sequence"] for sample in samples],
+            ["1", "2", "3", "4", "5"],
+        )
+        self.assertEqual(
+            [sample["value"] for sample in samples],
+            ["185", "245", "235", "185", "245"],
+        )
+
+    def test_csv_replay_driver_filters_by_sequence(self):
+        samples = self.replay_driver().read_samples(sequence="2")
+
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0]["sequence"], "2")
+        self.assertEqual(samples[0]["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(samples[0]["value"], "245")
+        self.assertEqual(samples[0]["quality"], "GOOD")
+
+    def test_csv_replay_samples_include_required_metadata(self):
+        samples = self.replay_driver().read_samples(sequence=1)
+        sample = samples[0]
+
+        self.assertEqual(sample["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(sample["source"], "SIMULATED")
+        self.assertEqual(sample["protocol"], "CSV_REPLAY")
+        self.assertEqual(sample["source_timestamp"], "2026-05-01 12:00:00")
+        self.assertEqual(sample["address"], "replay://northstar/ups-a/output_kw")
+        self.assertEqual(sample["stale_after_seconds"], "300")
+        self.assertFalse(sample["overridden"])
+        self.assertFalse(sample["out_of_service"])
+        self.assertEqual(sample["created_by"], "csv-replay-driver")
+
+    def test_csv_replay_endpoint_ingests_sequence_samples(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "ingest_driver_samples",
+                lambda samples: ingest_driver_samples(samples, db_path=temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/drivers/csv-replay/read",
+                method="POST",
+                body={"sequence": "2"},
+            )
+
+        current_values = self.current_values_by_point(temp_db_path)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["samples_read"], 1)
+        self.assertEqual(data["samples_ingested"], 1)
+        self.assertEqual(data["failed_samples"], [])
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "245")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["source"], "SIMULATED")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["protocol"], "CSV_REPLAY")
+
+    def test_csv_replay_increases_point_sample_count_and_updates_projection(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+
+        summary = ingest_driver_samples(
+            self.replay_driver().read_samples(sequence=3),
+            db_path=temp_db_path,
+        )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+        current_values = self.current_values_by_point(temp_db_path)
+
+        self.assertEqual(summary["samples_received"], 1)
+        self.assertEqual(summary["samples_ingested"], 1)
+        self.assertEqual(after_sample_count, before_sample_count + 1)
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "235")
+
+    def test_csv_replay_does_not_automatically_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        ingest_driver_samples(
+            self.replay_driver().read_samples(sequence=2),
+            db_path=temp_db_path,
+        )
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
+
+    def test_invalid_csv_replay_rows_are_reported_predictably(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        replay_csv_path = Path(temp_dir.name) / "bad_replay.csv"
+        replay_csv_path.write_text(
+            "\n".join(
+                [
+                    "sequence,point_id,value,quality,source_timestamp,source,protocol,address,stale_after_seconds,overridden,out_of_service",
+                    "1,UPS-A_OUTPUT_KW,205,GOOD,2026-05-01 12:00:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false",
+                    "2,DOES-NOT-EXIST,1,GOOD,2026-05-01 12:01:00,SIMULATED,CSV_REPLAY,replay://northstar/missing,300,false,false",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        temp_db_path = self.load_temp_sample_database()
+
+        summary = ingest_driver_samples(
+            self.replay_driver(replay_csv_path).read_samples(),
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(summary["samples_received"], 2)
+        self.assertEqual(summary["samples_ingested"], 1)
+        self.assertEqual(len(summary["failed_samples"]), 1)
+        self.assertEqual(summary["failed_samples"][0]["point_id"], "DOES-NOT-EXIST")
+        self.assertIn("Point not found", summary["failed_samples"][0]["error"])
 
 
 class ManualCurrentPointValueUpdateTests(unittest.TestCase):

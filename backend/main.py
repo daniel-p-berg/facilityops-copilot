@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 
+from backend.adapters.csv_replay_driver import CsvReplayDriver
 from backend.adapters.simulated_driver import SimulatedDriver
 from backend.summary import acknowledge_generated_alarm
 from backend.summary import apply_scenario
@@ -30,6 +31,7 @@ from backend.services.point_ingest_service import ingest_driver_samples
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_FILE = PROJECT_ROOT / "frontend" / "index.html"
+REPLAY_SAMPLE_FILE = PROJECT_ROOT / "data" / "replay_samples.csv"
 
 app = FastAPI(title="FacilityOps Copilot API")
 
@@ -229,6 +231,36 @@ def read_simulated_driver_samples():
     driver = SimulatedDriver()
     samples = driver.read_samples()
     return ingest_driver_samples(samples)
+
+
+@app.post("/drivers/csv-replay/read")
+def read_csv_replay_driver_samples(payload: dict | None = Body(default=None)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    payload = payload or {}
+    if not isinstance(payload, dict):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "CSV replay request body must be an object"},
+        )
+
+    driver = CsvReplayDriver(REPLAY_SAMPLE_FILE)
+    try:
+        samples = driver.read_samples(sequence=payload.get("sequence"))
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
+
+    summary = ingest_driver_samples(samples)
+    return {
+        "samples_read": len(samples),
+        "samples_ingested": summary["samples_ingested"],
+        "failed_samples": summary["failed_samples"],
+    }
 
 
 @app.post("/generated-alarms/{alarm_id}/acknowledge")
