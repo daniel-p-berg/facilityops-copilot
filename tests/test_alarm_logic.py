@@ -2504,8 +2504,19 @@ class GeneratedAlarmStateTests(unittest.TestCase):
                   AND name = 'generated_alarms'
                 """
             ).fetchone()
+            alarm_event_table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'alarm_events'
+                """
+            ).fetchone()
             generated_alarm_count = connection.execute(
                 "SELECT COUNT(*) FROM generated_alarms"
+            ).fetchone()[0]
+            alarm_event_count = connection.execute(
+                "SELECT COUNT(*) FROM alarm_events"
             ).fetchone()[0]
             generated_alarm_columns = {
                 row[1]
@@ -2513,7 +2524,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             }
 
         self.assertIsNotNone(table_exists)
+        self.assertIsNotNone(alarm_event_table_exists)
         self.assertEqual(generated_alarm_count, 0)
+        self.assertEqual(alarm_event_count, 0)
         self.assertIn("pending_started_at", generated_alarm_columns)
         self.assertIn("acknowledged", generated_alarm_columns)
         self.assertIn("acknowledged_at", generated_alarm_columns)
@@ -3025,6 +3038,181 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(data["generated_alarm"]["acknowledged_at"], "2026-05-01 13:00:00")
         self.assertEqual(data["generated_alarm"]["acknowledged_by"], "operator-a")
         self.assertEqual(data["generated_alarm"]["state"], "ACTIVE")
+
+    def test_pending_alarm_creation_inserts_event(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:00:00",
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "PENDING_CREATED")
+        self.assertEqual(events[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(events[0]["previous_state"], "")
+        self.assertEqual(events[0]["new_state"], "PENDING")
+        self.assertEqual(events[0]["value"], "245")
+        self.assertNotEqual(events[0]["sample_id"], "")
+
+    def test_immediate_active_alarm_creation_inserts_event(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:00:00",
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "ALARM_ACTIVATED")
+        self.assertEqual(events[0]["previous_state"], "")
+        self.assertEqual(events[0]["new_state"], "ACTIVE")
+        self.assertEqual(events[0]["event_timestamp"], "2026-05-01 12:00:00")
+
+    def test_promoting_pending_alarm_to_active_inserts_event(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            side_effect=[
+                "2026-05-01 12:00:00",
+                "2026-05-01 12:05:00",
+            ],
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+        event_types = [event["event_type"] for event in events]
+
+        self.assertEqual(event_types, ["ALARM_ACTIVATED", "PENDING_CREATED"])
+        self.assertEqual(events[0]["previous_state"], "PENDING")
+        self.assertEqual(events[0]["new_state"], "ACTIVE")
+
+    def test_repeated_evaluation_without_state_change_does_not_duplicate_events(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+        activation_events = [
+            event
+            for event in events
+            if event["event_type"] == "ALARM_ACTIVATED"
+        ]
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(len(activation_events), 1)
+
+    def test_clearing_alarm_inserts_event(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        self.clear_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        clear_events = [
+            event
+            for event in events
+            if event["event_type"] == "ALARM_CLEARED"
+        ]
+
+        self.assertEqual(len(clear_events), 1)
+        self.assertEqual(clear_events[0]["previous_state"], "ACTIVE")
+        self.assertEqual(clear_events[0]["new_state"], "CLEARED")
+        self.assertEqual(clear_events[0]["message"], "Normal")
+
+    def test_acknowledging_alarm_inserts_event(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        alarm_id = backend_summary.get_generated_alarms(temp_db_path)[0]["id"]
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 13:00:00",
+        ):
+            backend_summary.acknowledge_generated_alarm(
+                alarm_id,
+                acknowledged_by="operator-a",
+                db_path=temp_db_path,
+            )
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+        acknowledgement_events = [
+            event
+            for event in events
+            if event["event_type"] == "ALARM_ACKNOWLEDGED"
+        ]
+
+        self.assertEqual(len(acknowledgement_events), 1)
+        self.assertEqual(acknowledgement_events[0]["generated_alarm_id"], alarm_id)
+        self.assertEqual(acknowledgement_events[0]["previous_state"], "ACTIVE")
+        self.assertEqual(acknowledgement_events[0]["new_state"], "ACTIVE")
+        self.assertEqual(acknowledgement_events[0]["acknowledged_by"], "operator-a")
+        self.assertEqual(
+            acknowledgement_events[0]["event_timestamp"],
+            "2026-05-01 13:00:00",
+        )
+
+    def test_alarm_events_endpoint_returns_context(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_alarm_events",
+                lambda: backend_summary.get_alarm_events(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-events",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertIn("alarm_events", data)
+        self.assertEqual(len(data["alarm_events"]), 1)
+
+        event = data["alarm_events"][0]
+        self.assertEqual(event["event_type"], "ALARM_ACTIVATED")
+        self.assertEqual(event["rule_id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(event["rule_name"], "UPS high load")
+        self.assertEqual(event["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(event["point_name"], "OUTPUT_KW")
+        self.assertEqual(event["display_name"], "UPS-A Output kW")
+        self.assertEqual(event["equipment_id"], "UPS-A")
+        self.assertEqual(event["message"], "Triggered")
 
     def test_acknowledge_generated_alarm_endpoint_returns_error_for_invalid_id(self):
         temp_db_path = self.load_temp_sample_database()

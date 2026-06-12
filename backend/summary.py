@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import uuid
 from datetime import UTC
@@ -338,6 +339,34 @@ def ensure_generated_alarm_table(connection):
             ADD COLUMN acknowledged_by TEXT NOT NULL DEFAULT ''
             """
         )
+
+
+def ensure_alarm_event_table(connection):
+    """Create generated alarm event audit table if the loader has not run yet."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alarm_events (
+            id TEXT PRIMARY KEY,
+            generated_alarm_id TEXT NOT NULL,
+            rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_timestamp TEXT NOT NULL,
+            value TEXT NOT NULL,
+            sample_id TEXT NOT NULL,
+            previous_state TEXT NOT NULL,
+            new_state TEXT NOT NULL,
+            acknowledged_by TEXT NOT NULL DEFAULT '',
+            message TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (generated_alarm_id) REFERENCES generated_alarms (id),
+            FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
 
 
 def ensure_current_point_value_table(connection):
@@ -1510,11 +1539,162 @@ def generated_alarm_id(rule_id):
     return f"GA-{rule_id}-{uuid.uuid4().hex[:12]}"
 
 
+def alarm_event_id():
+    """Create an alarm event audit record id."""
+    return f"AE-{uuid.uuid4().hex[:12]}"
+
+
+def serialize_event_details(details):
+    """Return compact JSON details for an alarm event."""
+    if not details:
+        return ""
+
+    return json.dumps(details, sort_keys=True, separators=(",", ":"))
+
+
+def insert_alarm_event(
+    connection,
+    generated_alarm_id,
+    rule_id,
+    point_id,
+    equipment_id,
+    event_type,
+    event_timestamp,
+    value="",
+    sample_id="",
+    previous_state="",
+    new_state="",
+    acknowledged_by="",
+    message="",
+    details=None,
+):
+    """Append one generated alarm lifecycle event."""
+    connection.execute(
+        """
+        INSERT INTO alarm_events (
+            id,
+            generated_alarm_id,
+            rule_id,
+            point_id,
+            equipment_id,
+            event_type,
+            event_timestamp,
+            value,
+            sample_id,
+            previous_state,
+            new_state,
+            acknowledged_by,
+            message,
+            details_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            alarm_event_id(),
+            generated_alarm_id,
+            rule_id,
+            point_id,
+            equipment_id,
+            event_type,
+            event_timestamp,
+            normalize_text(value),
+            normalize_text(sample_id),
+            normalize_text(previous_state),
+            normalize_text(new_state),
+            normalize_text(acknowledged_by),
+            normalize_text(message),
+            serialize_event_details(details),
+        ),
+    )
+
+
+def insert_alarm_event_for_evaluation(
+    connection,
+    generated_alarm_id,
+    evaluation,
+    event_type,
+    event_timestamp,
+    previous_state,
+    new_state,
+    message,
+):
+    """Append an alarm event using facts from a rule evaluation."""
+    insert_alarm_event(
+        connection,
+        generated_alarm_id=generated_alarm_id,
+        rule_id=evaluation["id"],
+        point_id=evaluation["point_id"],
+        equipment_id=evaluation["equipment_id"],
+        event_type=event_type,
+        event_timestamp=event_timestamp,
+        value=evaluation["current_value"],
+        sample_id=evaluation.get("latest_sample_id", ""),
+        previous_state=previous_state,
+        new_state=new_state,
+        message=message,
+        details={
+            "evaluation_status": evaluation["evaluation_status"],
+            "operator": evaluation["operator"],
+            "rule_type": evaluation["rule_type"],
+            "threshold_value": evaluation["threshold_value"],
+            "clear_value": evaluation["clear_value"],
+        },
+    )
+
+
+def insert_alarm_event_for_open_alarm(
+    connection,
+    open_alarm,
+    event_type,
+    event_timestamp,
+    previous_state,
+    new_state,
+    message,
+    evaluation=None,
+):
+    """Append an alarm event when evaluation context may be unavailable."""
+    if evaluation is not None:
+        insert_alarm_event_for_evaluation(
+            connection,
+            open_alarm["id"],
+            evaluation,
+            event_type,
+            event_timestamp,
+            previous_state,
+            new_state,
+            message,
+        )
+        return
+
+    insert_alarm_event(
+        connection,
+        generated_alarm_id=open_alarm["id"],
+        rule_id=open_alarm["rule_id"],
+        point_id=open_alarm["point_id"],
+        equipment_id=open_alarm["equipment_id"],
+        event_type=event_type,
+        event_timestamp=event_timestamp,
+        value=open_alarm.get("triggered_value", ""),
+        previous_state=previous_state,
+        new_state=new_state,
+        message=message,
+        details={"evaluation_status": message},
+    )
+
+
 def get_open_generated_alarms_by_rule(connection):
     """Return pending or active generated alarm records keyed by rule id."""
     cursor = connection.execute(
         """
-        SELECT id, rule_id, state, pending_started_at
+        SELECT
+            id,
+            rule_id,
+            point_id,
+            equipment_id,
+            state,
+            triggered_value,
+            pending_started_at,
+            alarm_message
         FROM generated_alarms
         WHERE state IN ('PENDING', 'ACTIVE')
         ORDER BY
@@ -1526,14 +1706,28 @@ def get_open_generated_alarms_by_rule(connection):
         """
     )
     open_alarms = {}
-    for alarm_id, rule_id, state, pending_started_at in cursor.fetchall():
+    for (
+        alarm_id,
+        rule_id,
+        point_id,
+        equipment_id,
+        state,
+        triggered_value,
+        pending_started_at,
+        alarm_message,
+    ) in cursor.fetchall():
         if rule_id in open_alarms:
             continue
 
         open_alarms[rule_id] = {
             "id": alarm_id,
+            "rule_id": rule_id,
+            "point_id": point_id,
+            "equipment_id": equipment_id,
             "state": state,
+            "triggered_value": triggered_value,
             "pending_started_at": pending_started_at,
+            "alarm_message": alarm_message,
         }
 
     return open_alarms
@@ -1586,6 +1780,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
 
     with sqlite3.connect(db_path) as connection:
         ensure_generated_alarm_table(connection)
+        ensure_alarm_event_table(connection)
         open_generated_alarms = get_open_generated_alarms_by_rule(connection)
         handled_open_rule_ids = set()
 
@@ -1656,6 +1851,16 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                             open_alarm["id"],
                         ),
                     )
+                    insert_alarm_event_for_evaluation(
+                        connection,
+                        open_alarm["id"],
+                        evaluation,
+                        "ALARM_ACTIVATED",
+                        timestamp,
+                        "PENDING",
+                        "ACTIVE",
+                        active_generated_alarm_note(evaluation),
+                    )
                 else:
                     connection.execute(
                         """
@@ -1687,6 +1892,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                 continue
 
             if delay_seconds > 0:
+                alarm_id = generated_alarm_id(evaluation["id"])
                 connection.execute(
                     """
                     INSERT INTO generated_alarms (
@@ -1707,7 +1913,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        generated_alarm_id(evaluation["id"]),
+                        alarm_id,
                         evaluation["id"],
                         evaluation["point_id"],
                         evaluation["equipment_id"],
@@ -1722,9 +1928,20 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         "Pending delay",
                     ),
                 )
+                insert_alarm_event_for_evaluation(
+                    connection,
+                    alarm_id,
+                    evaluation,
+                    "PENDING_CREATED",
+                    timestamp,
+                    "",
+                    "PENDING",
+                    "Pending delay",
+                )
                 created_count += 1
                 continue
 
+            alarm_id = generated_alarm_id(evaluation["id"])
             connection.execute(
                 """
                 INSERT INTO generated_alarms (
@@ -1745,7 +1962,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    generated_alarm_id(evaluation["id"]),
+                    alarm_id,
                     evaluation["id"],
                     evaluation["point_id"],
                     evaluation["equipment_id"],
@@ -1759,6 +1976,16 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     timestamp,
                     active_generated_alarm_note(evaluation),
                 ),
+            )
+            insert_alarm_event_for_evaluation(
+                connection,
+                alarm_id,
+                evaluation,
+                "ALARM_ACTIVATED",
+                timestamp,
+                "",
+                "ACTIVE",
+                active_generated_alarm_note(evaluation),
             )
             created_count += 1
 
@@ -1818,6 +2045,16 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     open_alarm["id"],
                 ),
             )
+            insert_alarm_event_for_evaluation(
+                connection,
+                open_alarm["id"],
+                evaluation,
+                "ALARM_CLEARED",
+                timestamp,
+                open_alarm["state"],
+                "CLEARED",
+                evaluation_note,
+            )
             handled_open_rule_ids.add(evaluation["id"])
             cleared_this_run_count += 1
 
@@ -1844,6 +2081,16 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     evaluation_note,
                     open_alarm["id"],
                 ),
+            )
+            insert_alarm_event_for_open_alarm(
+                connection,
+                open_alarm,
+                "ALARM_CLEARED",
+                timestamp,
+                open_alarm["state"],
+                "CLEARED",
+                evaluation_note,
+                evaluation=evaluations_by_rule_id.get(rule_id),
             )
             cleared_this_run_count += 1
 
@@ -1963,6 +2210,96 @@ def get_generated_alarms(db_path=DATABASE_FILE):
         ]
 
 
+def get_alarm_events(db_path=DATABASE_FILE):
+    """Return generated alarm lifecycle events with useful context."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_generated_alarm_table(connection)
+        ensure_alarm_event_table(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                alarm_events.id,
+                alarm_events.generated_alarm_id,
+                alarm_events.rule_id,
+                COALESCE(alarm_rules.rule_name, '') AS rule_name,
+                alarm_events.point_id,
+                COALESCE(points.point_name, '') AS point_name,
+                COALESCE(points.display_name, '') AS display_name,
+                alarm_events.equipment_id,
+                COALESCE(equipment.equipment_type, '') AS equipment_type,
+                COALESCE(equipment.location, '') AS location,
+                alarm_events.event_type,
+                alarm_events.event_timestamp,
+                alarm_events.value,
+                alarm_events.sample_id,
+                alarm_events.previous_state,
+                alarm_events.new_state,
+                alarm_events.acknowledged_by,
+                alarm_events.message,
+                alarm_events.details_json,
+                COALESCE(generated_alarms.alarm_message, '') AS generated_alarm_message
+            FROM alarm_events
+            LEFT JOIN alarm_rules
+                ON alarm_events.rule_id = alarm_rules.id
+            LEFT JOIN points
+                ON alarm_events.point_id = points.id
+            LEFT JOIN equipment
+                ON alarm_events.equipment_id = equipment.equipment
+            LEFT JOIN generated_alarms
+                ON alarm_events.generated_alarm_id = generated_alarms.id
+            ORDER BY
+                alarm_events.event_timestamp DESC,
+                alarm_events.id DESC
+            """
+        )
+        return [
+            {
+                "id": event_id,
+                "generated_alarm_id": generated_alarm_id,
+                "rule_id": rule_id,
+                "rule_name": rule_name,
+                "point_id": point_id,
+                "point_name": point_name,
+                "display_name": display_name,
+                "equipment_id": equipment_id,
+                "equipment_type": equipment_type,
+                "location": location,
+                "event_type": event_type,
+                "event_timestamp": event_timestamp,
+                "value": value,
+                "sample_id": sample_id,
+                "previous_state": previous_state,
+                "new_state": new_state,
+                "acknowledged_by": acknowledged_by,
+                "message": message,
+                "details_json": details_json,
+                "generated_alarm_message": generated_alarm_message,
+            }
+            for (
+                event_id,
+                generated_alarm_id,
+                rule_id,
+                rule_name,
+                point_id,
+                point_name,
+                display_name,
+                equipment_id,
+                equipment_type,
+                location,
+                event_type,
+                event_timestamp,
+                value,
+                sample_id,
+                previous_state,
+                new_state,
+                acknowledged_by,
+                message,
+                details_json,
+                generated_alarm_message,
+            ) in cursor.fetchall()
+        ]
+
+
 def acknowledge_generated_alarm(
     alarm_id,
     acknowledged_by="local-operator",
@@ -1975,17 +2312,42 @@ def acknowledge_generated_alarm(
 
     with sqlite3.connect(db_path) as connection:
         ensure_generated_alarm_table(connection)
-        alarm_exists = connection.execute(
+        ensure_alarm_event_table(connection)
+        alarm_row = connection.execute(
             """
-            SELECT 1
+            SELECT
+                rule_id,
+                point_id,
+                equipment_id,
+                state,
+                triggered_value,
+                alarm_message
             FROM generated_alarms
             WHERE id = ?
             """,
             (alarm_id,),
         ).fetchone()
-        if not alarm_exists:
+        if not alarm_row:
             raise LookupError(f"Generated alarm not found: {alarm_id}")
 
+        (
+            rule_id,
+            point_id,
+            equipment_id,
+            state,
+            triggered_value,
+            alarm_message,
+        ) = alarm_row
+        latest_sample_row = connection.execute(
+            """
+            SELECT latest_sample_id
+            FROM current_point_values
+            WHERE point_id = ?
+            """,
+            (point_id,),
+        ).fetchone()
+        latest_sample_id = latest_sample_row[0] if latest_sample_row else ""
+        acknowledged_at = current_timestamp()
         connection.execute(
             """
             UPDATE generated_alarms
@@ -1995,10 +2357,26 @@ def acknowledge_generated_alarm(
             WHERE id = ?
             """,
             (
-                current_timestamp(),
+                acknowledged_at,
                 operator_name,
                 alarm_id,
             ),
+        )
+        insert_alarm_event(
+            connection,
+            generated_alarm_id=alarm_id,
+            rule_id=rule_id,
+            point_id=point_id,
+            equipment_id=equipment_id,
+            event_type="ALARM_ACKNOWLEDGED",
+            event_timestamp=acknowledged_at,
+            value=triggered_value,
+            sample_id=latest_sample_id,
+            previous_state=state,
+            new_state=state,
+            acknowledged_by=operator_name,
+            message=alarm_message,
+            details={"acknowledged_by": operator_name},
         )
 
     for alarm in get_generated_alarms(db_path):

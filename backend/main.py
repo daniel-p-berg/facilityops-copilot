@@ -16,6 +16,7 @@ from backend.summary import get_alarm_rule_catalog
 from backend.summary import get_alarm_summary
 from backend.summary import get_current_point_values
 from backend.summary import get_equipment_inventory
+from backend.summary import get_alarm_events
 from backend.summary import get_generated_alarms
 from backend.summary import get_point_dictionary
 from backend.summary import get_rule_evaluations
@@ -196,6 +197,15 @@ def read_generated_alarms():
         return error_response
 
     return {"generated_alarms": get_generated_alarms()}
+
+
+@app.get("/alarm-events")
+def read_alarm_events():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"alarm_events": get_alarm_events()}
 
 
 @app.post("/generated-alarms/{alarm_id}/acknowledge")

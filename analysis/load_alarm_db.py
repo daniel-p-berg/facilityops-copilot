@@ -301,6 +301,34 @@ def create_generated_alarm_table(connection):
         )
 
 
+def create_alarm_event_table(connection):
+    """Create an append-only table for generated alarm lifecycle events."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alarm_events (
+            id TEXT PRIMARY KEY,
+            generated_alarm_id TEXT NOT NULL,
+            rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_timestamp TEXT NOT NULL,
+            value TEXT NOT NULL,
+            sample_id TEXT NOT NULL,
+            previous_state TEXT NOT NULL,
+            new_state TEXT NOT NULL,
+            acknowledged_by TEXT NOT NULL DEFAULT '',
+            message TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (generated_alarm_id) REFERENCES generated_alarms (id),
+            FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
+
+
 def read_csv_rows(csv_path, required_columns):
     """Read CSV records and validate required columns."""
     with open(csv_path, mode="r", encoding="utf-8", newline="") as file:
@@ -699,6 +727,8 @@ def reset_generated_alarms(db_path=DATABASE_FILE):
 
     with sqlite3.connect(db_path) as connection:
         create_generated_alarm_table(connection)
+        create_alarm_event_table(connection)
+        connection.execute("DELETE FROM alarm_events")
         connection.execute("DELETE FROM generated_alarms")
 
 
@@ -767,8 +797,12 @@ def get_generated_alarm_summary(db_path=DATABASE_FILE):
     """Return generated alarm counts from SQLite."""
     with sqlite3.connect(db_path) as connection:
         create_generated_alarm_table(connection)
+        create_alarm_event_table(connection)
         total_records = connection.execute(
             "SELECT COUNT(*) FROM generated_alarms"
+        ).fetchone()[0]
+        event_records = connection.execute(
+            "SELECT COUNT(*) FROM alarm_events"
         ).fetchone()[0]
         active_records = connection.execute(
             """
@@ -794,6 +828,7 @@ def get_generated_alarm_summary(db_path=DATABASE_FILE):
 
     return {
         "total_generated_alarm_records": total_records,
+        "alarm_event_records": event_records,
         "active_generated_alarm_records": active_records,
         "pending_generated_alarm_records": pending_records,
         "cleared_generated_alarm_records": cleared_records,
@@ -828,6 +863,10 @@ def print_verification_summary(
     print(
         "Generated alarm records present: "
         f"{generated_alarm_summary['total_generated_alarm_records']}"
+    )
+    print(
+        "Alarm event records present: "
+        f"{generated_alarm_summary['alarm_event_records']}"
     )
     print(
         "Active generated alarm records: "

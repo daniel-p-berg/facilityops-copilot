@@ -467,6 +467,30 @@
     </section>
 
     <section class="panel catalog-section">
+      <h2>Alarm Events</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Event Type</th>
+              <th>Equipment</th>
+              <th>Point</th>
+              <th>Rule</th>
+              <th>Previous State</th>
+              <th>New State</th>
+              <th>Value</th>
+              <th>Sample ID</th>
+              <th>Acknowledged By</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="alarmEventRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
       <h2>Current Point Values</h2>
       <div class="table-wrap">
         <table>
@@ -635,6 +659,7 @@
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const scenarioButtonsEl = document.getElementById("scenarioButtons");
     const generatedAlarmRowsEl = document.getElementById("generatedAlarmRows");
+    const alarmEventRowsEl = document.getElementById("alarmEventRows");
     const evaluateGeneratedAlarmsButton = document.getElementById("evaluateGeneratedAlarmsButton");
     const currentPointValueRowsEl = document.getElementById("currentPointValueRows");
     const ruleEvaluationRowsEl = document.getElementById("ruleEvaluationRows");
@@ -1137,6 +1162,32 @@
       });
     }
 
+    function renderAlarmEvents(alarmEvents) {
+      alarmEventRowsEl.innerHTML = "";
+
+      if (alarmEvents.length === 0) {
+        renderEmptyRow(alarmEventRowsEl, 11, "No alarm events found.");
+        return;
+      }
+
+      alarmEvents.forEach((event) => {
+        const row = document.createElement("tr");
+
+        appendCell(row, event.event_timestamp);
+        appendCell(row, event.event_type);
+        appendCell(row, event.equipment_id);
+        appendCell(row, event.point_name);
+        appendCell(row, event.rule_name);
+        appendCell(row, event.previous_state);
+        appendCell(row, event.new_state, stateClass(event.new_state));
+        appendCell(row, event.value);
+        appendCell(row, event.sample_id);
+        appendCell(row, event.acknowledged_by);
+        appendCell(row, event.message || event.generated_alarm_message);
+        alarmEventRowsEl.appendChild(row);
+      });
+    }
+
     function renderRuleEvaluations(ruleEvaluations) {
       ruleEvaluationRowsEl.innerHTML = "";
 
@@ -1188,6 +1239,12 @@
       const response = await fetch("/generated-alarms");
       const data = await readJsonResponse(response, "generated alarms");
       renderGeneratedAlarms(data.generated_alarms);
+    }
+
+    async function loadAlarmEvents() {
+      const response = await fetch("/alarm-events");
+      const data = await readJsonResponse(response, "alarm events");
+      renderAlarmEvents(data.alarm_events);
     }
 
     async function loadCurrentPointValues() {
@@ -1359,6 +1416,7 @@
         await Promise.all([
           loadSummary(),
           loadGeneratedAlarms(),
+          loadAlarmEvents(),
         ]);
         statusEl.textContent = `Generated alarms evaluated: ${data.created_count} created, ${data.cleared_count} cleared`;
       } catch (error) {
@@ -1388,6 +1446,7 @@
         await Promise.all([
           loadSummary(),
           loadGeneratedAlarms(),
+          loadAlarmEvents(),
         ]);
         statusEl.textContent = "Generated alarm acknowledged";
       } catch (error) {
@@ -1407,6 +1466,7 @@
           fetch("/summary"),
           fetch("/scenarios"),
           fetch("/generated-alarms"),
+          fetch("/alarm-events"),
           fetch("/current-point-values"),
           fetch("/rule-evaluations"),
           fetch("/points"),
@@ -1416,6 +1476,7 @@
           summaryData,
           scenariosData,
           generatedAlarmsData,
+          alarmEventsData,
           currentPointValuesData,
           ruleEvaluationsData,
           pointsData,
@@ -1424,15 +1485,17 @@
           readJsonResponse(responses[0], "alarm summary"),
           readJsonResponse(responses[1], "alarm scenarios"),
           readJsonResponse(responses[2], "generated alarms"),
-          readJsonResponse(responses[3], "current point values"),
-          readJsonResponse(responses[4], "alarm rule evaluations"),
-          readJsonResponse(responses[5], "point dictionary"),
-          readJsonResponse(responses[6], "alarm rule catalog"),
+          readJsonResponse(responses[3], "alarm events"),
+          readJsonResponse(responses[4], "current point values"),
+          readJsonResponse(responses[5], "alarm rule evaluations"),
+          readJsonResponse(responses[6], "point dictionary"),
+          readJsonResponse(responses[7], "alarm rule catalog"),
         ]);
 
         renderSummary(summaryData);
         renderScenarioButtons(scenariosData.scenarios);
         renderGeneratedAlarms(generatedAlarmsData.generated_alarms);
+        renderAlarmEvents(alarmEventsData.alarm_events);
         renderCurrentPointValues(currentPointValuesData.current_point_values);
         renderRuleEvaluations(ruleEvaluationsData.rule_evaluations);
         renderPoints(pointsData.points);

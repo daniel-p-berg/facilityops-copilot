@@ -47,7 +47,7 @@ Alarm scenarios are deterministic dashboard and API controls that set known curr
 
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. Process alarm rules only evaluate against eligible samples: `GOOD` quality, not stale, not overridden, and not out of service. `UNKNOWN` quality is normalized to `UNCERTAIN`.
 
-Generated alarms are simple output records created from rule evaluations. The dashboard alarm summary and alarm table use generated alarms only; the old seeded sample alarm CSV is no longer the dashboard alarm source. Triggered rules with positive `delay_seconds` create PENDING generated alarms until a later explicit evaluation confirms the delay has elapsed. Rules with no delay create ACTIVE generated alarms immediately. Analog generated alarms use `clear_value` hysteresis before clearing; boolean and enum generated alarms clear when their rule no longer triggers. Local operators can acknowledge generated alarms from the dashboard or API; acknowledgement does not clear, suppress, or stop future evaluations. The app does not run a background timer or polling loop, and it does not implement suppression, latching, comments, shelving, or a separate alarm history table.
+Generated alarms are simple output records created from rule evaluations. The dashboard alarm summary and alarm table use generated alarms only; the old seeded sample alarm CSV is no longer the dashboard alarm source. Triggered rules with positive `delay_seconds` create PENDING generated alarms until a later explicit evaluation confirms the delay has elapsed. Rules with no delay create ACTIVE generated alarms immediately. Analog generated alarms use `clear_value` hysteresis before clearing; boolean and enum generated alarms clear when their rule no longer triggers. Local operators can acknowledge generated alarms from the dashboard or API; acknowledgement does not clear, suppress, or stop future evaluations. Generated alarm lifecycle transitions are recorded in append-only `alarm_events` rows for local audit review. The app does not run a background timer or polling loop, and it does not implement suppression, latching, comments, shelving, or a full event-sourcing system.
 
 ## Local API Server
 
@@ -76,7 +76,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated and alarm rules can be created or edited from the dashboard.
+The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated and alarm rules can be created or edited from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
 
@@ -134,6 +134,12 @@ Call the generated alarms endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/generated-alarms
+```
+
+Call the generated alarm event audit trail endpoint:
+
+```bash
+curl http://127.0.0.1:8000/alarm-events
 ```
 
 Run generated alarm evaluation:
