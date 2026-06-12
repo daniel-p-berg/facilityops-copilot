@@ -40,6 +40,27 @@ EDITABLE_ALARM_RULE_FIELDS = {
     "alarm_message",
     "enabled",
 }
+ALARM_RULE_AUDIT_FIELDS = (
+    "threshold_value",
+    "clear_value",
+    "delay_seconds",
+    "severity",
+    "alarm_message",
+    "enabled",
+)
+ALARM_RULE_CREATED_DETAIL_FIELDS = (
+    "id",
+    "point_id",
+    "rule_name",
+    "rule_type",
+    "operator",
+    "threshold_value",
+    "clear_value",
+    "delay_seconds",
+    "severity",
+    "alarm_message",
+    "enabled",
+)
 ALLOWED_QUALITIES = {"GOOD", "UNCERTAIN", "BAD", "STALE"}
 ALLOWED_CURRENT_VALUE_SOURCES = {
     "SIMULATED",
@@ -389,7 +410,7 @@ def ensure_alarm_event_table(connection):
         """
         CREATE TABLE IF NOT EXISTS alarm_events (
             id TEXT PRIMARY KEY,
-            generated_alarm_id TEXT NOT NULL,
+            generated_alarm_id TEXT,
             rule_id TEXT NOT NULL,
             point_id TEXT NOT NULL,
             equipment_id TEXT NOT NULL,
@@ -409,6 +430,79 @@ def ensure_alarm_event_table(connection):
         )
         """
     )
+    columns = {
+        row[1]: row
+        for row in connection.execute("PRAGMA table_info(alarm_events)")
+    }
+    generated_alarm_id_column = columns.get("generated_alarm_id")
+    if generated_alarm_id_column and generated_alarm_id_column[3]:
+        migrate_alarm_events_to_nullable_generated_alarm_id(connection)
+
+
+def migrate_alarm_events_to_nullable_generated_alarm_id(connection):
+    """Allow rule audit events that are not tied to a generated alarm row."""
+    connection.execute("ALTER TABLE alarm_events RENAME TO alarm_events_old")
+    connection.execute(
+        """
+        CREATE TABLE alarm_events (
+            id TEXT PRIMARY KEY,
+            generated_alarm_id TEXT,
+            rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_timestamp TEXT NOT NULL,
+            value TEXT NOT NULL,
+            sample_id TEXT NOT NULL,
+            previous_state TEXT NOT NULL,
+            new_state TEXT NOT NULL,
+            acknowledged_by TEXT NOT NULL DEFAULT '',
+            message TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (generated_alarm_id) REFERENCES generated_alarms (id),
+            FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO alarm_events (
+            id,
+            generated_alarm_id,
+            rule_id,
+            point_id,
+            equipment_id,
+            event_type,
+            event_timestamp,
+            value,
+            sample_id,
+            previous_state,
+            new_state,
+            acknowledged_by,
+            message,
+            details_json
+        )
+        SELECT
+            id,
+            generated_alarm_id,
+            rule_id,
+            point_id,
+            equipment_id,
+            event_type,
+            event_timestamp,
+            value,
+            sample_id,
+            previous_state,
+            new_state,
+            acknowledged_by,
+            message,
+            details_json
+        FROM alarm_events_old
+        """
+    )
+    connection.execute("DROP TABLE alarm_events_old")
 
 
 def ensure_current_point_value_table(connection):
@@ -767,6 +861,114 @@ def get_alarm_rule(rule_id, db_path=DATABASE_FILE):
     return None
 
 
+def get_alarm_rule_audit_record(connection, rule_id):
+    """Return rule facts needed to write a local audit event."""
+    cursor = connection.execute(
+        """
+        SELECT
+            alarm_rules.id,
+            alarm_rules.point_id,
+            COALESCE(points.equipment_id, '') AS equipment_id,
+            alarm_rules.rule_name,
+            alarm_rules.rule_type,
+            alarm_rules.operator,
+            alarm_rules.threshold_value,
+            alarm_rules.clear_value,
+            alarm_rules.severity,
+            alarm_rules.alarm_message,
+            alarm_rules.enabled,
+            alarm_rules.delay_seconds
+        FROM alarm_rules
+        LEFT JOIN points
+            ON alarm_rules.point_id = points.id
+        WHERE alarm_rules.id = ?
+        """,
+        (rule_id,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+
+    (
+        audit_rule_id,
+        point_id,
+        equipment_id,
+        rule_name,
+        rule_type,
+        operator,
+        threshold_value,
+        clear_value,
+        severity,
+        alarm_message,
+        enabled,
+        delay_seconds,
+    ) = row
+
+    return {
+        "id": audit_rule_id,
+        "point_id": point_id,
+        "equipment_id": equipment_id,
+        "rule_name": rule_name,
+        "rule_type": rule_type,
+        "operator": operator,
+        "threshold_value": threshold_value,
+        "clear_value": clear_value,
+        "severity": severity,
+        "alarm_message": alarm_message,
+        "enabled": bool(enabled),
+        "delay_seconds": delay_seconds,
+    }
+
+
+def alarm_rule_created_details(rule):
+    """Return compact RULE_CREATED event details."""
+    return {
+        "created_rule": {
+            field: rule[field]
+            for field in ALARM_RULE_CREATED_DETAIL_FIELDS
+        }
+    }
+
+
+def alarm_rule_updated_details(old_rule, new_rule, changed_fields):
+    """Return compact RULE_UPDATED event details."""
+    return {
+        "changed_fields": changed_fields,
+        "old_values": {
+            field: old_rule[field]
+            for field in changed_fields
+        },
+        "new_values": {
+            field: new_rule[field]
+            for field in changed_fields
+        },
+    }
+
+
+def insert_alarm_rule_audit_event(
+    connection,
+    rule,
+    event_type,
+    event_timestamp,
+    message,
+    details,
+    actor="local-operator",
+):
+    """Append an alarm rule catalog audit event."""
+    insert_alarm_event(
+        connection,
+        generated_alarm_id=None,
+        rule_id=rule["id"],
+        point_id=rule["point_id"],
+        equipment_id=rule["equipment_id"],
+        event_type=event_type,
+        event_timestamp=event_timestamp,
+        acknowledged_by=actor,
+        message=message,
+        details=details,
+    )
+
+
 def require_alarm_rule_fields(payload, required_fields):
     """Validate that a request body includes non-blank required rule fields."""
     missing_fields = [
@@ -821,54 +1023,66 @@ def create_alarm_rule(payload, db_path=DATABASE_FILE):
     timestamp = current_timestamp()
 
     with sqlite3.connect(db_path) as connection:
-        existing_rule = connection.execute(
-            """
-            SELECT 1
-            FROM alarm_rules
-            WHERE id = ?
-            """,
-            (rule_id,),
-        ).fetchone()
-        if existing_rule:
-            raise ValueError(f"Alarm rule already exists: {rule_id}")
-        if not point_exists(connection, point_id):
-            raise LookupError(f"Point not found: {point_id}")
+        ensure_alarm_event_table(connection)
+        with connection:
+            begin_transaction(connection)
+            existing_rule = connection.execute(
+                """
+                SELECT 1
+                FROM alarm_rules
+                WHERE id = ?
+                """,
+                (rule_id,),
+            ).fetchone()
+            if existing_rule:
+                raise ValueError(f"Alarm rule already exists: {rule_id}")
+            if not point_exists(connection, point_id):
+                raise LookupError(f"Point not found: {point_id}")
 
-        connection.execute(
-            """
-            INSERT INTO alarm_rules (
-                id,
-                point_id,
-                rule_name,
-                rule_type,
-                operator,
-                threshold_value,
-                clear_value,
-                severity,
-                alarm_message,
-                enabled,
-                delay_seconds,
-                created_at,
-                updated_at
+            connection.execute(
+                """
+                INSERT INTO alarm_rules (
+                    id,
+                    point_id,
+                    rule_name,
+                    rule_type,
+                    operator,
+                    threshold_value,
+                    clear_value,
+                    severity,
+                    alarm_message,
+                    enabled,
+                    delay_seconds,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rule_id,
+                    point_id,
+                    rule_name,
+                    rule_type,
+                    operator,
+                    threshold_value,
+                    clear_value,
+                    severity,
+                    alarm_message,
+                    enabled,
+                    delay_seconds,
+                    timestamp,
+                    timestamp,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                rule_id,
-                point_id,
-                rule_name,
-                rule_type,
-                operator,
-                threshold_value,
-                clear_value,
-                severity,
-                alarm_message,
-                enabled,
-                delay_seconds,
+            created_rule = get_alarm_rule_audit_record(connection, rule_id)
+            insert_alarm_rule_audit_event(
+                connection,
+                created_rule,
+                "RULE_CREATED",
                 timestamp,
-                timestamp,
-            ),
-        )
+                f"Alarm rule created: {rule_name}",
+                alarm_rule_created_details(created_rule),
+            )
 
     return get_alarm_rule(rule_id, db_path)
 
@@ -885,51 +1099,73 @@ def update_alarm_rule(rule_id, updates, db_path=DATABASE_FILE):
         field_list = ", ".join(unsupported_fields)
         raise ValueError(f"Unsupported alarm rule field(s): {field_list}")
 
+    normalized_updates = {}
+    if "threshold_value" in updates:
+        normalized_updates["threshold_value"] = normalize_optional_catalog_text(
+            updates["threshold_value"],
+        )
+    if "clear_value" in updates:
+        normalized_updates["clear_value"] = normalize_optional_catalog_text(
+            updates["clear_value"],
+        )
+    if "delay_seconds" in updates:
+        normalized_updates["delay_seconds"] = parse_non_negative_delay_seconds(
+            updates["delay_seconds"],
+        )
+    if "severity" in updates:
+        normalized_updates["severity"] = normalize_alarm_rule_severity(updates["severity"])
+    if "alarm_message" in updates:
+        normalized_updates["alarm_message"] = normalize_text(updates["alarm_message"])
+    if "enabled" in updates:
+        normalized_updates["enabled"] = bool(parse_enabled_flag(updates["enabled"]))
+
     with sqlite3.connect(db_path) as connection:
-        rule_exists = connection.execute(
-            """
-            SELECT 1
-            FROM alarm_rules
-            WHERE id = ?
-            """,
-            (rule_id,),
-        ).fetchone()
-        if not rule_exists:
-            raise LookupError(f"Alarm rule not found: {rule_id}")
+        ensure_alarm_event_table(connection)
+        with connection:
+            begin_transaction(connection)
+            old_rule = get_alarm_rule_audit_record(connection, rule_id)
+            if not old_rule:
+                raise LookupError(f"Alarm rule not found: {rule_id}")
 
-        assignments = []
-        parameters = []
-        if "threshold_value" in updates:
-            assignments.append("threshold_value = ?")
-            parameters.append(normalize_optional_catalog_text(updates["threshold_value"]))
-        if "clear_value" in updates:
-            assignments.append("clear_value = ?")
-            parameters.append(normalize_optional_catalog_text(updates["clear_value"]))
-        if "delay_seconds" in updates:
-            assignments.append("delay_seconds = ?")
-            parameters.append(parse_non_negative_delay_seconds(updates["delay_seconds"]))
-        if "severity" in updates:
-            assignments.append("severity = ?")
-            parameters.append(normalize_alarm_rule_severity(updates["severity"]))
-        if "alarm_message" in updates:
-            assignments.append("alarm_message = ?")
-            parameters.append(normalize_text(updates["alarm_message"]))
-        if "enabled" in updates:
-            assignments.append("enabled = ?")
-            parameters.append(parse_enabled_flag(updates["enabled"]))
+            changed_fields = [
+                field
+                for field in ALARM_RULE_AUDIT_FIELDS
+                if field in normalized_updates
+                and old_rule[field] != normalized_updates[field]
+            ]
 
-        if assignments:
-            assignments.append("updated_at = ?")
-            parameters.append(current_timestamp())
-            parameters.append(rule_id)
-            connection.execute(
-                f"""
-                UPDATE alarm_rules
-                SET {", ".join(assignments)}
-                WHERE id = ?
-                """,
-                parameters,
-            )
+            if changed_fields:
+                assignments = [
+                    f"{field} = ?"
+                    for field in changed_fields
+                ]
+                parameters = [
+                    int(normalized_updates[field])
+                    if field == "enabled"
+                    else normalized_updates[field]
+                    for field in changed_fields
+                ]
+                timestamp = current_timestamp()
+                assignments.append("updated_at = ?")
+                parameters.append(timestamp)
+                parameters.append(rule_id)
+                connection.execute(
+                    f"""
+                    UPDATE alarm_rules
+                    SET {", ".join(assignments)}
+                    WHERE id = ?
+                    """,
+                    parameters,
+                )
+                new_rule = get_alarm_rule_audit_record(connection, rule_id)
+                insert_alarm_rule_audit_event(
+                    connection,
+                    new_rule,
+                    "RULE_UPDATED",
+                    timestamp,
+                    f"Alarm rule updated: {new_rule['rule_name']}",
+                    alarm_rule_updated_details(old_rule, new_rule, changed_fields),
+                )
 
     return get_alarm_rule(rule_id, db_path)
 

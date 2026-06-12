@@ -1313,6 +1313,7 @@
           loadAlarmRules(),
           loadRuleEvaluations(),
           loadGeneratedAlarms(),
+          loadAlarmEvents(),
         ]);
         statusEl.textContent = `${data.alarm_rule.id} created. Generated alarms were not evaluated.`;
       } catch (error) {
@@ -1342,6 +1343,7 @@
           loadAlarmRules(),
           loadRuleEvaluations(),
           loadGeneratedAlarms(),
+          loadAlarmEvents(),
         ]);
         statusEl.textContent = `${ruleId} updated. Generated alarms were not evaluated.`;
       } catch (error) {

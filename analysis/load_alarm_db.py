@@ -349,7 +349,7 @@ def create_alarm_event_table(connection):
         """
         CREATE TABLE IF NOT EXISTS alarm_events (
             id TEXT PRIMARY KEY,
-            generated_alarm_id TEXT NOT NULL,
+            generated_alarm_id TEXT,
             rule_id TEXT NOT NULL,
             point_id TEXT NOT NULL,
             equipment_id TEXT NOT NULL,
@@ -369,6 +369,79 @@ def create_alarm_event_table(connection):
         )
         """
     )
+    columns = {
+        row[1]: row
+        for row in connection.execute("PRAGMA table_info(alarm_events)")
+    }
+    generated_alarm_id_column = columns.get("generated_alarm_id")
+    if generated_alarm_id_column and generated_alarm_id_column[3]:
+        migrate_alarm_events_to_nullable_generated_alarm_id(connection)
+
+
+def migrate_alarm_events_to_nullable_generated_alarm_id(connection):
+    """Allow rule audit events that are not tied to a generated alarm row."""
+    connection.execute("ALTER TABLE alarm_events RENAME TO alarm_events_old")
+    connection.execute(
+        """
+        CREATE TABLE alarm_events (
+            id TEXT PRIMARY KEY,
+            generated_alarm_id TEXT,
+            rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_timestamp TEXT NOT NULL,
+            value TEXT NOT NULL,
+            sample_id TEXT NOT NULL,
+            previous_state TEXT NOT NULL,
+            new_state TEXT NOT NULL,
+            acknowledged_by TEXT NOT NULL DEFAULT '',
+            message TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (generated_alarm_id) REFERENCES generated_alarms (id),
+            FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO alarm_events (
+            id,
+            generated_alarm_id,
+            rule_id,
+            point_id,
+            equipment_id,
+            event_type,
+            event_timestamp,
+            value,
+            sample_id,
+            previous_state,
+            new_state,
+            acknowledged_by,
+            message,
+            details_json
+        )
+        SELECT
+            id,
+            generated_alarm_id,
+            rule_id,
+            point_id,
+            equipment_id,
+            event_type,
+            event_timestamp,
+            value,
+            sample_id,
+            previous_state,
+            new_state,
+            acknowledged_by,
+            message,
+            details_json
+        FROM alarm_events_old
+        """
+    )
+    connection.execute("DROP TABLE alarm_events_old")
 
 
 def read_csv_rows(csv_path, required_columns):

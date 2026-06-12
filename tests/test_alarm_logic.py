@@ -1945,6 +1945,218 @@ class AlarmRuleCreationTests(unittest.TestCase):
         self.assertEqual(generated_alarms, [])
 
 
+class AlarmRuleAuditTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def base_payload(self, **overrides):
+        payload = {
+            "id": "RULE-TEST-AUDIT-UPS-HIGH-LOAD",
+            "point_id": "UPS-A_OUTPUT_KW",
+            "rule_name": "Test audited UPS high load",
+            "rule_type": "analog_limit",
+            "operator": ">",
+            "threshold_value": "200",
+            "clear_value": "180",
+            "delay_seconds": "0",
+            "severity": "Warning",
+            "alarm_message": "UPS-A load is above the audited test limit",
+            "enabled": True,
+        }
+        payload.update(overrides)
+        return payload
+
+    def rule_by_id(self, db_path, rule_id):
+        return {
+            rule["id"]: rule
+            for rule in backend_summary.get_alarm_rule_catalog(db_path)
+        }.get(rule_id)
+
+    def test_creating_alarm_rule_inserts_rule_created_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 14:00:00",
+        ):
+            backend_summary.create_alarm_rule(
+                self.base_payload(),
+                db_path=temp_db_path,
+            )
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "RULE_CREATED")
+        self.assertIsNone(events[0]["generated_alarm_id"])
+        self.assertEqual(events[0]["rule_id"], "RULE-TEST-AUDIT-UPS-HIGH-LOAD")
+        self.assertEqual(events[0]["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(events[0]["equipment_id"], "UPS-A")
+        self.assertEqual(events[0]["acknowledged_by"], "local-operator")
+        self.assertEqual(events[0]["event_timestamp"], "2026-05-01 14:00:00")
+        details = json.loads(events[0]["details_json"])
+        created_rule = details["created_rule"]
+        self.assertEqual(created_rule["threshold_value"], "200")
+        self.assertEqual(created_rule["clear_value"], "180")
+        self.assertEqual(created_rule["delay_seconds"], 0)
+        self.assertTrue(created_rule["enabled"])
+
+    def test_editing_alarm_rule_inserts_rule_updated_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 14:05:00",
+        ):
+            backend_summary.update_alarm_rule(
+                "RULE-UPS-A-HIGH-LOAD",
+                {
+                    "threshold_value": "250",
+                    "clear_value": "225",
+                    "delay_seconds": 60,
+                    "severity": "Critical",
+                    "alarm_message": "UPS-A load is above the edited audit limit",
+                    "enabled": False,
+                },
+                db_path=temp_db_path,
+            )
+
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "RULE_UPDATED")
+        self.assertIsNone(events[0]["generated_alarm_id"])
+        self.assertEqual(events[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(events[0]["point_name"], "OUTPUT_KW")
+        self.assertEqual(events[0]["equipment_id"], "UPS-A")
+        self.assertEqual(events[0]["acknowledged_by"], "local-operator")
+        details = json.loads(events[0]["details_json"])
+        self.assertEqual(
+            details["changed_fields"],
+            [
+                "threshold_value",
+                "clear_value",
+                "delay_seconds",
+                "severity",
+                "alarm_message",
+                "enabled",
+            ],
+        )
+        self.assertEqual(details["old_values"]["threshold_value"], "240")
+        self.assertEqual(details["new_values"]["threshold_value"], "250")
+        self.assertEqual(details["old_values"]["clear_value"], "220")
+        self.assertEqual(details["new_values"]["clear_value"], "225")
+        self.assertEqual(details["old_values"]["delay_seconds"], 300)
+        self.assertEqual(details["new_values"]["delay_seconds"], 60)
+        self.assertEqual(details["old_values"]["severity"], "Warning")
+        self.assertEqual(details["new_values"]["severity"], "Critical")
+        self.assertTrue(details["old_values"]["enabled"])
+        self.assertFalse(details["new_values"]["enabled"])
+
+    def test_noop_alarm_rule_update_does_not_insert_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {
+                "threshold_value": "240",
+                "clear_value": "220",
+                "delay_seconds": "300",
+                "severity": "Warning",
+                "alarm_message": "UPS-A load is above the preferred operating range",
+                "enabled": True,
+            },
+            db_path=temp_db_path,
+        )
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        self.assertEqual(alarm_rule["threshold_value"], "240")
+        self.assertEqual(events, [])
+
+    def test_rule_create_rolls_back_when_audit_event_insert_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(
+                backend_summary,
+                "insert_alarm_event",
+                side_effect=RuntimeError("audit insert failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.create_alarm_rule(
+                self.base_payload(),
+                db_path=temp_db_path,
+            )
+
+        self.assertIsNone(
+            self.rule_by_id(temp_db_path, "RULE-TEST-AUDIT-UPS-HIGH-LOAD"),
+        )
+        self.assertEqual(backend_summary.get_alarm_events(temp_db_path), [])
+
+    def test_rule_update_rolls_back_when_audit_event_insert_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(
+                backend_summary,
+                "insert_alarm_event",
+                side_effect=RuntimeError("audit insert failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.update_alarm_rule(
+                "RULE-UPS-A-HIGH-LOAD",
+                {"threshold_value": "250"},
+                db_path=temp_db_path,
+            )
+
+        alarm_rule = self.rule_by_id(temp_db_path, "RULE-UPS-A-HIGH-LOAD")
+
+        self.assertEqual(alarm_rule["threshold_value"], "240")
+        self.assertEqual(backend_summary.get_alarm_events(temp_db_path), [])
+
+    def test_alarm_events_endpoint_returns_rule_audit_context(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.create_alarm_rule(
+            self.base_payload(),
+            db_path=temp_db_path,
+        )
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_alarm_events",
+                lambda: backend_summary.get_alarm_events(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-events",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(len(data["alarm_events"]), 1)
+
+        event = data["alarm_events"][0]
+        self.assertEqual(event["event_type"], "RULE_CREATED")
+        self.assertEqual(event["rule_id"], "RULE-TEST-AUDIT-UPS-HIGH-LOAD")
+        self.assertEqual(event["rule_name"], "Test audited UPS high load")
+        self.assertEqual(event["point_name"], "OUTPUT_KW")
+        self.assertEqual(event["display_name"], "UPS-A Output kW")
+        self.assertEqual(event["equipment_id"], "UPS-A")
+        self.assertEqual(event["acknowledged_by"], "local-operator")
+        self.assertIn("created_rule", json.loads(event["details_json"]))
+
+
 class AlarmScenarioTests(unittest.TestCase):
     def load_temp_sample_database(self):
         temp_dir = tempfile.TemporaryDirectory()
@@ -2642,6 +2854,10 @@ class GeneratedAlarmStateTests(unittest.TestCase):
                 row[1]
                 for row in connection.execute("PRAGMA table_info(generated_alarms)")
             }
+            alarm_event_columns = {
+                row[1]: row
+                for row in connection.execute("PRAGMA table_info(alarm_events)")
+            }
 
         self.assertIsNotNone(table_exists)
         self.assertIsNotNone(alarm_event_table_exists)
@@ -2657,6 +2873,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertIn("triggering_sample_id", generated_alarm_columns)
         self.assertIn("triggering_value", generated_alarm_columns)
         self.assertIn("triggering_quality", generated_alarm_columns)
+        self.assertEqual(alarm_event_columns["generated_alarm_id"][3], 0)
 
     def test_evaluate_creates_active_alarm_for_triggered_rule(self):
         temp_db_path = self.load_temp_sample_database()
