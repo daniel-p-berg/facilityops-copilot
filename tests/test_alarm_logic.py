@@ -627,8 +627,10 @@ class CurrentPointValueTests(unittest.TestCase):
         temp_db_path, load_counts = self.load_temp_sample_database()
 
         self.assertEqual(load_counts["current_point_value_records"], 17)
+        self.assertEqual(load_counts["point_sample_records"], 17)
         reload_counts = load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
         self.assertEqual(reload_counts["current_point_value_records"], 17)
+        self.assertEqual(reload_counts["point_sample_records"], 17)
 
         with sqlite3.connect(temp_db_path) as connection:
             table_exists = connection.execute(
@@ -645,10 +647,17 @@ class CurrentPointValueTests(unittest.TestCase):
             unique_point_count = connection.execute(
                 "SELECT COUNT(DISTINCT point_id) FROM current_point_values"
             ).fetchone()[0]
+            current_value_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(current_point_values)")
+            }
 
         self.assertIsNotNone(table_exists)
         self.assertEqual(current_value_count, 17)
         self.assertEqual(unique_point_count, 17)
+        self.assertIn("latest_sample_id", current_value_columns)
+        self.assertIn("received_timestamp", current_value_columns)
+        self.assertIn("stale_after_seconds", current_value_columns)
 
     def test_current_point_values_reference_valid_points(self):
         temp_db_path, _load_counts = self.load_temp_sample_database()
@@ -699,13 +708,14 @@ class CurrentPointValueTests(unittest.TestCase):
         with sqlite3.connect(temp_db_path) as connection:
             current_value_row = connection.execute(
                 """
-                SELECT value, quality, source, updated_at
+                SELECT value, quality, source, source_timestamp
                 FROM current_point_values
                 WHERE id = 'CPV-TEST-OPTIONAL'
                 """
             ).fetchone()
 
-        self.assertEqual(current_value_row, ("", "UNKNOWN", "", ""))
+        self.assertEqual(current_value_row[0:3], ("", "UNCERTAIN", ""))
+        self.assertNotEqual(current_value_row[3], "")
 
     def test_backend_current_point_values_returns_point_and_equipment_context(self):
         temp_db_path, _load_counts = self.load_temp_sample_database()
@@ -728,6 +738,14 @@ class CurrentPointValueTests(unittest.TestCase):
         self.assertEqual(
             values_by_point_id["CHW-P-1_DISCHARGE_PRESSURE"]["unit"],
             "psi",
+        )
+        self.assertNotEqual(
+            values_by_point_id["CHW-P-1_DISCHARGE_PRESSURE"]["latest_sample_id"],
+            "",
+        )
+        self.assertEqual(
+            values_by_point_id["CHW-P-1_DISCHARGE_PRESSURE"]["stale_after_seconds"],
+            300,
         )
 
     def test_current_point_values_endpoint_returns_data(self):
@@ -762,6 +780,239 @@ class CurrentPointValueTests(unittest.TestCase):
             values_by_point_id["UPS-A_OUTPUT_KW"]["point_name"],
             "OUTPUT_KW",
         )
+
+
+class QualityAwarePointSampleTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        with sqlite3.connect(temp_db_path) as connection:
+            connection.execute("UPDATE alarm_rules SET delay_seconds = 0")
+        return temp_db_path
+
+    def evaluations_by_rule_id(self, db_path):
+        return {
+            evaluation["id"]: evaluation
+            for evaluation in backend_summary.get_rule_evaluations(db_path)
+        }
+
+    def ingest_ups_output_sample(self, db_path, value, quality="GOOD", **metadata):
+        return backend_summary.ingest_point_sample(
+            "UPS-A_OUTPUT_KW",
+            value,
+            quality=quality,
+            source="MANUAL",
+            db_path=db_path,
+            **metadata,
+        )
+
+    def test_loader_creates_point_samples_table(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'point_samples'
+                """
+            ).fetchone()
+            sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+
+        self.assertIsNotNone(table_exists)
+        self.assertEqual(sample_count, 17)
+
+    def test_seeded_current_values_reference_latest_sample_id(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            missing_sample_count = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM current_point_values
+                LEFT JOIN point_samples
+                    ON current_point_values.latest_sample_id = point_samples.id
+                WHERE point_samples.id IS NULL
+                """
+            ).fetchone()[0]
+
+        self.assertEqual(missing_sample_count, 0)
+
+    def test_manual_current_value_update_creates_point_sample(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+
+        current_point_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            sample_quality = connection.execute(
+                """
+                SELECT quality
+                FROM point_samples
+                WHERE id = ?
+                """,
+                (current_point_value["latest_sample_id"],),
+            ).fetchone()[0]
+
+        self.assertEqual(after_count, before_count + 1)
+        self.assertEqual(sample_quality, "GOOD")
+        self.assertEqual(current_point_value["value"], "245")
+
+    def test_scenario_apply_creates_point_samples(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+
+        scenario_result = backend_summary.apply_scenario(
+            "trigger-ups-high-load",
+            db_path=temp_db_path,
+        )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+
+        self.assertEqual(after_count, before_count + 1)
+        self.assertEqual(scenario_result["current_point_values"][0]["value"], "245")
+        self.assertEqual(scenario_result["current_point_values"][0]["source"], "SCENARIO")
+
+    def test_current_point_values_projection_updates_after_sample_ingest(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        current_point_value = self.ingest_ups_output_sample(
+            temp_db_path,
+            "246",
+            protocol="SIM",
+            address="sim://ups-a/output_kw",
+            stale_after_seconds=600,
+        )
+
+        self.assertEqual(current_point_value["value"], "246")
+        self.assertEqual(current_point_value["protocol"], "SIM")
+        self.assertEqual(current_point_value["address"], "sim://ups-a/output_kw")
+        self.assertEqual(current_point_value["stale_after_seconds"], 600)
+        self.assertFalse(current_point_value["overridden"])
+        self.assertFalse(current_point_value["out_of_service"])
+
+    def test_good_sample_can_trigger_rule_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(temp_db_path, "245", quality="GOOD")
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertTrue(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "Triggered")
+
+    def test_bad_sample_does_not_trigger_process_alarm_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(temp_db_path, "245", quality="BAD")
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "BAD_QUALITY")
+
+    def test_uncertain_sample_does_not_trigger_process_alarm_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(temp_db_path, "245", quality="UNKNOWN")
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["quality"], "UNCERTAIN")
+        self.assertEqual(evaluation["evaluation_status"], "UNCERTAIN_QUALITY")
+
+    def test_stale_sample_does_not_trigger_process_alarm_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(
+            temp_db_path,
+            "245",
+            quality="GOOD",
+            received_timestamp="2026-05-01 12:00:00",
+            stale_after_seconds=30,
+        )
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:01:00",
+        ):
+            evaluation = self.evaluations_by_rule_id(temp_db_path)[
+                "RULE-UPS-A-HIGH-LOAD"
+            ]
+
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "STALE")
+
+    def test_stale_quality_sample_does_not_trigger_process_alarm_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(temp_db_path, "245", quality="STALE")
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "STALE")
+
+    def test_overridden_sample_does_not_trigger_process_alarm_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(
+            temp_db_path,
+            "245",
+            quality="GOOD",
+            overridden=True,
+        )
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "OVERRIDDEN")
+
+    def test_out_of_service_sample_does_not_trigger_process_alarm_evaluation(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(
+            temp_db_path,
+            "245",
+            quality="GOOD",
+            out_of_service=True,
+        )
+        evaluation = self.evaluations_by_rule_id(temp_db_path)["RULE-UPS-A-HIGH-LOAD"]
+
+        self.assertFalse(evaluation["is_triggered"])
+        self.assertEqual(evaluation["evaluation_status"], "OUT_OF_SERVICE")
+
+    def test_generated_alarm_evaluation_does_not_create_from_ineligible_sample(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.ingest_ups_output_sample(temp_db_path, "245", quality="BAD")
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["created_count"], 0)
+        self.assertEqual(generated_alarms, [])
 
 
 class ManualCurrentPointValueUpdateTests(unittest.TestCase):
@@ -1954,7 +2205,7 @@ class RuleEvaluationTests(unittest.TestCase):
         self.assertFalse(missing_value_result["is_triggered"])
         self.assertEqual(missing_value_result["evaluation_status"], "No current value")
         self.assertFalse(bad_quality_result["is_triggered"])
-        self.assertEqual(bad_quality_result["evaluation_status"], "Bad quality")
+        self.assertEqual(bad_quality_result["evaluation_status"], "BAD_QUALITY")
         self.assertFalse(invalid_analog_result["is_triggered"])
         self.assertEqual(invalid_analog_result["evaluation_status"], "Invalid analog value")
         self.assertFalse(unsupported_operator_result["is_triggered"])

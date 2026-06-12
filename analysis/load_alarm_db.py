@@ -1,5 +1,8 @@
 import csv
 import sqlite3
+import uuid
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
 
@@ -72,6 +75,12 @@ CURRENT_POINT_VALUE_COLUMNS = (
 )
 
 BLANK_VALUES = {"", "null", "none", "n/a"}
+DEFAULT_STALE_AFTER_SECONDS = 300
+
+
+def current_timestamp():
+    """Return a simple UTC timestamp for local sample ingestion."""
+    return datetime.now(UTC).replace(microsecond=0, tzinfo=None).isoformat(sep=" ")
 
 
 def create_alarm_table(connection):
@@ -163,10 +172,68 @@ def create_current_point_value_table(connection):
         CREATE TABLE IF NOT EXISTS current_point_values (
             id TEXT PRIMARY KEY,
             point_id TEXT NOT NULL UNIQUE,
+            latest_sample_id TEXT NOT NULL DEFAULT '',
             value TEXT NOT NULL,
+            unit TEXT NOT NULL DEFAULT '',
             quality TEXT NOT NULL,
             source TEXT NOT NULL,
+            source_timestamp TEXT NOT NULL DEFAULT '',
+            received_timestamp TEXT NOT NULL DEFAULT '',
+            stale_after_seconds INTEGER NOT NULL DEFAULT 300,
+            overridden INTEGER NOT NULL DEFAULT 0,
+            out_of_service INTEGER NOT NULL DEFAULT 0,
+            protocol TEXT NOT NULL DEFAULT '',
+            address TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL,
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (latest_sample_id) REFERENCES point_samples (id)
+        )
+        """
+    )
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(current_point_values)")
+    }
+    migrations = {
+        "latest_sample_id": "TEXT NOT NULL DEFAULT ''",
+        "unit": "TEXT NOT NULL DEFAULT ''",
+        "source_timestamp": "TEXT NOT NULL DEFAULT ''",
+        "received_timestamp": "TEXT NOT NULL DEFAULT ''",
+        "stale_after_seconds": "INTEGER NOT NULL DEFAULT 300",
+        "overridden": "INTEGER NOT NULL DEFAULT 0",
+        "out_of_service": "INTEGER NOT NULL DEFAULT 0",
+        "protocol": "TEXT NOT NULL DEFAULT ''",
+        "address": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column_name, column_definition in migrations.items():
+        if column_name not in columns:
+            connection.execute(
+                f"""
+                ALTER TABLE current_point_values
+                ADD COLUMN {column_name} {column_definition}
+                """
+            )
+
+
+def create_point_sample_table(connection):
+    """Create an append-only table for point samples."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS point_samples (
+            id TEXT PRIMARY KEY,
+            point_id TEXT NOT NULL,
+            value TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            source_timestamp TEXT NOT NULL,
+            received_timestamp TEXT NOT NULL,
+            source TEXT NOT NULL,
+            protocol TEXT NOT NULL,
+            address TEXT NOT NULL,
+            stale_after_seconds INTEGER NOT NULL,
+            overridden INTEGER NOT NULL DEFAULT 0,
+            out_of_service INTEGER NOT NULL DEFAULT 0,
+            created_by TEXT NOT NULL,
             FOREIGN KEY (point_id) REFERENCES points (id)
         )
         """
@@ -300,9 +367,21 @@ def parse_enabled(value):
 def normalize_quality(value):
     """Normalize point value quality to a predictable catalog value."""
     if is_blank_value(value):
-        return "UNKNOWN"
+        return "UNCERTAIN"
 
-    return value.strip().upper()
+    normalized_value = value.strip().upper()
+    if normalized_value == "UNKNOWN":
+        return "UNCERTAIN"
+
+    return normalized_value
+
+
+def point_sample_id(current_point_value_id):
+    """Create a stable seed sample id from the current value row id."""
+    if is_blank_value(current_point_value_id):
+        return f"PS-{uuid.uuid4().hex[:12]}"
+
+    return f"PS-{current_point_value_id}"
 
 
 def read_point_rows(csv_path):
@@ -515,34 +594,101 @@ def load_current_point_values_to_sqlite(
     csv_path=CURRENT_POINT_VALUE_FILE,
     db_path=DATABASE_FILE,
 ):
-    """Load current point value records from CSV into SQLite."""
+    """Load seed current values by appending point samples, then projecting latest values."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     rows = read_current_point_value_rows(csv_path)
 
     with sqlite3.connect(db_path) as connection:
+        create_point_sample_table(connection)
         create_current_point_value_table(connection)
         connection.execute("DELETE FROM current_point_values")
-        connection.executemany(
-            """
-            INSERT INTO current_point_values (
-                id,
-                point_id,
-                value,
-                quality,
-                source,
-                updated_at
+        connection.execute("DELETE FROM point_samples")
+
+        units_by_point_id = {
+            point_id: unit
+            for point_id, unit in connection.execute("SELECT id, unit FROM points")
+        }
+        received_timestamp = current_timestamp()
+        for row in rows:
+            sample_id = point_sample_id(row["id"])
+            source_timestamp = row["updated_at"] or received_timestamp
+            unit = units_by_point_id.get(row["point_id"], "")
+            connection.execute(
+                """
+                INSERT INTO point_samples (
+                    id,
+                    point_id,
+                    value,
+                    unit,
+                    quality,
+                    source_timestamp,
+                    received_timestamp,
+                    source,
+                    protocol,
+                    address,
+                    stale_after_seconds,
+                    overridden,
+                    out_of_service,
+                    created_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    sample_id,
+                    row["point_id"],
+                    row["value"],
+                    unit,
+                    row["quality"],
+                    source_timestamp,
+                    received_timestamp,
+                    row["source"],
+                    "",
+                    "",
+                    DEFAULT_STALE_AFTER_SECONDS,
+                    0,
+                    0,
+                    "loader",
+                ),
             )
-            VALUES (
-                :id,
-                :point_id,
-                :value,
-                :quality,
-                :source,
-                :updated_at
+            connection.execute(
+                """
+                INSERT INTO current_point_values (
+                    id,
+                    point_id,
+                    latest_sample_id,
+                    value,
+                    unit,
+                    quality,
+                    source,
+                    source_timestamp,
+                    received_timestamp,
+                    stale_after_seconds,
+                    overridden,
+                    out_of_service,
+                    protocol,
+                    address,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["id"],
+                    row["point_id"],
+                    sample_id,
+                    row["value"],
+                    unit,
+                    row["quality"],
+                    row["source"],
+                    source_timestamp,
+                    received_timestamp,
+                    DEFAULT_STALE_AFTER_SECONDS,
+                    0,
+                    0,
+                    "",
+                    "",
+                    received_timestamp,
+                ),
             )
-            """,
-            rows,
-        )
 
     return len(rows)
 
@@ -581,6 +727,7 @@ def load_sample_data_to_sqlite(
         "point_records": point_count,
         "alarm_rule_records": alarm_rule_count,
         "current_point_value_records": current_point_value_count,
+        "point_sample_records": current_point_value_count,
     }
 
 
@@ -665,6 +812,7 @@ def print_verification_summary(
     point_record_count=None,
     alarm_rule_record_count=None,
     current_point_value_record_count=None,
+    point_sample_record_count=None,
 ):
     print("Legacy alarm records loaded: 0")
     if equipment_record_count is not None:
@@ -675,6 +823,8 @@ def print_verification_summary(
         print(f"Alarm rule records loaded: {alarm_rule_record_count}")
     if current_point_value_record_count is not None:
         print(f"Current point value records loaded: {current_point_value_record_count}")
+    if point_sample_record_count is not None:
+        print(f"Point sample records loaded: {point_sample_record_count}")
     print(
         "Generated alarm records present: "
         f"{generated_alarm_summary['total_generated_alarm_records']}"
@@ -703,6 +853,7 @@ def main():
         point_record_count=load_counts["point_records"],
         alarm_rule_record_count=load_counts["alarm_rule_records"],
         current_point_value_record_count=load_counts["current_point_value_records"],
+        point_sample_record_count=load_counts["point_sample_records"],
     )
 
 

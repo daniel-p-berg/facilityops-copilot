@@ -39,13 +39,13 @@ Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQL
 
 Point dictionary records are stored in `data/sample_points.csv`. Current point values are stored in `data/sample_current_point_values.csv`. Alarm rule catalog records are stored in `data/sample_alarm_rules.csv`.
 
-Current point values can be updated manually through the dashboard or the local API. Manual updates use `MANUAL` as the current value source and do not automatically evaluate generated alarms.
+Current point values are maintained as the latest-value projection of append-only `point_samples` records. Current point values can be updated manually through the dashboard or the local API. Manual updates create a point sample, update the latest-value projection, use `MANUAL` as the current value source, and do not automatically evaluate generated alarms.
 
 Alarm rules can be created for existing points through the dashboard or the local API for local demo tuning. Existing rule edits are limited to thresholds, clear values, delay, severity, enabled state, and alarm message; creating or editing rules does not automatically evaluate or rewrite generated alarms.
 
-Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates use `SCENARIO` as the current value source and do not automatically evaluate generated alarms.
+Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates create point samples, use `SCENARIO` as the current value source, and do not automatically evaluate generated alarms.
 
-Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values.
+Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. Process alarm rules only evaluate against eligible samples: `GOOD` quality, not stale, not overridden, and not out of service. `UNKNOWN` quality is normalized to `UNCERTAIN`.
 
 Generated alarms are simple output records created from rule evaluations. The dashboard alarm summary and alarm table use generated alarms only; the old seeded sample alarm CSV is no longer the dashboard alarm source. Triggered rules with positive `delay_seconds` create PENDING generated alarms until a later explicit evaluation confirms the delay has elapsed. Rules with no delay create ACTIVE generated alarms immediately. Analog generated alarms use `clear_value` hysteresis before clearing; boolean and enum generated alarms clear when their rule no longer triggers. Local operators can acknowledge generated alarms from the dashboard or API; acknowledgement does not clear, suppress, or stop future evaluations. The app does not run a background timer or polling loop, and it does not implement suppression, latching, comments, shelving, or a separate alarm history table.
 

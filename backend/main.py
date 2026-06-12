@@ -144,12 +144,27 @@ def update_point_value(point_id: str, payload: dict = Body(...)):
             content={"error": "Missing required field: value"},
         )
 
+    sample_options = {}
+    for field_name in (
+        "source_timestamp",
+        "received_timestamp",
+        "protocol",
+        "address",
+        "stale_after_seconds",
+        "overridden",
+        "out_of_service",
+        "created_by",
+    ):
+        if field_name in payload:
+            sample_options[field_name] = payload[field_name]
+
     try:
         current_point_value = update_current_point_value(
             point_id,
             payload["value"],
             quality=payload.get("quality", "GOOD"),
             source=payload.get("source", "MANUAL"),
+            **sample_options,
         )
     except LookupError as error:
         return JSONResponse(

@@ -245,7 +245,8 @@
     }
 
     .quality-stale,
-    .quality-unknown {
+    .quality-unknown,
+    .quality-uncertain {
       color: var(--high);
       font-weight: 700;
     }
@@ -478,6 +479,12 @@
               <th>Unit</th>
               <th>Quality</th>
               <th>Source</th>
+              <th>Source Timestamp</th>
+              <th>Received Timestamp</th>
+              <th>Stale After</th>
+              <th>Overridden</th>
+              <th>Out Of Service</th>
+              <th>Latest Sample</th>
               <th>Updated At</th>
               <th>Action</th>
             </tr>
@@ -823,17 +830,23 @@
       if (normalizedQuality === "unknown") {
         return "quality-unknown";
       }
+      if (normalizedQuality === "uncertain") {
+        return "quality-uncertain";
+      }
 
       return "";
     }
 
     function createQualitySelect(selectedQuality) {
       const select = document.createElement("select");
-      ["GOOD", "BAD", "STALE", "UNKNOWN"].forEach((quality) => {
+      const normalizedSelectedQuality = displayValue(selectedQuality, "UNCERTAIN") === "UNKNOWN"
+        ? "UNCERTAIN"
+        : displayValue(selectedQuality, "UNCERTAIN");
+      ["GOOD", "UNCERTAIN", "BAD", "STALE"].forEach((quality) => {
         const option = document.createElement("option");
         option.value = quality;
         option.textContent = quality;
-        option.selected = displayValue(selectedQuality, "UNKNOWN") === quality;
+        option.selected = normalizedSelectedQuality === quality;
         select.appendChild(option);
       });
 
@@ -903,7 +916,7 @@
       currentPointValueRowsEl.innerHTML = "";
 
       if (currentPointValues.length === 0) {
-        renderEmptyRow(currentPointValueRowsEl, 9, "No current point values found.");
+        renderEmptyRow(currentPointValueRowsEl, 15, "No current point values found.");
         return;
       }
 
@@ -931,6 +944,15 @@
         appendCell(row, pointValue.unit);
         appendNodeCell(row, qualitySelect);
         appendCell(row, pointValue.source);
+        appendCell(row, pointValue.source_timestamp);
+        appendCell(row, pointValue.received_timestamp);
+        appendCell(
+          row,
+          hasValue(pointValue.stale_after_seconds) ? `${pointValue.stale_after_seconds}s` : null,
+        );
+        appendCell(row, pointValue.overridden ? "Yes" : "No");
+        appendCell(row, pointValue.out_of_service ? "Yes" : "No");
+        appendCell(row, pointValue.latest_sample_id);
         appendCell(row, pointValue.updated_at);
         appendNodeCell(row, updateButton);
         currentPointValueRowsEl.appendChild(row);

@@ -12,6 +12,7 @@ LOADER_COMMAND = "python3 analysis/load_alarm_db.py"
 
 GENERATED_ALARM_COUNT_COLUMNS = {"severity", "state", "equipment_id"}
 BLANK_VALUES = {"", "null", "none", "n/a"}
+DEFAULT_STALE_AFTER_SECONDS = 300
 ANALOG_OPERATORS = {">", ">=", "<", "<="}
 MATCH_OPERATORS = {"==", "!="}
 TRUE_VALUES = {"true", "1", "yes", "on"}
@@ -31,7 +32,14 @@ EDITABLE_ALARM_RULE_FIELDS = {
     "alarm_message",
     "enabled",
 }
-ALLOWED_QUALITIES = {"GOOD", "BAD", "STALE", "UNKNOWN"}
+ALLOWED_QUALITIES = {"GOOD", "UNCERTAIN", "BAD", "STALE"}
+INELIGIBLE_EVALUATION_STATUSES = {
+    "BAD_QUALITY",
+    "UNCERTAIN_QUALITY",
+    "STALE",
+    "OVERRIDDEN",
+    "OUT_OF_SERVICE",
+}
 ALLOWED_CURRENT_VALUE_SOURCES = {
     "SIMULATED",
     "BMS",
@@ -339,10 +347,68 @@ def ensure_current_point_value_table(connection):
         CREATE TABLE IF NOT EXISTS current_point_values (
             id TEXT PRIMARY KEY,
             point_id TEXT NOT NULL UNIQUE,
+            latest_sample_id TEXT NOT NULL DEFAULT '',
             value TEXT NOT NULL,
+            unit TEXT NOT NULL DEFAULT '',
             quality TEXT NOT NULL,
             source TEXT NOT NULL,
+            source_timestamp TEXT NOT NULL DEFAULT '',
+            received_timestamp TEXT NOT NULL DEFAULT '',
+            stale_after_seconds INTEGER NOT NULL DEFAULT 300,
+            overridden INTEGER NOT NULL DEFAULT 0,
+            out_of_service INTEGER NOT NULL DEFAULT 0,
+            protocol TEXT NOT NULL DEFAULT '',
+            address TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL,
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (latest_sample_id) REFERENCES point_samples (id)
+        )
+        """
+    )
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(current_point_values)")
+    }
+    migrations = {
+        "latest_sample_id": "TEXT NOT NULL DEFAULT ''",
+        "unit": "TEXT NOT NULL DEFAULT ''",
+        "source_timestamp": "TEXT NOT NULL DEFAULT ''",
+        "received_timestamp": "TEXT NOT NULL DEFAULT ''",
+        "stale_after_seconds": "INTEGER NOT NULL DEFAULT 300",
+        "overridden": "INTEGER NOT NULL DEFAULT 0",
+        "out_of_service": "INTEGER NOT NULL DEFAULT 0",
+        "protocol": "TEXT NOT NULL DEFAULT ''",
+        "address": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column_name, column_definition in migrations.items():
+        if column_name not in columns:
+            connection.execute(
+                f"""
+                ALTER TABLE current_point_values
+                ADD COLUMN {column_name} {column_definition}
+                """
+            )
+
+
+def ensure_point_sample_table(connection):
+    """Create append-only point sample table if the loader has not run yet."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS point_samples (
+            id TEXT PRIMARY KEY,
+            point_id TEXT NOT NULL,
+            value TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            source_timestamp TEXT NOT NULL,
+            received_timestamp TEXT NOT NULL,
+            source TEXT NOT NULL,
+            protocol TEXT NOT NULL,
+            address TEXT NOT NULL,
+            stale_after_seconds INTEGER NOT NULL,
+            overridden INTEGER NOT NULL DEFAULT 0,
+            out_of_service INTEGER NOT NULL DEFAULT 0,
+            created_by TEXT NOT NULL,
             FOREIGN KEY (point_id) REFERENCES points (id)
         )
         """
@@ -370,12 +436,19 @@ def current_point_value_id(point_id):
     return f"CPV-{point_id}"
 
 
+def point_sample_id(point_id):
+    """Create a generated point sample id."""
+    return f"PS-{point_id}-{uuid.uuid4().hex[:12]}"
+
+
 def normalize_quality(value):
     """Normalize and validate current point value quality."""
     normalized_value = normalize_text(value).upper()
+    if normalized_value == "UNKNOWN":
+        normalized_value = "UNCERTAIN"
     if normalized_value not in ALLOWED_QUALITIES:
         allowed_values = ", ".join(sorted(ALLOWED_QUALITIES))
-        raise ValueError(f"quality must be one of: {allowed_values}")
+        raise ValueError(f"quality must be one of: {allowed_values}, UNKNOWN")
 
     return normalized_value
 
@@ -469,6 +542,32 @@ def parse_non_negative_delay_seconds(value):
     return delay_seconds
 
 
+def parse_stale_after_seconds(value):
+    """Parse stale_after_seconds, using the project default when blank."""
+    if not has_value(value):
+        return DEFAULT_STALE_AFTER_SECONDS
+
+    return parse_non_negative_delay_seconds(value)
+
+
+def parse_boolean_flag(value, field_name):
+    """Parse boolean-like API fields into SQLite integers."""
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if value is None:
+        return 0
+
+    normalized_value = normalize_text(value).lower()
+    if not normalized_value:
+        return 0
+    if normalized_value in TRUE_VALUES:
+        return 1
+    if normalized_value in FALSE_VALUES:
+        return 0
+
+    raise ValueError(f"{field_name} must be a boolean value")
+
+
 def parse_number(value):
     """Safely parse a numeric point or threshold value."""
     if not has_value(value):
@@ -515,12 +614,16 @@ def compare_values(current_value, threshold_value, operator):
 def quality_status(quality):
     """Return an evaluation status for non-GOOD point quality."""
     normalized_quality = normalize_text(quality).upper()
+    if normalized_quality == "UNKNOWN":
+        normalized_quality = "UNCERTAIN"
     if normalized_quality == "BAD":
-        return "Bad quality"
+        return "BAD_QUALITY"
+    if normalized_quality == "UNCERTAIN":
+        return "UNCERTAIN_QUALITY"
     if normalized_quality == "STALE":
-        return "Stale quality"
+        return "STALE"
 
-    return "Unknown quality"
+    return "UNCERTAIN_QUALITY"
 
 
 def evaluation_result(is_triggered, evaluation_status):
@@ -531,6 +634,82 @@ def evaluation_result(is_triggered, evaluation_status):
     }
 
 
+def parse_stale_after_value(value):
+    """Parse sample stale window for evaluation, falling back to the default."""
+    if not has_value(value):
+        return DEFAULT_STALE_AFTER_SECONDS
+
+    try:
+        stale_after_seconds = int(float(value))
+    except (TypeError, ValueError):
+        return DEFAULT_STALE_AFTER_SECONDS
+
+    return max(stale_after_seconds, 0)
+
+
+def sample_is_stale(
+    source_timestamp=None,
+    received_timestamp=None,
+    stale_after_seconds=None,
+    evaluation_timestamp=None,
+):
+    """Return True when a sample is older than its stale window."""
+    sample_timestamp = parse_timestamp(received_timestamp) or parse_timestamp(source_timestamp)
+    evaluated_at = parse_timestamp(evaluation_timestamp)
+    if sample_timestamp is None or evaluated_at is None:
+        return False
+
+    elapsed_seconds = (evaluated_at - sample_timestamp).total_seconds()
+    return elapsed_seconds > parse_stale_after_value(stale_after_seconds)
+
+
+def sample_flag_is_true(value):
+    """Return True for boolean-like sample flags."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+
+    normalized_value = normalize_text(value).lower()
+    if normalized_value in TRUE_VALUES:
+        return True
+    if normalized_value in FALSE_VALUES or not normalized_value:
+        return False
+
+    return bool(value)
+
+
+def sample_eligibility_status(
+    quality,
+    source_timestamp=None,
+    received_timestamp=None,
+    stale_after_seconds=None,
+    overridden=False,
+    out_of_service=False,
+    evaluation_timestamp=None,
+):
+    """Return a process-alarm eligibility status for a current point sample."""
+    if sample_flag_is_true(overridden):
+        return "OVERRIDDEN"
+    if sample_flag_is_true(out_of_service):
+        return "OUT_OF_SERVICE"
+
+    normalized_quality = normalize_text(quality).upper()
+    if normalized_quality == "UNKNOWN":
+        normalized_quality = "UNCERTAIN"
+    if normalized_quality != "GOOD":
+        return quality_status(normalized_quality)
+    if sample_is_stale(
+        source_timestamp=source_timestamp,
+        received_timestamp=received_timestamp,
+        stale_after_seconds=stale_after_seconds,
+        evaluation_timestamp=evaluation_timestamp,
+    ):
+        return "STALE"
+
+    return "ELIGIBLE"
+
+
 def evaluate_alarm_rule(
     rule_type,
     operator,
@@ -538,6 +717,12 @@ def evaluate_alarm_rule(
     current_value,
     quality,
     enabled=True,
+    source_timestamp=None,
+    received_timestamp=None,
+    stale_after_seconds=None,
+    overridden=False,
+    out_of_service=False,
+    evaluation_timestamp=None,
 ):
     """Evaluate one alarm rule against one current point value."""
     if not enabled:
@@ -546,8 +731,17 @@ def evaluate_alarm_rule(
     if not has_value(current_value):
         return evaluation_result(False, "No current value")
 
-    if normalize_text(quality).upper() != "GOOD":
-        return evaluation_result(False, quality_status(quality))
+    eligibility_status = sample_eligibility_status(
+        quality,
+        source_timestamp=source_timestamp,
+        received_timestamp=received_timestamp,
+        stale_after_seconds=stale_after_seconds,
+        overridden=overridden,
+        out_of_service=out_of_service,
+        evaluation_timestamp=evaluation_timestamp,
+    )
+    if eligibility_status != "ELIGIBLE":
+        return evaluation_result(False, eligibility_status)
 
     if rule_type == "analog_limit":
         if operator not in ANALOG_OPERATORS:
@@ -909,12 +1103,14 @@ def update_alarm_rule(rule_id, updates, db_path=DATABASE_FILE):
 def get_current_point_values(db_path=DATABASE_FILE):
     """Return current point values with point and equipment context."""
     with sqlite3.connect(db_path) as connection:
+        ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
         cursor = connection.execute(
             """
             SELECT
                 current_point_values.id,
                 current_point_values.point_id,
+                current_point_values.latest_sample_id,
                 points.point_name,
                 points.display_name,
                 points.equipment_id,
@@ -922,10 +1118,17 @@ def get_current_point_values(db_path=DATABASE_FILE):
                 COALESCE(equipment.location, 'Unknown') AS location,
                 points.point_type,
                 points.data_type,
-                points.unit,
+                COALESCE(NULLIF(current_point_values.unit, ''), points.unit) AS unit,
                 current_point_values.value,
                 current_point_values.quality,
                 current_point_values.source,
+                current_point_values.source_timestamp,
+                current_point_values.received_timestamp,
+                current_point_values.stale_after_seconds,
+                current_point_values.overridden,
+                current_point_values.out_of_service,
+                current_point_values.protocol,
+                current_point_values.address,
                 current_point_values.updated_at
             FROM current_point_values
             LEFT JOIN points
@@ -939,6 +1142,7 @@ def get_current_point_values(db_path=DATABASE_FILE):
             {
                 "id": value_id,
                 "point_id": point_id,
+                "latest_sample_id": latest_sample_id,
                 "point_name": point_name,
                 "display_name": display_name,
                 "equipment_id": equipment_id,
@@ -950,11 +1154,19 @@ def get_current_point_values(db_path=DATABASE_FILE):
                 "value": value,
                 "quality": quality,
                 "source": source,
+                "source_timestamp": source_timestamp,
+                "received_timestamp": received_timestamp,
+                "stale_after_seconds": stale_after_seconds,
+                "overridden": bool(overridden),
+                "out_of_service": bool(out_of_service),
+                "protocol": protocol,
+                "address": address,
                 "updated_at": updated_at,
             }
             for (
                 value_id,
                 point_id,
+                latest_sample_id,
                 point_name,
                 display_name,
                 equipment_id,
@@ -966,6 +1178,13 @@ def get_current_point_values(db_path=DATABASE_FILE):
                 value,
                 quality,
                 source,
+                source_timestamp,
+                received_timestamp,
+                stale_after_seconds,
+                overridden,
+                out_of_service,
+                protocol,
+                address,
                 updated_at,
             ) in cursor.fetchall()
         ]
@@ -974,12 +1193,14 @@ def get_current_point_values(db_path=DATABASE_FILE):
 def get_current_point_value(point_id, db_path=DATABASE_FILE):
     """Return one current point value with point and equipment context."""
     with sqlite3.connect(db_path) as connection:
+        ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
         cursor = connection.execute(
             """
             SELECT
                 current_point_values.id,
                 current_point_values.point_id,
+                current_point_values.latest_sample_id,
                 points.point_name,
                 points.display_name,
                 points.equipment_id,
@@ -987,10 +1208,17 @@ def get_current_point_value(point_id, db_path=DATABASE_FILE):
                 COALESCE(equipment.location, 'Unknown') AS location,
                 points.point_type,
                 points.data_type,
-                points.unit,
+                COALESCE(NULLIF(current_point_values.unit, ''), points.unit) AS unit,
                 current_point_values.value,
                 current_point_values.quality,
                 current_point_values.source,
+                current_point_values.source_timestamp,
+                current_point_values.received_timestamp,
+                current_point_values.stale_after_seconds,
+                current_point_values.overridden,
+                current_point_values.out_of_service,
+                current_point_values.protocol,
+                current_point_values.address,
                 current_point_values.updated_at
             FROM current_point_values
             LEFT JOIN points
@@ -1008,6 +1236,7 @@ def get_current_point_value(point_id, db_path=DATABASE_FILE):
         (
             value_id,
             current_point_id,
+            latest_sample_id,
             point_name,
             display_name,
             equipment_id,
@@ -1019,12 +1248,20 @@ def get_current_point_value(point_id, db_path=DATABASE_FILE):
             value,
             quality,
             source,
+            source_timestamp,
+            received_timestamp,
+            stale_after_seconds,
+            overridden,
+            out_of_service,
+            protocol,
+            address,
             updated_at,
         ) = row
 
         return {
             "id": value_id,
             "point_id": current_point_id,
+            "latest_sample_id": latest_sample_id,
             "point_name": point_name,
             "display_name": display_name,
             "equipment_id": equipment_id,
@@ -1036,6 +1273,13 @@ def get_current_point_value(point_id, db_path=DATABASE_FILE):
             "value": value,
             "quality": quality,
             "source": source,
+            "source_timestamp": source_timestamp,
+            "received_timestamp": received_timestamp,
+            "stale_after_seconds": stale_after_seconds,
+            "overridden": bool(overridden),
+            "out_of_service": bool(out_of_service),
+            "protocol": protocol,
+            "address": address,
             "updated_at": updated_at,
         }
 
@@ -1053,23 +1297,100 @@ def point_exists(connection, point_id):
     return row is not None
 
 
-def update_current_point_value(
+def get_point_unit(connection, point_id):
+    """Return the configured point unit for an existing point."""
+    row = connection.execute(
+        """
+        SELECT unit
+        FROM points
+        WHERE id = ?
+        """,
+        (point_id,),
+    ).fetchone()
+    if row is None:
+        raise LookupError(f"Point not found: {point_id}")
+
+    return row[0]
+
+
+def ingest_point_sample(
     point_id,
     value,
     quality="GOOD",
     source="MANUAL",
+    unit=None,
+    source_timestamp=None,
+    received_timestamp=None,
+    protocol="",
+    address="",
+    stale_after_seconds=DEFAULT_STALE_AFTER_SECONDS,
+    overridden=False,
+    out_of_service=False,
+    created_by="local-operator",
     db_path=DATABASE_FILE,
 ):
-    """Update or create the current value for an existing point."""
+    """Append a point sample and update the current value projection."""
     normalized_value = normalize_text(value)
     normalized_quality = normalize_quality(quality)
     normalized_source = normalize_current_value_source(source)
-    updated_at = current_timestamp()
+    normalized_received_timestamp = normalize_text(received_timestamp) or current_timestamp()
+    normalized_source_timestamp = (
+        normalize_text(source_timestamp)
+        or normalized_received_timestamp
+    )
+    normalized_protocol = normalize_text(protocol)
+    normalized_address = normalize_text(address)
+    normalized_stale_after_seconds = parse_stale_after_seconds(stale_after_seconds)
+    normalized_overridden = parse_boolean_flag(overridden, "overridden")
+    normalized_out_of_service = parse_boolean_flag(out_of_service, "out_of_service")
+    normalized_created_by = normalize_text(created_by) or "local-operator"
+    sample_id = point_sample_id(point_id)
 
     with sqlite3.connect(db_path) as connection:
+        ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
-        if not point_exists(connection, point_id):
-            raise LookupError(f"Point not found: {point_id}")
+        point_unit = get_point_unit(connection, point_id)
+        normalized_unit = normalize_text(unit)
+        if not has_value(normalized_unit):
+            normalized_unit = point_unit
+
+        connection.execute(
+            """
+            INSERT INTO point_samples (
+                id,
+                point_id,
+                value,
+                unit,
+                quality,
+                source_timestamp,
+                received_timestamp,
+                source,
+                protocol,
+                address,
+                stale_after_seconds,
+                overridden,
+                out_of_service,
+                created_by
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                sample_id,
+                point_id,
+                normalized_value,
+                normalized_unit,
+                normalized_quality,
+                normalized_source_timestamp,
+                normalized_received_timestamp,
+                normalized_source,
+                normalized_protocol,
+                normalized_address,
+                normalized_stale_after_seconds,
+                normalized_overridden,
+                normalized_out_of_service,
+                normalized_created_by,
+            ),
+        )
 
         existing_row = connection.execute(
             """
@@ -1084,17 +1405,35 @@ def update_current_point_value(
             connection.execute(
                 """
                 UPDATE current_point_values
-                SET value = ?,
+                SET latest_sample_id = ?,
+                    value = ?,
+                    unit = ?,
                     quality = ?,
                     source = ?,
+                    source_timestamp = ?,
+                    received_timestamp = ?,
+                    stale_after_seconds = ?,
+                    overridden = ?,
+                    out_of_service = ?,
+                    protocol = ?,
+                    address = ?,
                     updated_at = ?
                 WHERE point_id = ?
                 """,
                 (
+                    sample_id,
                     normalized_value,
+                    normalized_unit,
                     normalized_quality,
                     normalized_source,
-                    updated_at,
+                    normalized_source_timestamp,
+                    normalized_received_timestamp,
+                    normalized_stale_after_seconds,
+                    normalized_overridden,
+                    normalized_out_of_service,
+                    normalized_protocol,
+                    normalized_address,
+                    normalized_received_timestamp,
                     point_id,
                 ),
             )
@@ -1104,24 +1443,75 @@ def update_current_point_value(
                 INSERT INTO current_point_values (
                     id,
                     point_id,
+                    latest_sample_id,
                     value,
+                    unit,
                     quality,
                     source,
+                    source_timestamp,
+                    received_timestamp,
+                    stale_after_seconds,
+                    overridden,
+                    out_of_service,
+                    protocol,
+                    address,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     current_point_value_id(point_id),
                     point_id,
+                    sample_id,
                     normalized_value,
+                    normalized_unit,
                     normalized_quality,
                     normalized_source,
-                    updated_at,
+                    normalized_source_timestamp,
+                    normalized_received_timestamp,
+                    normalized_stale_after_seconds,
+                    normalized_overridden,
+                    normalized_out_of_service,
+                    normalized_protocol,
+                    normalized_address,
+                    normalized_received_timestamp,
                 ),
             )
 
     return get_current_point_value(point_id, db_path)
+
+
+def update_current_point_value(
+    point_id,
+    value,
+    quality="GOOD",
+    source="MANUAL",
+    db_path=DATABASE_FILE,
+    source_timestamp=None,
+    received_timestamp=None,
+    protocol="",
+    address="",
+    stale_after_seconds=DEFAULT_STALE_AFTER_SECONDS,
+    overridden=False,
+    out_of_service=False,
+    created_by="local-operator",
+):
+    """Create a point sample and project it as the latest current value."""
+    return ingest_point_sample(
+        point_id,
+        value,
+        quality=quality,
+        source=source,
+        source_timestamp=source_timestamp,
+        received_timestamp=received_timestamp,
+        protocol=protocol,
+        address=address,
+        stale_after_seconds=stale_after_seconds,
+        overridden=overridden,
+        out_of_service=out_of_service,
+        created_by=created_by,
+        db_path=db_path,
+    )
 
 
 def get_points_by_id(connection, point_ids):
@@ -1216,9 +1606,11 @@ def apply_scenario(scenario_id, db_path=DATABASE_FILE):
     }
 
 
-def get_rule_evaluations(db_path=DATABASE_FILE):
+def get_rule_evaluations(db_path=DATABASE_FILE, evaluation_timestamp=None):
     """Return stateless alarm rule evaluations against current point values."""
     with sqlite3.connect(db_path) as connection:
+        ensure_point_sample_table(connection)
+        ensure_current_point_value_table(connection)
         cursor = connection.execute(
             """
             SELECT
@@ -1236,9 +1628,17 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
                 COALESCE(equipment.location, 'Unknown') AS location,
                 points.data_type,
                 points.unit,
+                current_point_values.latest_sample_id,
                 current_point_values.value,
                 current_point_values.quality,
                 current_point_values.source,
+                current_point_values.source_timestamp,
+                current_point_values.received_timestamp,
+                current_point_values.stale_after_seconds,
+                current_point_values.overridden,
+                current_point_values.out_of_service,
+                current_point_values.protocol,
+                current_point_values.address,
                 alarm_rules.operator,
                 alarm_rules.threshold_value,
                 alarm_rules.clear_value,
@@ -1255,6 +1655,8 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
         )
 
         evaluations = []
+        if evaluation_timestamp is None:
+            evaluation_timestamp = current_timestamp()
         for (
             rule_id,
             rule_name,
@@ -1270,9 +1672,17 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
             location,
             data_type,
             unit,
+            latest_sample_id,
             current_value,
             quality,
             source,
+            source_timestamp,
+            received_timestamp,
+            stale_after_seconds,
+            overridden,
+            out_of_service,
+            protocol,
+            address,
             operator,
             threshold_value,
             clear_value,
@@ -1286,6 +1696,12 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
                 current_value,
                 quality,
                 enabled=enabled_flag,
+                source_timestamp=source_timestamp,
+                received_timestamp=received_timestamp,
+                stale_after_seconds=stale_after_seconds,
+                overridden=bool(overridden),
+                out_of_service=bool(out_of_service),
+                evaluation_timestamp=evaluation_timestamp,
             )
             evaluations.append(
                 {
@@ -1303,9 +1719,17 @@ def get_rule_evaluations(db_path=DATABASE_FILE):
                     "display_name": display_name,
                     "data_type": data_type,
                     "unit": unit,
+                    "latest_sample_id": latest_sample_id,
                     "current_value": current_value,
                     "quality": quality,
                     "source": source,
+                    "source_timestamp": source_timestamp,
+                    "received_timestamp": received_timestamp,
+                    "stale_after_seconds": stale_after_seconds,
+                    "overridden": bool(overridden),
+                    "out_of_service": bool(out_of_service),
+                    "protocol": protocol,
+                    "address": address,
                     "operator": operator,
                     "threshold_value": threshold_value,
                     "clear_value": clear_value,
@@ -1426,6 +1850,9 @@ def active_generated_alarm_should_clear(evaluation):
     if evaluation["is_triggered"]:
         return False
 
+    if evaluation["evaluation_status"] in INELIGIBLE_EVALUATION_STATUSES:
+        return False
+
     if evaluation["rule_type"] != "analog_limit":
         return True
 
@@ -1465,7 +1892,8 @@ def active_generated_alarm_note(evaluation):
 
 def evaluate_generated_alarms(db_path=DATABASE_FILE):
     """Create or update generated alarm state from current rule evaluations."""
-    evaluations = get_rule_evaluations(db_path)
+    timestamp = current_timestamp()
+    evaluations = get_rule_evaluations(db_path, evaluation_timestamp=timestamp)
     evaluations_by_rule_id = {
         evaluation["id"]: evaluation
         for evaluation in evaluations
@@ -1476,7 +1904,6 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
         if evaluation["enabled"] and evaluation["is_triggered"]
     ]
 
-    timestamp = current_timestamp()
     created_count = 0
     updated_count = 0
     cleared_this_run_count = 0
