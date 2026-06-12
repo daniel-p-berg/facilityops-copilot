@@ -2651,6 +2651,12 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertIn("acknowledged", generated_alarm_columns)
         self.assertIn("acknowledged_at", generated_alarm_columns)
         self.assertIn("acknowledged_by", generated_alarm_columns)
+        self.assertIn("threshold_value_at_trigger", generated_alarm_columns)
+        self.assertIn("clear_value_at_trigger", generated_alarm_columns)
+        self.assertIn("delay_seconds_at_trigger", generated_alarm_columns)
+        self.assertIn("triggering_sample_id", generated_alarm_columns)
+        self.assertIn("triggering_value", generated_alarm_columns)
+        self.assertIn("triggering_quality", generated_alarm_columns)
 
     def test_evaluate_creates_active_alarm_for_triggered_rule(self):
         temp_db_path = self.load_temp_sample_database()
@@ -2668,6 +2674,139 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertFalse(generated_alarms[0]["acknowledged"])
         self.assertEqual(generated_alarms[0]["acknowledged_at"], "")
         self.assertEqual(generated_alarms[0]["acknowledged_by"], "")
+
+    def test_generated_alarm_snapshots_rule_and_sample_facts_at_trigger(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        current_point_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarm = backend_summary.get_generated_alarms(temp_db_path)[0]
+
+        self.assertEqual(generated_alarm["rule_name_at_trigger"], "UPS high load")
+        self.assertEqual(generated_alarm["rule_type_at_trigger"], "analog_limit")
+        self.assertEqual(generated_alarm["operator_at_trigger"], ">")
+        self.assertEqual(generated_alarm["threshold_value_at_trigger"], "240")
+        self.assertEqual(generated_alarm["clear_value_at_trigger"], "220")
+        self.assertEqual(generated_alarm["delay_seconds_at_trigger"], 0)
+        self.assertEqual(generated_alarm["severity_at_trigger"], "Warning")
+        self.assertEqual(
+            generated_alarm["alarm_message_at_trigger"],
+            "UPS-A load is above the preferred operating range",
+        )
+        self.assertEqual(
+            generated_alarm["triggering_sample_id"],
+            current_point_value["latest_sample_id"],
+        )
+        self.assertEqual(generated_alarm["triggering_value"], "245")
+        self.assertEqual(generated_alarm["triggering_quality"], "GOOD")
+        self.assertEqual(
+            generated_alarm["triggering_source_timestamp"],
+            current_point_value["source_timestamp"],
+        )
+        self.assertEqual(
+            generated_alarm["triggering_received_timestamp"],
+            current_point_value["received_timestamp"],
+        )
+
+    def test_rule_edit_does_not_rewrite_existing_alarm_snapshot(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        alarm_id = backend_summary.get_generated_alarms(temp_db_path)[0]["id"]
+
+        backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {
+                "threshold_value": "260",
+                "clear_value": "230",
+                "delay_seconds": 45,
+                "severity": "Critical",
+                "alarm_message": "UPS-A load is above edited threshold",
+            },
+            db_path=temp_db_path,
+        )
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarm = [
+            alarm
+            for alarm in backend_summary.get_generated_alarms(temp_db_path)
+            if alarm["id"] == alarm_id
+        ][0]
+
+        self.assertEqual(generated_alarm["threshold_value_at_trigger"], "240")
+        self.assertEqual(generated_alarm["clear_value_at_trigger"], "220")
+        self.assertEqual(generated_alarm["delay_seconds_at_trigger"], 0)
+        self.assertEqual(generated_alarm["severity_at_trigger"], "Warning")
+        self.assertEqual(
+            generated_alarm["alarm_message_at_trigger"],
+            "UPS-A load is above the preferred operating range",
+        )
+
+    def test_new_generated_alarm_uses_updated_rule_snapshot(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        backend_summary.update_alarm_rule(
+            "RULE-UPS-A-HIGH-LOAD",
+            {
+                "threshold_value": "260",
+                "clear_value": "230",
+                "delay_seconds": 0,
+                "severity": "Critical",
+                "alarm_message": "UPS-A load is above edited threshold",
+            },
+            db_path=temp_db_path,
+        )
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "220",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "265",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        active_alarm = [
+            alarm
+            for alarm in backend_summary.get_generated_alarms(temp_db_path)
+            if alarm["state"] == "ACTIVE"
+        ][0]
+
+        self.assertEqual(active_alarm["threshold_value_at_trigger"], "260")
+        self.assertEqual(active_alarm["clear_value_at_trigger"], "230")
+        self.assertEqual(active_alarm["delay_seconds_at_trigger"], 0)
+        self.assertEqual(active_alarm["severity_at_trigger"], "Critical")
+        self.assertEqual(
+            active_alarm["alarm_message_at_trigger"],
+            "UPS-A load is above edited threshold",
+        )
+        self.assertEqual(active_alarm["triggering_value"], "265")
 
     def test_rule_with_delay_creates_pending_alarm_when_first_triggered(self):
         temp_db_path = self.load_temp_sample_database()
@@ -2760,6 +2899,67 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(generated_alarms[0]["pending_started_at"], "2026-05-01 12:00:00")
         self.assertEqual(generated_alarms[0]["triggered_at"], "2026-05-01 12:05:00")
         self.assertEqual(generated_alarms[0]["evaluation_note"], "Triggered")
+
+    def test_pending_to_active_preserves_original_trigger_sample_facts(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.set_alarm_rule_values(
+            temp_db_path,
+            "RULE-UPS-A-HIGH-LOAD",
+            delay_seconds=300,
+        )
+        first_current_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:00:00",
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        second_current_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "260",
+            quality="GOOD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        with mock.patch.object(
+            backend_summary,
+            "current_timestamp",
+            return_value="2026-05-01 12:05:00",
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        generated_alarm = backend_summary.get_generated_alarms(temp_db_path)[0]
+
+        self.assertEqual(generated_alarm["state"], "ACTIVE")
+        self.assertEqual(generated_alarm["triggered_value"], "260")
+        self.assertEqual(
+            generated_alarm["triggering_sample_id"],
+            first_current_value["latest_sample_id"],
+        )
+        self.assertNotEqual(
+            generated_alarm["triggering_sample_id"],
+            second_current_value["latest_sample_id"],
+        )
+        self.assertEqual(generated_alarm["triggering_value"], "245")
+        self.assertEqual(
+            generated_alarm["triggering_source_timestamp"],
+            first_current_value["source_timestamp"],
+        )
+        self.assertEqual(
+            generated_alarm["triggering_received_timestamp"],
+            first_current_value["received_timestamp"],
+        )
+        self.assertEqual(generated_alarm["threshold_value_at_trigger"], "240")
+        self.assertEqual(generated_alarm["clear_value_at_trigger"], "220")
+        self.assertEqual(generated_alarm["delay_seconds_at_trigger"], 300)
 
     def test_pending_alarm_clears_if_rule_returns_normal_before_delay_elapses(self):
         temp_db_path = self.load_temp_sample_database()
@@ -3090,6 +3290,10 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(alarm["equipment_id"], "UPS-A")
         self.assertEqual(alarm["equipment_type"], "UPS")
         self.assertEqual(alarm["unit"], "kW")
+        self.assertEqual(alarm["threshold_value_at_trigger"], "240")
+        self.assertEqual(alarm["clear_value_at_trigger"], "220")
+        self.assertNotEqual(alarm["triggering_sample_id"], "")
+        self.assertEqual(alarm["triggering_value"], "245")
         self.assertFalse(alarm["acknowledged"])
         self.assertEqual(alarm["acknowledged_at"], "")
         self.assertEqual(alarm["acknowledged_by"], "")
@@ -3207,6 +3411,11 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertEqual(events[0]["previous_state"], "")
         self.assertEqual(events[0]["new_state"], "ACTIVE")
         self.assertEqual(events[0]["event_timestamp"], "2026-05-01 12:00:00")
+        event_details = json.loads(events[0]["details_json"])
+        self.assertEqual(event_details["threshold_value"], "240")
+        self.assertEqual(event_details["clear_value"], "220")
+        self.assertEqual(event_details["triggering_value"], "245")
+        self.assertNotEqual(event_details["triggering_sample_id"], "")
 
     def test_generated_alarm_creation_rolls_back_when_event_insert_fails(self):
         temp_db_path = self.load_temp_sample_database()

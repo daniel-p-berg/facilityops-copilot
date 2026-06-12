@@ -307,6 +307,19 @@ def ensure_generated_alarm_table(connection):
             acknowledged INTEGER NOT NULL DEFAULT 0,
             acknowledged_at TEXT NOT NULL DEFAULT '',
             acknowledged_by TEXT NOT NULL DEFAULT '',
+            rule_name_at_trigger TEXT NOT NULL DEFAULT '',
+            rule_type_at_trigger TEXT NOT NULL DEFAULT '',
+            operator_at_trigger TEXT NOT NULL DEFAULT '',
+            threshold_value_at_trigger TEXT NOT NULL DEFAULT '',
+            clear_value_at_trigger TEXT NOT NULL DEFAULT '',
+            delay_seconds_at_trigger INTEGER NOT NULL DEFAULT 0,
+            severity_at_trigger TEXT NOT NULL DEFAULT '',
+            alarm_message_at_trigger TEXT NOT NULL DEFAULT '',
+            triggering_sample_id TEXT NOT NULL DEFAULT '',
+            triggering_value TEXT NOT NULL DEFAULT '',
+            triggering_quality TEXT NOT NULL DEFAULT '',
+            triggering_source_timestamp TEXT NOT NULL DEFAULT '',
+            triggering_received_timestamp TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
             FOREIGN KEY (point_id) REFERENCES points (id),
             FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
@@ -345,6 +358,29 @@ def ensure_generated_alarm_table(connection):
             ADD COLUMN acknowledged_by TEXT NOT NULL DEFAULT ''
             """
         )
+    snapshot_migrations = {
+        "rule_name_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "rule_type_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "operator_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "threshold_value_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "clear_value_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "delay_seconds_at_trigger": "INTEGER NOT NULL DEFAULT 0",
+        "severity_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "alarm_message_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "triggering_sample_id": "TEXT NOT NULL DEFAULT ''",
+        "triggering_value": "TEXT NOT NULL DEFAULT ''",
+        "triggering_quality": "TEXT NOT NULL DEFAULT ''",
+        "triggering_source_timestamp": "TEXT NOT NULL DEFAULT ''",
+        "triggering_received_timestamp": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column_name, column_definition in snapshot_migrations.items():
+        if column_name not in columns:
+            connection.execute(
+                f"""
+                ALTER TABLE generated_alarms
+                ADD COLUMN {column_name} {column_definition}
+                """
+            )
 
 
 def ensure_alarm_event_table(connection):
@@ -1646,6 +1682,25 @@ def serialize_event_details(details):
     return json.dumps(details, sort_keys=True, separators=(",", ":"))
 
 
+def generated_alarm_snapshot_values(evaluation):
+    """Return rule and sample facts to preserve at generated alarm trigger time."""
+    return {
+        "rule_name_at_trigger": normalize_text(evaluation["rule_name"]),
+        "rule_type_at_trigger": normalize_text(evaluation["rule_type"]),
+        "operator_at_trigger": normalize_text(evaluation["operator"]),
+        "threshold_value_at_trigger": normalize_text(evaluation["threshold_value"]),
+        "clear_value_at_trigger": normalize_text(evaluation["clear_value"]),
+        "delay_seconds_at_trigger": parse_delay_seconds(evaluation["delay_seconds"]),
+        "severity_at_trigger": normalize_text(evaluation["severity"]),
+        "alarm_message_at_trigger": normalize_text(evaluation["alarm_message"]),
+        "triggering_sample_id": normalize_text(evaluation.get("latest_sample_id", "")),
+        "triggering_value": normalize_text(evaluation["current_value"]),
+        "triggering_quality": normalize_text(evaluation["quality"]),
+        "triggering_source_timestamp": normalize_text(evaluation["source_timestamp"]),
+        "triggering_received_timestamp": normalize_text(evaluation["received_timestamp"]),
+    }
+
+
 def insert_alarm_event(
     connection,
     generated_alarm_id,
@@ -1713,6 +1768,7 @@ def insert_alarm_event_for_evaluation(
     message,
 ):
     """Append an alarm event using facts from a rule evaluation."""
+    snapshot_values = generated_alarm_snapshot_values(evaluation)
     insert_alarm_event(
         connection,
         generated_alarm_id=generated_alarm_id,
@@ -1732,6 +1788,18 @@ def insert_alarm_event_for_evaluation(
             "rule_type": evaluation["rule_type"],
             "threshold_value": evaluation["threshold_value"],
             "clear_value": evaluation["clear_value"],
+            "delay_seconds": snapshot_values["delay_seconds_at_trigger"],
+            "severity": evaluation["severity"],
+            "alarm_message": evaluation["alarm_message"],
+            "triggering_sample_id": snapshot_values["triggering_sample_id"],
+            "triggering_value": snapshot_values["triggering_value"],
+            "triggering_quality": snapshot_values["triggering_quality"],
+            "triggering_source_timestamp": snapshot_values[
+                "triggering_source_timestamp"
+            ],
+            "triggering_received_timestamp": snapshot_values[
+                "triggering_received_timestamp"
+            ],
         },
     )
 
@@ -1988,6 +2056,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
 
             if delay_seconds > 0:
                 alarm_id = generated_alarm_id(evaluation["id"])
+                snapshot_values = generated_alarm_snapshot_values(evaluation)
                 connection.execute(
                     """
                     INSERT INTO generated_alarms (
@@ -2003,9 +2072,22 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         triggered_at,
                         cleared_at,
                         last_evaluated_at,
-                        evaluation_note
+                        evaluation_note,
+                        rule_name_at_trigger,
+                        rule_type_at_trigger,
+                        operator_at_trigger,
+                        threshold_value_at_trigger,
+                        clear_value_at_trigger,
+                        delay_seconds_at_trigger,
+                        severity_at_trigger,
+                        alarm_message_at_trigger,
+                        triggering_sample_id,
+                        triggering_value,
+                        triggering_quality,
+                        triggering_source_timestamp,
+                        triggering_received_timestamp
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         alarm_id,
@@ -2021,6 +2103,19 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                         "",
                         timestamp,
                         "Pending delay",
+                        snapshot_values["rule_name_at_trigger"],
+                        snapshot_values["rule_type_at_trigger"],
+                        snapshot_values["operator_at_trigger"],
+                        snapshot_values["threshold_value_at_trigger"],
+                        snapshot_values["clear_value_at_trigger"],
+                        snapshot_values["delay_seconds_at_trigger"],
+                        snapshot_values["severity_at_trigger"],
+                        snapshot_values["alarm_message_at_trigger"],
+                        snapshot_values["triggering_sample_id"],
+                        snapshot_values["triggering_value"],
+                        snapshot_values["triggering_quality"],
+                        snapshot_values["triggering_source_timestamp"],
+                        snapshot_values["triggering_received_timestamp"],
                     ),
                 )
                 insert_alarm_event_for_evaluation(
@@ -2037,6 +2132,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                 continue
 
             alarm_id = generated_alarm_id(evaluation["id"])
+            snapshot_values = generated_alarm_snapshot_values(evaluation)
             connection.execute(
                 """
                 INSERT INTO generated_alarms (
@@ -2052,9 +2148,22 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     triggered_at,
                     cleared_at,
                     last_evaluated_at,
-                    evaluation_note
+                    evaluation_note,
+                    rule_name_at_trigger,
+                    rule_type_at_trigger,
+                    operator_at_trigger,
+                    threshold_value_at_trigger,
+                    clear_value_at_trigger,
+                    delay_seconds_at_trigger,
+                    severity_at_trigger,
+                    alarm_message_at_trigger,
+                    triggering_sample_id,
+                    triggering_value,
+                    triggering_quality,
+                    triggering_source_timestamp,
+                    triggering_received_timestamp
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     alarm_id,
@@ -2070,6 +2179,19 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
                     "",
                     timestamp,
                     active_generated_alarm_note(evaluation),
+                    snapshot_values["rule_name_at_trigger"],
+                    snapshot_values["rule_type_at_trigger"],
+                    snapshot_values["operator_at_trigger"],
+                    snapshot_values["threshold_value_at_trigger"],
+                    snapshot_values["clear_value_at_trigger"],
+                    snapshot_values["delay_seconds_at_trigger"],
+                    snapshot_values["severity_at_trigger"],
+                    snapshot_values["alarm_message_at_trigger"],
+                    snapshot_values["triggering_sample_id"],
+                    snapshot_values["triggering_value"],
+                    snapshot_values["triggering_quality"],
+                    snapshot_values["triggering_source_timestamp"],
+                    snapshot_values["triggering_received_timestamp"],
                 ),
             )
             insert_alarm_event_for_evaluation(
@@ -2232,7 +2354,20 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 generated_alarms.evaluation_note,
                 generated_alarms.acknowledged,
                 generated_alarms.acknowledged_at,
-                generated_alarms.acknowledged_by
+                generated_alarms.acknowledged_by,
+                generated_alarms.rule_name_at_trigger,
+                generated_alarms.rule_type_at_trigger,
+                generated_alarms.operator_at_trigger,
+                generated_alarms.threshold_value_at_trigger,
+                generated_alarms.clear_value_at_trigger,
+                generated_alarms.delay_seconds_at_trigger,
+                generated_alarms.severity_at_trigger,
+                generated_alarms.alarm_message_at_trigger,
+                generated_alarms.triggering_sample_id,
+                generated_alarms.triggering_value,
+                generated_alarms.triggering_quality,
+                generated_alarms.triggering_source_timestamp,
+                generated_alarms.triggering_received_timestamp
             FROM generated_alarms
             LEFT JOIN alarm_rules
                 ON generated_alarms.rule_id = alarm_rules.id
@@ -2276,6 +2411,19 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 "acknowledged": bool(acknowledged),
                 "acknowledged_at": acknowledged_at,
                 "acknowledged_by": acknowledged_by,
+                "rule_name_at_trigger": rule_name_at_trigger,
+                "rule_type_at_trigger": rule_type_at_trigger,
+                "operator_at_trigger": operator_at_trigger,
+                "threshold_value_at_trigger": threshold_value_at_trigger,
+                "clear_value_at_trigger": clear_value_at_trigger,
+                "delay_seconds_at_trigger": delay_seconds_at_trigger,
+                "severity_at_trigger": severity_at_trigger,
+                "alarm_message_at_trigger": alarm_message_at_trigger,
+                "triggering_sample_id": triggering_sample_id,
+                "triggering_value": triggering_value,
+                "triggering_quality": triggering_quality,
+                "triggering_source_timestamp": triggering_source_timestamp,
+                "triggering_received_timestamp": triggering_received_timestamp,
             }
             for (
                 alarm_id,
@@ -2301,6 +2449,19 @@ def get_generated_alarms(db_path=DATABASE_FILE):
                 acknowledged,
                 acknowledged_at,
                 acknowledged_by,
+                rule_name_at_trigger,
+                rule_type_at_trigger,
+                operator_at_trigger,
+                threshold_value_at_trigger,
+                clear_value_at_trigger,
+                delay_seconds_at_trigger,
+                severity_at_trigger,
+                alarm_message_at_trigger,
+                triggering_sample_id,
+                triggering_value,
+                triggering_quality,
+                triggering_source_timestamp,
+                triggering_received_timestamp,
             ) in cursor.fetchall()
         ]
 

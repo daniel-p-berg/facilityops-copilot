@@ -450,6 +450,10 @@
               <th>Severity</th>
               <th>State</th>
               <th>Triggered Value</th>
+              <th>Triggering Value</th>
+              <th>Triggering Sample ID</th>
+              <th>Threshold At Trigger</th>
+              <th>Clear At Trigger</th>
               <th>Pending Since</th>
               <th>Triggered At</th>
               <th>Cleared At</th>
@@ -1122,7 +1126,7 @@
       generatedAlarmRowsEl.innerHTML = "";
 
       if (generatedAlarms.length === 0) {
-        renderEmptyRow(generatedAlarmRowsEl, 14, "No generated alarms found.");
+        renderEmptyRow(generatedAlarmRowsEl, 18, "No generated alarms found.");
         return;
       }
 
@@ -1139,6 +1143,10 @@
         appendCell(row, alarm.severity, severityClass);
         appendCell(row, alarm.state, stateClass(alarm.state));
         appendCell(row, alarm.triggered_value);
+        appendCell(row, alarm.triggering_value);
+        appendCell(row, alarm.triggering_sample_id);
+        appendCell(row, alarm.threshold_value_at_trigger);
+        appendCell(row, alarm.clear_value_at_trigger);
         appendCell(row, alarm.pending_started_at);
         appendCell(row, alarm.triggered_at);
         appendCell(row, alarm.cleared_at);

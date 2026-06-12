@@ -267,6 +267,19 @@ def create_generated_alarm_table(connection):
             acknowledged INTEGER NOT NULL DEFAULT 0,
             acknowledged_at TEXT NOT NULL DEFAULT '',
             acknowledged_by TEXT NOT NULL DEFAULT '',
+            rule_name_at_trigger TEXT NOT NULL DEFAULT '',
+            rule_type_at_trigger TEXT NOT NULL DEFAULT '',
+            operator_at_trigger TEXT NOT NULL DEFAULT '',
+            threshold_value_at_trigger TEXT NOT NULL DEFAULT '',
+            clear_value_at_trigger TEXT NOT NULL DEFAULT '',
+            delay_seconds_at_trigger INTEGER NOT NULL DEFAULT 0,
+            severity_at_trigger TEXT NOT NULL DEFAULT '',
+            alarm_message_at_trigger TEXT NOT NULL DEFAULT '',
+            triggering_sample_id TEXT NOT NULL DEFAULT '',
+            triggering_value TEXT NOT NULL DEFAULT '',
+            triggering_quality TEXT NOT NULL DEFAULT '',
+            triggering_source_timestamp TEXT NOT NULL DEFAULT '',
+            triggering_received_timestamp TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (rule_id) REFERENCES alarm_rules (id),
             FOREIGN KEY (point_id) REFERENCES points (id),
             FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
@@ -305,6 +318,29 @@ def create_generated_alarm_table(connection):
             ADD COLUMN acknowledged_by TEXT NOT NULL DEFAULT ''
             """
         )
+    snapshot_migrations = {
+        "rule_name_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "rule_type_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "operator_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "threshold_value_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "clear_value_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "delay_seconds_at_trigger": "INTEGER NOT NULL DEFAULT 0",
+        "severity_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "alarm_message_at_trigger": "TEXT NOT NULL DEFAULT ''",
+        "triggering_sample_id": "TEXT NOT NULL DEFAULT ''",
+        "triggering_value": "TEXT NOT NULL DEFAULT ''",
+        "triggering_quality": "TEXT NOT NULL DEFAULT ''",
+        "triggering_source_timestamp": "TEXT NOT NULL DEFAULT ''",
+        "triggering_received_timestamp": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column_name, column_definition in snapshot_migrations.items():
+        if column_name not in columns:
+            connection.execute(
+                f"""
+                ALTER TABLE generated_alarms
+                ADD COLUMN {column_name} {column_definition}
+                """
+            )
 
 
 def create_alarm_event_table(connection):
