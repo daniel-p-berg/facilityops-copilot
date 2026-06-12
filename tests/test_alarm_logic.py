@@ -10,6 +10,7 @@ from unittest import mock
 from analysis import analyze_alarms
 from analysis import generate_db_briefing
 from analysis import load_alarm_db
+from backend.domain import alarm_evaluator
 from backend import main as backend_main
 from backend import summary as backend_summary
 
@@ -2075,6 +2076,145 @@ class AlarmScenarioTests(unittest.TestCase):
 
         self.assertEqual(status, 404)
         self.assertIn("Scenario not found", data["error"])
+
+
+class DomainAlarmEvaluatorTests(unittest.TestCase):
+    def active_analog_evaluation(self, operator, current_value, clear_value):
+        return {
+            "enabled": True,
+            "is_triggered": False,
+            "evaluation_status": "Normal",
+            "rule_type": "analog_limit",
+            "operator": operator,
+            "clear_value": clear_value,
+            "quality": "GOOD",
+            "current_value": current_value,
+        }
+
+    def test_good_sample_is_eligible(self):
+        status = alarm_evaluator.sample_eligibility_status(
+            "GOOD",
+            received_timestamp="2026-05-01 12:00:00",
+            stale_after_seconds=300,
+            evaluation_timestamp="2026-05-01 12:01:00",
+        )
+
+        self.assertEqual(status, "ELIGIBLE")
+
+    def test_bad_sample_is_ineligible(self):
+        status = alarm_evaluator.sample_eligibility_status("BAD")
+
+        self.assertEqual(status, "BAD_QUALITY")
+
+    def test_uncertain_sample_is_ineligible(self):
+        status = alarm_evaluator.sample_eligibility_status("UNCERTAIN")
+
+        self.assertEqual(status, "UNCERTAIN_QUALITY")
+
+    def test_stale_quality_sample_is_ineligible(self):
+        status = alarm_evaluator.sample_eligibility_status("STALE")
+
+        self.assertEqual(status, "STALE")
+
+    def test_stale_timeout_sample_is_ineligible(self):
+        status = alarm_evaluator.sample_eligibility_status(
+            "GOOD",
+            received_timestamp="2026-05-01 12:00:00",
+            stale_after_seconds=30,
+            evaluation_timestamp="2026-05-01 12:01:00",
+        )
+
+        self.assertEqual(status, "STALE")
+
+    def test_overridden_sample_is_ineligible(self):
+        status = alarm_evaluator.sample_eligibility_status(
+            "GOOD",
+            overridden=True,
+        )
+
+        self.assertEqual(status, "OVERRIDDEN")
+
+    def test_out_of_service_sample_is_ineligible(self):
+        status = alarm_evaluator.sample_eligibility_status(
+            "GOOD",
+            out_of_service=True,
+        )
+
+        self.assertEqual(status, "OUT_OF_SERVICE")
+
+    def test_analog_greater_than_trigger(self):
+        result = alarm_evaluator.evaluate_alarm_rule(
+            "analog_limit",
+            ">",
+            "240",
+            "245",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(result["is_triggered"])
+        self.assertEqual(result["evaluation_status"], "Triggered")
+
+    def test_analog_less_than_trigger(self):
+        result = alarm_evaluator.evaluate_alarm_rule(
+            "analog_limit",
+            "<",
+            "40",
+            "30",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(result["is_triggered"])
+        self.assertEqual(result["evaluation_status"], "Triggered")
+
+    def test_boolean_equals_trigger(self):
+        result = alarm_evaluator.evaluate_alarm_rule(
+            "boolean_state",
+            "==",
+            "false",
+            "false",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(result["is_triggered"])
+        self.assertEqual(result["evaluation_status"], "Triggered")
+
+    def test_enum_equals_trigger(self):
+        result = alarm_evaluator.evaluate_alarm_rule(
+            "enum_match",
+            "==",
+            "On Battery",
+            "on battery",
+            "GOOD",
+            enabled=True,
+        )
+
+        self.assertTrue(result["is_triggered"])
+        self.assertEqual(result["evaluation_status"], "Triggered")
+
+    def test_greater_than_analog_clear_hysteresis(self):
+        keep_active = alarm_evaluator.active_generated_alarm_should_clear(
+            self.active_analog_evaluation(">", "235", "220"),
+        )
+        clear_active = alarm_evaluator.active_generated_alarm_should_clear(
+            self.active_analog_evaluation(">", "219", "220"),
+        )
+
+        self.assertFalse(keep_active)
+        self.assertTrue(clear_active)
+
+    def test_less_than_analog_clear_hysteresis(self):
+        keep_active = alarm_evaluator.active_generated_alarm_should_clear(
+            self.active_analog_evaluation("<", "45", "50"),
+        )
+        clear_active = alarm_evaluator.active_generated_alarm_should_clear(
+            self.active_analog_evaluation("<", "51", "50"),
+        )
+
+        self.assertFalse(keep_active)
+        self.assertTrue(clear_active)
 
 
 class RuleEvaluationTests(unittest.TestCase):
