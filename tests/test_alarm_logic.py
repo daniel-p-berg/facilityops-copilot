@@ -10,9 +10,11 @@ from unittest import mock
 from analysis import analyze_alarms
 from analysis import generate_db_briefing
 from analysis import load_alarm_db
+from backend.adapters.simulated_driver import SimulatedDriver
 from backend.domain import alarm_evaluator
 from backend import main as backend_main
 from backend import summary as backend_summary
+from backend.services.point_ingest_service import ingest_driver_samples
 
 
 REQUIRED_EQUIPMENT = {
@@ -332,6 +334,8 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("pending_generated_alarm_count", dashboard_html)
         self.assertIn("Generated Alarms", dashboard_html)
         self.assertIn("Acknowledged", dashboard_html)
+        self.assertIn("Read Simulated Driver Samples", dashboard_html)
+        self.assertIn("/drivers/simulated/read", dashboard_html)
         self.assertNotIn("activeCriticalAlarms", dashboard_html)
         self.assertNotIn("active_critical_alarms", dashboard_html)
         self.assertNotIn("totalAlarmRecords", dashboard_html)
@@ -1359,6 +1363,158 @@ class PointHealthAuditTests(unittest.TestCase):
 
         self.assertEqual(summary["created_count"], 0)
         self.assertEqual(generated_alarms, [])
+
+
+class SimulatedDriverIngestTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def fixed_driver(self):
+        return SimulatedDriver(read_timestamp="2026-05-01 12:00:00")
+
+    def current_values_by_point(self, db_path):
+        return {
+            point_value["point_id"]: point_value
+            for point_value in backend_summary.get_current_point_values(db_path)
+        }
+
+    def test_simulated_driver_returns_deterministic_sample_dictionaries(self):
+        driver = self.fixed_driver()
+
+        first_samples = driver.read_samples()
+        second_samples = driver.read_current_samples()
+        point_ids = {
+            sample["point_id"]
+            for sample in first_samples
+        }
+
+        self.assertEqual(first_samples, second_samples)
+        self.assertEqual(
+            point_ids,
+            {
+                "UPS-A_OUTPUT_KW",
+                "CRAC-2_SUPPLY_AIR_TEMP",
+                "GEN-1_FUEL_LEVEL",
+            },
+        )
+        self.assertEqual(first_samples[0]["value"], "205")
+
+    def test_simulated_samples_include_required_metadata(self):
+        samples = self.fixed_driver().read_samples()
+
+        for sample in samples:
+            self.assertIn("point_id", sample)
+            self.assertIn("value", sample)
+            self.assertEqual(sample["quality"], "GOOD")
+            self.assertEqual(sample["source"], "SIMULATED")
+            self.assertEqual(sample["protocol"], "SIMULATED")
+            self.assertEqual(sample["source_timestamp"], "2026-05-01 12:00:00")
+            self.assertEqual(sample["received_timestamp"], "2026-05-01 12:00:00")
+            self.assertTrue(sample["address"].startswith("simulated://"))
+            self.assertEqual(sample["stale_after_seconds"], 300)
+            self.assertFalse(sample["overridden"])
+            self.assertFalse(sample["out_of_service"])
+
+    def test_ingest_driver_samples_updates_current_value_projection(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+
+        summary = ingest_driver_samples(
+            self.fixed_driver().read_samples(),
+            db_path=temp_db_path,
+        )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+        current_values = self.current_values_by_point(temp_db_path)
+
+        self.assertEqual(summary["samples_received"], 3)
+        self.assertEqual(summary["samples_ingested"], 3)
+        self.assertEqual(summary["failed_samples"], [])
+        self.assertEqual(after_sample_count, before_sample_count + 3)
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "205")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["source"], "SIMULATED")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["protocol"], "SIMULATED")
+        self.assertEqual(
+            current_values["UPS-A_OUTPUT_KW"]["address"],
+            "simulated://northstar/ups-a/output_kw",
+        )
+        self.assertEqual(current_values["GEN-1_FUEL_LEVEL"]["value"], "78")
+
+    def test_simulated_driver_read_endpoint_ingests_samples(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "SimulatedDriver",
+                lambda: self.fixed_driver(),
+            ),
+            mock.patch.object(
+                backend_main,
+                "ingest_driver_samples",
+                lambda samples: ingest_driver_samples(samples, db_path=temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/drivers/simulated/read",
+                method="POST",
+            )
+
+        current_values = self.current_values_by_point(temp_db_path)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["samples_received"], 3)
+        self.assertEqual(data["samples_ingested"], 3)
+        self.assertEqual(data["failed_samples"], [])
+        self.assertEqual(current_values["CRAC-2_SUPPLY_AIR_TEMP"]["value"], "61.5")
+        self.assertEqual(current_values["CRAC-2_SUPPLY_AIR_TEMP"]["source"], "SIMULATED")
+
+    def test_simulated_driver_read_does_not_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        ingest_driver_samples(
+            self.fixed_driver().read_samples(),
+            db_path=temp_db_path,
+        )
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
+
+    def test_invalid_simulated_sample_is_reported_without_blocking_valid_samples(self):
+        temp_db_path = self.load_temp_sample_database()
+        samples = self.fixed_driver().read_samples() + [
+            {
+                "point_id": "DOES-NOT-EXIST",
+                "value": "1",
+                "quality": "GOOD",
+                "source": "SIMULATED",
+                "protocol": "SIMULATED",
+            },
+        ]
+
+        summary = ingest_driver_samples(samples, db_path=temp_db_path)
+        current_values = self.current_values_by_point(temp_db_path)
+
+        self.assertEqual(summary["samples_received"], 4)
+        self.assertEqual(summary["samples_ingested"], 3)
+        self.assertEqual(len(summary["failed_samples"]), 1)
+        self.assertEqual(summary["failed_samples"][0]["point_id"], "DOES-NOT-EXIST")
+        self.assertIn("Point not found", summary["failed_samples"][0]["error"])
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "205")
 
 
 class ManualCurrentPointValueUpdateTests(unittest.TestCase):

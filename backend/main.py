@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 
+from backend.adapters.simulated_driver import SimulatedDriver
 from backend.summary import acknowledge_generated_alarm
 from backend.summary import apply_scenario
 from backend.summary import create_alarm_rule
@@ -24,6 +25,7 @@ from backend.summary import get_rule_evaluations
 from backend.summary import get_scenarios
 from backend.summary import update_alarm_rule
 from backend.summary import update_current_point_value
+from backend.services.point_ingest_service import ingest_driver_samples
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -216,6 +218,17 @@ def evaluate_point_health_state():
         return error_response
 
     return evaluate_point_health()
+
+
+@app.post("/drivers/simulated/read")
+def read_simulated_driver_samples():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    driver = SimulatedDriver()
+    samples = driver.read_samples()
+    return ingest_driver_samples(samples)
 
 
 @app.post("/generated-alarms/{alarm_id}/acknowledge")

@@ -438,6 +438,13 @@
 
     <section class="panel catalog-section">
       <div class="section-heading">
+        <h2>Driver Reads</h2>
+        <button id="readSimulatedDriverButton" type="button">Read Simulated Driver Samples</button>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
+      <div class="section-heading">
         <h2>Generated Alarms</h2>
         <button id="evaluateGeneratedAlarmsButton" type="button">Evaluate Generated Alarms</button>
       </div>
@@ -665,6 +672,7 @@
     const stateCountsEl = document.getElementById("stateCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const scenarioButtonsEl = document.getElementById("scenarioButtons");
+    const readSimulatedDriverButton = document.getElementById("readSimulatedDriverButton");
     const generatedAlarmRowsEl = document.getElementById("generatedAlarmRows");
     const alarmEventRowsEl = document.getElementById("alarmEventRows");
     const evaluateGeneratedAlarmsButton = document.getElementById("evaluateGeneratedAlarmsButton");
@@ -1465,6 +1473,30 @@
       }
     }
 
+    async function readSimulatedDriverSamples() {
+      readSimulatedDriverButton.disabled = true;
+      readSimulatedDriverButton.textContent = "Reading...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/drivers/simulated/read", {
+          method: "POST",
+        });
+        const data = await readJsonResponse(response, "simulated driver read");
+        await Promise.all([
+          loadCurrentPointValues(),
+          loadRuleEvaluations(),
+          loadAlarmEvents(),
+        ]);
+        statusEl.textContent = `Simulated driver read: ${data.samples_ingested} of ${data.samples_received} samples ingested`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        readSimulatedDriverButton.disabled = false;
+        readSimulatedDriverButton.textContent = "Read Simulated Driver Samples";
+      }
+    }
+
     async function acknowledgeGeneratedAlarm(alarmId, button) {
       button.disabled = true;
       button.textContent = "Acknowledging...";
@@ -1547,6 +1579,7 @@
 
     evaluateGeneratedAlarmsButton.addEventListener("click", evaluateGeneratedAlarms);
     evaluatePointHealthButton.addEventListener("click", evaluatePointHealth);
+    readSimulatedDriverButton.addEventListener("click", readSimulatedDriverSamples);
     createAlarmRuleFormEl.addEventListener("submit", createAlarmRule);
     createRuleTypeEl.addEventListener("change", () => {
       populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
