@@ -448,6 +448,14 @@
 
     <section class="panel catalog-section">
       <div class="section-heading">
+        <h2>Scenario Reset</h2>
+        <button id="resetOperationalStateButton" type="button">Reset Operational State</button>
+      </div>
+      <div id="resetOperationalStateSummary" class="note">Operational reset has not been run.</div>
+    </section>
+
+    <section class="panel catalog-section">
+      <div class="section-heading">
         <h2>Driver Reads</h2>
         <button id="readSimulatedDriverButton" type="button">Read Simulated Driver Samples</button>
       </div>
@@ -718,6 +726,8 @@
     const stateCountsEl = document.getElementById("stateCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
     const scenarioButtonsEl = document.getElementById("scenarioButtons");
+    const resetOperationalStateButton = document.getElementById("resetOperationalStateButton");
+    const resetOperationalStateSummaryEl = document.getElementById("resetOperationalStateSummary");
     const readSimulatedDriverButton = document.getElementById("readSimulatedDriverButton");
     const csvReplaySequenceEl = document.getElementById("csvReplaySequence");
     const readCsvReplayButton = document.getElementById("readCsvReplayButton");
@@ -981,6 +991,15 @@
         `pending: ${displayValue(alarmSummary.pending_generated_alarm_count, 0)}`,
         `cleared: ${displayValue(alarmSummary.cleared_generated_alarm_count, 0)}`,
         `failed samples: ${(data.failed_samples || []).length}`,
+      ].join("; ");
+    }
+
+    function renderOperationalResetResult(data) {
+      resetOperationalStateSummaryEl.textContent = [
+        `generated alarms deleted: ${displayValue(data.generated_alarms_deleted, 0)}`,
+        `alarm events deleted: ${displayValue(data.alarm_events_deleted, 0)}`,
+        `point samples deleted: ${displayValue(data.point_samples_deleted, 0)}`,
+        `current values reset: ${displayValue(data.current_values_reset, 0)}`,
       ].join("; ");
     }
 
@@ -1573,6 +1592,33 @@
       }
     }
 
+    async function resetOperationalState() {
+      resetOperationalStateButton.disabled = true;
+      resetOperationalStateButton.textContent = "Resetting...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/scenario/reset-operational-state", {
+          method: "POST",
+        });
+        const data = await readJsonResponse(response, "operational state reset");
+        renderOperationalResetResult(data);
+        await Promise.all([
+          loadSummary(),
+          loadCurrentPointValues(),
+          loadRuleEvaluations(),
+          loadGeneratedAlarms(),
+          loadAlarmEvents(),
+        ]);
+        statusEl.textContent = data.message || "Operational state reset";
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        resetOperationalStateButton.disabled = false;
+        resetOperationalStateButton.textContent = "Reset Operational State";
+      }
+    }
+
     async function evaluateGeneratedAlarms() {
       evaluateGeneratedAlarmsButton.disabled = true;
       evaluateGeneratedAlarmsButton.textContent = "Evaluating...";
@@ -1873,6 +1919,7 @@
 
     evaluateGeneratedAlarmsButton.addEventListener("click", evaluateGeneratedAlarms);
     evaluatePointHealthButton.addEventListener("click", evaluatePointHealth);
+    resetOperationalStateButton.addEventListener("click", resetOperationalState);
     readSimulatedDriverButton.addEventListener("click", readSimulatedDriverSamples);
     readCsvReplayButton.addEventListener("click", readCsvReplaySamples);
     runCsvReplayStepButton.addEventListener("click", runCsvReplayStep);

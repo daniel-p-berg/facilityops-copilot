@@ -17,6 +17,7 @@ from backend.importers import modbus_importer
 from backend import main as backend_main
 from backend import summary as backend_summary
 from backend.services import csv_replay_runner
+from backend.services import operational_reset_service
 from backend.services.point_ingest_service import ingest_driver_samples
 
 
@@ -346,6 +347,8 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("Run All CSV Replay Steps", dashboard_html)
         self.assertIn("/replay/csv/step", dashboard_html)
         self.assertIn("/replay/csv/run-all", dashboard_html)
+        self.assertIn("Reset Operational State", dashboard_html)
+        self.assertIn("/scenario/reset-operational-state", dashboard_html)
         self.assertIn("Modbus Register Map Import", dashboard_html)
         self.assertIn("/imports/modbus/preview", dashboard_html)
         self.assertIn("/imports/modbus/commit", dashboard_html)
@@ -1833,6 +1836,179 @@ class CsvReplayRunnerTests(unittest.TestCase):
         self.assertEqual(data["steps_run"], 6)
         self.assertEqual(data["samples_ingested"], 6)
         self.assertEqual(data["generated_alarm_summary"]["cleared_generated_alarm_count"], 1)
+
+
+class OperationalResetTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def table_count(self, db_path, table_name):
+        with sqlite3.connect(db_path) as connection:
+            return connection.execute(
+                f"SELECT COUNT(*) FROM {table_name}"
+            ).fetchone()[0]
+
+    def current_value(self, db_path, point_id):
+        with sqlite3.connect(db_path) as connection:
+            return connection.execute(
+                """
+                SELECT value
+                FROM current_point_values
+                WHERE point_id = ?
+                """,
+                (point_id,),
+            ).fetchone()[0]
+
+    def run_runtime_replay_state(self, db_path):
+        return csv_replay_runner.run_csv_replay_step(
+            2,
+            backend_main.REPLAY_SAMPLE_FILE,
+            db_path=db_path,
+        )
+
+    def reset(self, db_path):
+        return operational_reset_service.reset_operational_state(db_path=db_path)
+
+    def test_reset_clears_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.run_runtime_replay_state(temp_db_path)
+        self.assertGreater(self.table_count(temp_db_path, "generated_alarms"), 0)
+
+        self.reset(temp_db_path)
+
+        self.assertEqual(self.table_count(temp_db_path, "generated_alarms"), 0)
+        self.assertEqual(backend_summary.get_generated_alarms(temp_db_path), [])
+
+    def test_reset_clears_alarm_events(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.run_runtime_replay_state(temp_db_path)
+        self.assertGreater(self.table_count(temp_db_path, "alarm_events"), 0)
+
+        self.reset(temp_db_path)
+
+        self.assertEqual(self.table_count(temp_db_path, "alarm_events"), 0)
+        self.assertEqual(backend_summary.get_alarm_events(temp_db_path), [])
+
+    def test_reset_does_not_delete_equipment_points_or_alarm_rules(self):
+        temp_db_path = self.load_temp_sample_database()
+        before_counts = {
+            "equipment": self.table_count(temp_db_path, "equipment"),
+            "points": self.table_count(temp_db_path, "points"),
+            "alarm_rules": self.table_count(temp_db_path, "alarm_rules"),
+        }
+        self.run_runtime_replay_state(temp_db_path)
+
+        self.reset(temp_db_path)
+
+        after_counts = {
+            "equipment": self.table_count(temp_db_path, "equipment"),
+            "points": self.table_count(temp_db_path, "points"),
+            "alarm_rules": self.table_count(temp_db_path, "alarm_rules"),
+        }
+        self.assertEqual(after_counts, before_counts)
+
+    def test_reset_does_not_delete_imported_modbus_protocol_address_metadata(self):
+        temp_db_path = self.load_temp_sample_database()
+        modbus_importer.commit_modbus_import(
+            modbus_importer.DEFAULT_MODBUS_IMPORT_CSV,
+            db_path=temp_db_path,
+        )
+        with sqlite3.connect(temp_db_path) as connection:
+            before_metadata = connection.execute(
+                """
+                SELECT protocol, address
+                FROM points
+                WHERE id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        self.run_runtime_replay_state(temp_db_path)
+        self.reset(temp_db_path)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_metadata = connection.execute(
+                """
+                SELECT protocol, address
+                FROM points
+                WHERE id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        self.assertEqual(before_metadata[0], "MODBUS")
+        self.assertEqual(after_metadata, before_metadata)
+
+    def test_reset_restores_seed_current_values(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.run_runtime_replay_state(temp_db_path)
+        self.assertEqual(self.current_value(temp_db_path, "UPS-A_OUTPUT_KW"), "245")
+
+        result = self.reset(temp_db_path)
+
+        self.assertEqual(result["current_values_reset"], 17)
+        self.assertEqual(self.current_value(temp_db_path, "UPS-A_OUTPUT_KW"), "185")
+
+    def test_reset_is_transactional(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.run_runtime_replay_state(temp_db_path)
+        before_counts = {
+            "generated_alarms": self.table_count(temp_db_path, "generated_alarms"),
+            "alarm_events": self.table_count(temp_db_path, "alarm_events"),
+            "point_samples": self.table_count(temp_db_path, "point_samples"),
+        }
+        before_value = self.current_value(temp_db_path, "UPS-A_OUTPUT_KW")
+
+        with (
+            mock.patch.object(
+                operational_reset_service,
+                "reload_seed_current_values",
+                side_effect=RuntimeError("reload failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            self.reset(temp_db_path)
+
+        after_counts = {
+            "generated_alarms": self.table_count(temp_db_path, "generated_alarms"),
+            "alarm_events": self.table_count(temp_db_path, "alarm_events"),
+            "point_samples": self.table_count(temp_db_path, "point_samples"),
+        }
+        after_value = self.current_value(temp_db_path, "UPS-A_OUTPUT_KW")
+        self.assertEqual(after_counts, before_counts)
+        self.assertEqual(after_value, before_value)
+
+    def test_reset_response_includes_useful_counts(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.run_runtime_replay_state(temp_db_path)
+
+        result = self.reset(temp_db_path)
+
+        self.assertGreaterEqual(result["generated_alarms_deleted"], 1)
+        self.assertGreaterEqual(result["alarm_events_deleted"], 1)
+        self.assertGreaterEqual(result["point_samples_deleted"], 18)
+        self.assertEqual(result["current_values_reset"], 17)
+        self.assertEqual(result["message"], "Operational state reset")
+
+    def test_reset_endpoint_returns_counts(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.run_runtime_replay_state(temp_db_path)
+
+        with mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/scenario/reset-operational-state",
+                method="POST",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(data["generated_alarms_deleted"], 1)
+        self.assertGreaterEqual(data["alarm_events_deleted"], 1)
+        self.assertEqual(data["current_values_reset"], 17)
+        self.assertEqual(data["message"], "Operational state reset")
 
 
 class ModbusRegisterMapImportTests(unittest.TestCase):

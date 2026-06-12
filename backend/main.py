@@ -31,6 +31,7 @@ from backend.summary import update_alarm_rule
 from backend.summary import update_current_point_value
 from backend.services.csv_replay_runner import run_all_csv_replay_steps
 from backend.services.csv_replay_runner import run_csv_replay_step
+from backend.services.operational_reset_service import reset_operational_state
 from backend.services.point_ingest_service import ingest_driver_samples
 
 
@@ -394,6 +395,15 @@ def read_scenarios():
         return error_response
 
     return {"scenarios": get_scenarios()}
+
+
+@app.post("/scenario/reset-operational-state")
+def reset_scenario_operational_state():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return reset_operational_state(db_path=DATABASE_FILE)
 
 
 @app.post("/scenarios/{scenario_id}/apply")

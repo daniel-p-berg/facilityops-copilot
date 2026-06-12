@@ -55,6 +55,8 @@ The backend includes a static Modbus register map importer for local catalog set
 
 Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates create point samples, use `SCENARIO` as the current value source, and do not automatically evaluate generated alarms.
 
+The operational reset endpoint restores the local sandbox to a deterministic runtime baseline without deleting catalog configuration. `POST /scenario/reset-operational-state` clears generated alarms and alarm/audit events, replaces point samples with the seeded baseline samples, and resets current point values from `data/sample_current_point_values.csv`. Equipment, points, alarm rules, imported Modbus point catalog records, and point protocol/address metadata are preserved.
+
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. Process alarm rules only evaluate against eligible samples: `GOOD` quality, not stale, not overridden, and not out of service. `UNKNOWN` quality is normalized to `UNCERTAIN`.
 
 Generated alarms are simple output records created from rule evaluations. The dashboard alarm summary and alarm table use generated alarms only; the old seeded sample alarm CSV is no longer the dashboard alarm source. Triggered rules with positive `delay_seconds` create PENDING generated alarms until a later explicit evaluation confirms the delay has elapsed. Rules with no delay create ACTIVE generated alarms immediately. Analog generated alarms use `clear_value` hysteresis before clearing; boolean and enum generated alarms clear when their rule no longer triggers. Local operators can acknowledge generated alarms from the dashboard or API; acknowledgement does not clear, suppress, or stop future evaluations. Generated alarm lifecycle transitions are recorded in append-only `alarm_events` rows for local audit review. The app does not run a background timer or polling loop, and it does not implement suppression, latching, comments, shelving, or a full event-sourcing system.
@@ -86,7 +88,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/scenarios`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
+The dashboard calls `/summary`, `/scenarios`, `/scenario/reset-operational-state`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, operational state can be reset, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
 
@@ -142,6 +144,12 @@ Run every CSV replay step in deterministic order:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/replay/csv/run-all
+```
+
+Reset volatile operational state to the seeded local baseline:
+
+```bash
+curl -X POST http://127.0.0.1:8000/scenario/reset-operational-state
 ```
 
 Manually update a current point value:
