@@ -462,6 +462,21 @@
 
     <section class="panel catalog-section">
       <div class="section-heading">
+        <h2>CSV Replay Runner</h2>
+        <button id="runAllCsvReplayButton" type="button">Run All CSV Replay Steps</button>
+      </div>
+      <div class="rule-form">
+        <label>
+          Replay Sequence
+          <input id="csvReplayRunnerSequence" type="text" value="1">
+        </label>
+        <button id="runCsvReplayStepButton" type="button">Run CSV Replay Step</button>
+      </div>
+      <div id="csvReplayRunnerSummary" class="note">No replay runner step has been run.</div>
+    </section>
+
+    <section class="panel catalog-section">
+      <div class="section-heading">
         <h2>Modbus Register Map Import</h2>
         <button id="previewModbusImportButton" type="button">Preview Sample Modbus Map</button>
       </div>
@@ -706,6 +721,10 @@
     const readSimulatedDriverButton = document.getElementById("readSimulatedDriverButton");
     const csvReplaySequenceEl = document.getElementById("csvReplaySequence");
     const readCsvReplayButton = document.getElementById("readCsvReplayButton");
+    const csvReplayRunnerSequenceEl = document.getElementById("csvReplayRunnerSequence");
+    const runCsvReplayStepButton = document.getElementById("runCsvReplayStepButton");
+    const runAllCsvReplayButton = document.getElementById("runAllCsvReplayButton");
+    const csvReplayRunnerSummaryEl = document.getElementById("csvReplayRunnerSummary");
     const previewModbusImportButton = document.getElementById("previewModbusImportButton");
     const commitModbusImportButton = document.getElementById("commitModbusImportButton");
     const modbusImportSummaryEl = document.getElementById("modbusImportSummary");
@@ -935,6 +954,34 @@
       }
 
       commitModbusImportButton.disabled = errors.length > 0;
+    }
+
+    function renderCsvReplayStepResult(data) {
+      const alarmSummary = data.generated_alarm_summary || {};
+      csvReplayRunnerSummaryEl.textContent = [
+        `Sequence ${displayValue(data.sequence)}`,
+        `samples ingested: ${displayValue(data.samples_ingested, 0)}`,
+        `points updated: ${(data.points_updated || []).join(", ") || "None"}`,
+        `created: ${displayValue(data.alarms_created, 0)}`,
+        `updated/promoted: ${displayValue(data.alarms_updated_or_promoted, 0)}`,
+        `cleared: ${displayValue(data.alarms_cleared, 0)}`,
+        `active: ${displayValue(alarmSummary.active_generated_alarm_count, 0)}`,
+        `pending: ${displayValue(alarmSummary.pending_generated_alarm_count, 0)}`,
+        `failed samples: ${(data.failed_samples || []).length}`,
+      ].join("; ");
+    }
+
+    function renderCsvReplayRunAllResult(data) {
+      const alarmSummary = data.generated_alarm_summary || {};
+      csvReplayRunnerSummaryEl.textContent = [
+        `Steps run: ${displayValue(data.steps_run, 0)}`,
+        `sequences: ${(data.sequences || []).join(", ") || "None"}`,
+        `samples ingested: ${displayValue(data.samples_ingested, 0)}`,
+        `active: ${displayValue(alarmSummary.active_generated_alarm_count, 0)}`,
+        `pending: ${displayValue(alarmSummary.pending_generated_alarm_count, 0)}`,
+        `cleared: ${displayValue(alarmSummary.cleared_generated_alarm_count, 0)}`,
+        `failed samples: ${(data.failed_samples || []).length}`,
+      ].join("; ");
     }
 
     function renderCreateAlarmRulePointOptions(points) {
@@ -1632,6 +1679,66 @@
       }
     }
 
+    async function runCsvReplayStep() {
+      runCsvReplayStepButton.disabled = true;
+      runCsvReplayStepButton.textContent = "Running...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/replay/csv/step", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sequence: csvReplayRunnerSequenceEl.value,
+          }),
+        });
+        const data = await readJsonResponse(response, "CSV replay step");
+        renderCsvReplayStepResult(data);
+        await Promise.all([
+          loadSummary(),
+          loadCurrentPointValues(),
+          loadRuleEvaluations(),
+          loadGeneratedAlarms(),
+          loadAlarmEvents(),
+        ]);
+        statusEl.textContent = `CSV replay step ${data.sequence} complete: ${data.samples_ingested} samples ingested`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        runCsvReplayStepButton.disabled = false;
+        runCsvReplayStepButton.textContent = "Run CSV Replay Step";
+      }
+    }
+
+    async function runAllCsvReplaySteps() {
+      runAllCsvReplayButton.disabled = true;
+      runAllCsvReplayButton.textContent = "Running...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/replay/csv/run-all", {
+          method: "POST",
+        });
+        const data = await readJsonResponse(response, "CSV replay run-all");
+        renderCsvReplayRunAllResult(data);
+        await Promise.all([
+          loadSummary(),
+          loadCurrentPointValues(),
+          loadRuleEvaluations(),
+          loadGeneratedAlarms(),
+          loadAlarmEvents(),
+        ]);
+        statusEl.textContent = `CSV replay run-all complete: ${data.steps_run} steps, ${data.samples_ingested} samples ingested`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        runAllCsvReplayButton.disabled = false;
+        runAllCsvReplayButton.textContent = "Run All CSV Replay Steps";
+      }
+    }
+
     async function previewModbusImport() {
       previewModbusImportButton.disabled = true;
       previewModbusImportButton.textContent = "Previewing...";
@@ -1768,6 +1875,8 @@
     evaluatePointHealthButton.addEventListener("click", evaluatePointHealth);
     readSimulatedDriverButton.addEventListener("click", readSimulatedDriverSamples);
     readCsvReplayButton.addEventListener("click", readCsvReplaySamples);
+    runCsvReplayStepButton.addEventListener("click", runCsvReplayStep);
+    runAllCsvReplayButton.addEventListener("click", runAllCsvReplaySteps);
     previewModbusImportButton.addEventListener("click", previewModbusImport);
     commitModbusImportButton.addEventListener("click", commitModbusImport);
     createAlarmRuleFormEl.addEventListener("submit", createAlarmRule);

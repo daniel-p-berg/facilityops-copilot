@@ -1,6 +1,7 @@
 sequence,point_id,value,quality,source_timestamp,source,protocol,address,stale_after_seconds,overridden,out_of_service
 1,UPS-A_OUTPUT_KW,185,GOOD,2026-05-01 12:00:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
 2,UPS-A_OUTPUT_KW,245,GOOD,2026-05-01 12:01:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
-3,UPS-A_OUTPUT_KW,235,GOOD,2026-05-01 12:02:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
-4,UPS-A_OUTPUT_KW,185,GOOD,2026-05-01 12:03:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
-5,UPS-A_OUTPUT_KW,245,BAD,2026-05-01 12:04:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
+3,UPS-A_OUTPUT_KW,245,GOOD,2026-05-01 12:07:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
+4,UPS-A_OUTPUT_KW,235,GOOD,2026-05-01 12:08:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
+5,UPS-A_OUTPUT_KW,185,GOOD,2026-05-01 12:09:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false
+6,UPS-A_OUTPUT_KW,245,BAD,2026-05-01 12:10:00,SIMULATED,CSV_REPLAY,replay://northstar/ups-a/output_kw,300,false,false

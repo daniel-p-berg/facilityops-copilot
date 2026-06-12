@@ -29,6 +29,8 @@ from backend.summary import get_rule_evaluations
 from backend.summary import get_scenarios
 from backend.summary import update_alarm_rule
 from backend.summary import update_current_point_value
+from backend.services.csv_replay_runner import run_all_csv_replay_steps
+from backend.services.csv_replay_runner import run_csv_replay_step
 from backend.services.point_ingest_service import ingest_driver_samples
 
 
@@ -265,6 +267,52 @@ def read_csv_replay_driver_samples(payload: dict | None = Body(default=None)):
         "samples_ingested": summary["samples_ingested"],
         "failed_samples": summary["failed_samples"],
     }
+
+
+@app.post("/replay/csv/step")
+def run_csv_replay_sequence_step(payload: dict | None = Body(default=None)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    payload = payload or {}
+    if not isinstance(payload, dict):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "CSV replay step request body must be an object"},
+        )
+
+    try:
+        return run_csv_replay_step(
+            payload.get("sequence"),
+            REPLAY_SAMPLE_FILE,
+            db_path=DATABASE_FILE,
+        )
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
+
+
+@app.post("/replay/csv/run-all")
+def run_all_csv_replay_sequences():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    try:
+        return run_all_csv_replay_steps(REPLAY_SAMPLE_FILE, db_path=DATABASE_FILE)
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
 
 
 @app.post("/imports/modbus/preview")

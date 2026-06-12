@@ -16,6 +16,7 @@ from backend.domain import alarm_evaluator
 from backend.importers import modbus_importer
 from backend import main as backend_main
 from backend import summary as backend_summary
+from backend.services import csv_replay_runner
 from backend.services.point_ingest_service import ingest_driver_samples
 
 
@@ -340,6 +341,11 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("/drivers/simulated/read", dashboard_html)
         self.assertIn("Read CSV Replay Samples", dashboard_html)
         self.assertIn("/drivers/csv-replay/read", dashboard_html)
+        self.assertIn("CSV Replay Runner", dashboard_html)
+        self.assertIn("Run CSV Replay Step", dashboard_html)
+        self.assertIn("Run All CSV Replay Steps", dashboard_html)
+        self.assertIn("/replay/csv/step", dashboard_html)
+        self.assertIn("/replay/csv/run-all", dashboard_html)
         self.assertIn("Modbus Register Map Import", dashboard_html)
         self.assertIn("/imports/modbus/preview", dashboard_html)
         self.assertIn("/imports/modbus/commit", dashboard_html)
@@ -1545,14 +1551,14 @@ class CsvReplayDriverIngestTests(unittest.TestCase):
     def test_csv_replay_driver_reads_deterministic_sample_dictionaries(self):
         samples = self.replay_driver().read_samples()
 
-        self.assertEqual(len(samples), 5)
+        self.assertEqual(len(samples), 6)
         self.assertEqual(
             [sample["sequence"] for sample in samples],
-            ["1", "2", "3", "4", "5"],
+            ["1", "2", "3", "4", "5", "6"],
         )
         self.assertEqual(
             [sample["value"] for sample in samples],
-            ["185", "245", "235", "185", "245"],
+            ["185", "245", "245", "235", "185", "245"],
         )
 
     def test_csv_replay_driver_filters_by_sequence(self):
@@ -1615,7 +1621,7 @@ class CsvReplayDriverIngestTests(unittest.TestCase):
             ).fetchone()[0]
 
         summary = ingest_driver_samples(
-            self.replay_driver().read_samples(sequence=3),
+            self.replay_driver().read_samples(sequence=4),
             db_path=temp_db_path,
         )
 
@@ -1668,6 +1674,165 @@ class CsvReplayDriverIngestTests(unittest.TestCase):
         self.assertEqual(len(summary["failed_samples"]), 1)
         self.assertEqual(summary["failed_samples"][0]["point_id"], "DOES-NOT-EXIST")
         self.assertIn("Point not found", summary["failed_samples"][0]["error"])
+
+
+class CsvReplayRunnerTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def current_values_by_point(self, db_path):
+        return {
+            point_value["point_id"]: point_value
+            for point_value in backend_summary.get_current_point_values(db_path)
+        }
+
+    def run_step(self, db_path, sequence):
+        return csv_replay_runner.run_csv_replay_step(
+            sequence,
+            backend_main.REPLAY_SAMPLE_FILE,
+            db_path=db_path,
+        )
+
+    def test_replay_step_ingests_samples_for_selected_sequence(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        result = self.run_step(temp_db_path, 1)
+
+        self.assertEqual(result["sequence"], "1")
+        self.assertEqual(result["samples_read"], 1)
+        self.assertEqual(result["samples_ingested"], 1)
+        self.assertEqual(result["points_updated"], ["UPS-A_OUTPUT_KW"])
+        self.assertEqual(result["failed_samples"], [])
+
+    def test_replay_step_updates_current_point_values(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        self.run_step(temp_db_path, 2)
+        current_values = self.current_values_by_point(temp_db_path)
+
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "245")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["source"], "SIMULATED")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["protocol"], "CSV_REPLAY")
+
+    def test_replay_step_explicitly_evaluates_and_creates_pending_alarm(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        result = self.run_step(temp_db_path, 2)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(result["alarms_created"], 1)
+        self.assertEqual(result["alarms_cleared"], 0)
+        self.assertEqual(result["generated_alarm_summary"]["pending_generated_alarm_count"], 1)
+        self.assertEqual(generated_alarms[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
+        self.assertEqual(generated_alarms[0]["state"], "PENDING")
+
+    def test_replay_step_promotes_and_clears_generated_alarm(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        pending_result = self.run_step(temp_db_path, 2)
+        active_result = self.run_step(temp_db_path, 3)
+        held_active_result = self.run_step(temp_db_path, 4)
+        cleared_result = self.run_step(temp_db_path, 5)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(pending_result["generated_alarm_summary"]["pending_generated_alarm_count"], 1)
+        self.assertEqual(active_result["generated_alarm_summary"]["active_generated_alarm_count"], 1)
+        self.assertEqual(active_result["alarms_updated_or_promoted"], 1)
+        self.assertEqual(held_active_result["generated_alarm_summary"]["active_generated_alarm_count"], 1)
+        self.assertEqual(cleared_result["alarms_cleared"], 1)
+        self.assertEqual(cleared_result["generated_alarm_summary"]["cleared_generated_alarm_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+
+    def test_replay_step_does_not_bypass_quality_gating(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        result = self.run_step(temp_db_path, 6)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        evaluations = {
+            evaluation["id"]: evaluation
+            for evaluation in backend_summary.get_rule_evaluations(
+                temp_db_path,
+                evaluation_timestamp="2026-05-01 12:10:00",
+            )
+        }
+
+        self.assertEqual(result["alarms_created"], 0)
+        self.assertEqual(result["generated_alarm_summary"]["active_generated_alarm_count"], 0)
+        self.assertEqual(generated_alarms, [])
+        self.assertEqual(
+            evaluations["RULE-UPS-A-HIGH-LOAD"]["evaluation_status"],
+            "BAD_QUALITY",
+        )
+
+    def test_missing_sequence_returns_useful_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaisesRegex(ValueError, "Missing required field: sequence"):
+            csv_replay_runner.run_csv_replay_step(
+                "",
+                backend_main.REPLAY_SAMPLE_FILE,
+                db_path=temp_db_path,
+            )
+
+    def test_invalid_sequence_endpoint_returns_useful_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path):
+            missing_status, missing_data = get_json_from_asgi_app(
+                backend_main.app,
+                "/replay/csv/step",
+                method="POST",
+                body={},
+            )
+            invalid_status, invalid_data = get_json_from_asgi_app(
+                backend_main.app,
+                "/replay/csv/step",
+                method="POST",
+                body={"sequence": "99"},
+            )
+
+        self.assertEqual(missing_status, 400)
+        self.assertIn("Missing required field: sequence", missing_data["error"])
+        self.assertEqual(invalid_status, 404)
+        self.assertIn("Replay sequence not found: 99", invalid_data["error"])
+
+    def test_run_all_processes_sequences_in_deterministic_order(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        result = csv_replay_runner.run_all_csv_replay_steps(
+            backend_main.REPLAY_SAMPLE_FILE,
+            db_path=temp_db_path,
+        )
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(result["sequences"], ["1", "2", "3", "4", "5", "6"])
+        self.assertEqual(result["steps_run"], 6)
+        self.assertEqual(result["samples_ingested"], 6)
+        self.assertEqual(result["generated_alarm_summary"]["active_generated_alarm_count"], 0)
+        self.assertEqual(result["generated_alarm_summary"]["pending_generated_alarm_count"], 0)
+        self.assertEqual(result["generated_alarm_summary"]["cleared_generated_alarm_count"], 1)
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
+
+    def test_run_all_endpoint_returns_deterministic_summary(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/replay/csv/run-all",
+                method="POST",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["sequences"], ["1", "2", "3", "4", "5", "6"])
+        self.assertEqual(data["steps_run"], 6)
+        self.assertEqual(data["samples_ingested"], 6)
+        self.assertEqual(data["generated_alarm_summary"]["cleared_generated_alarm_count"], 1)
 
 
 class ModbusRegisterMapImportTests(unittest.TestCase):

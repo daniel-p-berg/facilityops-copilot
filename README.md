@@ -49,6 +49,8 @@ The backend includes a small read-only `SimulatedDriver` adapter for determinist
 
 The backend also includes a read-only `CsvReplayDriver` adapter for deterministic point sample replay from `data/replay_samples.csv`. `POST /drivers/csv-replay/read` can ingest all replay samples or a specific sequence step, updates the current value projection, and does not automatically evaluate generated alarms.
 
+The CSV replay runner is the explicit operator/test workflow for replay sequences. `POST /replay/csv/step` runs one selected replay sequence by reading CSV samples, ingesting them, and then evaluating generated alarms at the replay sample timestamp. `POST /replay/csv/run-all` runs every replay sequence in deterministic order. The lower-level CSV replay driver endpoint remains ingest-only.
+
 The backend includes a static Modbus register map importer for local catalog setup only. `POST /imports/modbus/preview` validates a CSV register map without database writes. `POST /imports/modbus/commit` validates again, then creates or updates equipment and point catalog records with `MODBUS` protocol/address metadata. The importer does not poll Modbus devices, create point samples, update current point values, evaluate alarm rules, or create generated alarms.
 
 Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates create point samples, use `SCENARIO` as the current value source, and do not automatically evaluate generated alarms.
@@ -84,7 +86,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/scenarios`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, simulated driver samples can be read, CSV replay samples can be read, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
+The dashboard calls `/summary`, `/scenarios`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
 
@@ -126,6 +128,20 @@ Commit the sample static Modbus register map after reviewing preview errors and 
 curl -X POST http://127.0.0.1:8000/imports/modbus/commit \
   -H "Content-Type: application/json" \
   -d '{}'
+```
+
+Run one CSV replay step and explicitly evaluate generated alarms after ingest:
+
+```bash
+curl -X POST http://127.0.0.1:8000/replay/csv/step \
+  -H "Content-Type: application/json" \
+  -d '{"sequence": 2}'
+```
+
+Run every CSV replay step in deterministic order:
+
+```bash
+curl -X POST http://127.0.0.1:8000/replay/csv/run-all
 ```
 
 Manually update a current point value:

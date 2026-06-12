@@ -2504,9 +2504,9 @@ def get_generated_alarm_counts(connection):
     return active_count, pending_count, cleared_count
 
 
-def evaluate_generated_alarms(db_path=DATABASE_FILE):
+def evaluate_generated_alarms(db_path=DATABASE_FILE, evaluation_timestamp=None):
     """Create or update generated alarm state from current rule evaluations."""
-    timestamp = current_timestamp()
+    timestamp = evaluation_timestamp or current_timestamp()
     evaluations = get_rule_evaluations(db_path, evaluation_timestamp=timestamp)
     evaluations_by_rule_id = {
         evaluation["id"]: evaluation
