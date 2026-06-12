@@ -131,6 +131,12 @@ def current_timestamp():
     return datetime.now(UTC).replace(microsecond=0, tzinfo=None).isoformat(sep=" ")
 
 
+def begin_transaction(connection):
+    """Start an explicit SQLite transaction unless one is already active."""
+    if not connection.in_transaction:
+        connection.execute("BEGIN")
+
+
 def get_generated_alarm_count_by_column(connection, column_name, state=None):
     """Return generated alarm counts grouped by a trusted column."""
     if column_name not in GENERATED_ALARM_COUNT_COLUMNS:
@@ -987,93 +993,102 @@ def get_current_point_value(point_id, db_path=DATABASE_FILE):
     with sqlite3.connect(db_path) as connection:
         ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
-        cursor = connection.execute(
-            """
-            SELECT
-                current_point_values.id,
-                current_point_values.point_id,
-                current_point_values.latest_sample_id,
-                points.point_name,
-                points.display_name,
-                points.equipment_id,
-                COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
-                COALESCE(equipment.location, 'Unknown') AS location,
-                points.point_type,
-                points.data_type,
-                COALESCE(NULLIF(current_point_values.unit, ''), points.unit) AS unit,
-                current_point_values.value,
-                current_point_values.quality,
-                current_point_values.source,
-                current_point_values.source_timestamp,
-                current_point_values.received_timestamp,
-                current_point_values.stale_after_seconds,
-                current_point_values.overridden,
-                current_point_values.out_of_service,
-                current_point_values.protocol,
-                current_point_values.address,
-                current_point_values.updated_at
-            FROM current_point_values
-            LEFT JOIN points
-                ON current_point_values.point_id = points.id
-            LEFT JOIN equipment
-                ON points.equipment_id = equipment.equipment
-            WHERE current_point_values.point_id = ?
-            """,
-            (point_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return None
+        return get_current_point_value_with_connection(connection, point_id)
 
-        (
-            value_id,
-            current_point_id,
-            latest_sample_id,
-            point_name,
-            display_name,
-            equipment_id,
-            equipment_type,
-            location,
-            point_type,
-            data_type,
-            unit,
-            value,
-            quality,
-            source,
-            source_timestamp,
-            received_timestamp,
-            stale_after_seconds,
-            overridden,
-            out_of_service,
-            protocol,
-            address,
-            updated_at,
-        ) = row
 
-        return {
-            "id": value_id,
-            "point_id": current_point_id,
-            "latest_sample_id": latest_sample_id,
-            "point_name": point_name,
-            "display_name": display_name,
-            "equipment_id": equipment_id,
-            "equipment_type": equipment_type,
-            "location": location,
-            "point_type": point_type,
-            "data_type": data_type,
-            "unit": unit,
-            "value": value,
-            "quality": quality,
-            "source": source,
-            "source_timestamp": source_timestamp,
-            "received_timestamp": received_timestamp,
-            "stale_after_seconds": stale_after_seconds,
-            "overridden": bool(overridden),
-            "out_of_service": bool(out_of_service),
-            "protocol": protocol,
-            "address": address,
-            "updated_at": updated_at,
-        }
+def current_point_value_from_row(row):
+    """Convert one current point value row into the API dictionary shape."""
+    if not row:
+        return None
+
+    (
+        value_id,
+        current_point_id,
+        latest_sample_id,
+        point_name,
+        display_name,
+        equipment_id,
+        equipment_type,
+        location,
+        point_type,
+        data_type,
+        unit,
+        value,
+        quality,
+        source,
+        source_timestamp,
+        received_timestamp,
+        stale_after_seconds,
+        overridden,
+        out_of_service,
+        protocol,
+        address,
+        updated_at,
+    ) = row
+
+    return {
+        "id": value_id,
+        "point_id": current_point_id,
+        "latest_sample_id": latest_sample_id,
+        "point_name": point_name,
+        "display_name": display_name,
+        "equipment_id": equipment_id,
+        "equipment_type": equipment_type,
+        "location": location,
+        "point_type": point_type,
+        "data_type": data_type,
+        "unit": unit,
+        "value": value,
+        "quality": quality,
+        "source": source,
+        "source_timestamp": source_timestamp,
+        "received_timestamp": received_timestamp,
+        "stale_after_seconds": stale_after_seconds,
+        "overridden": bool(overridden),
+        "out_of_service": bool(out_of_service),
+        "protocol": protocol,
+        "address": address,
+        "updated_at": updated_at,
+    }
+
+
+def get_current_point_value_with_connection(connection, point_id):
+    """Return one current point value using an existing connection."""
+    cursor = connection.execute(
+        """
+        SELECT
+            current_point_values.id,
+            current_point_values.point_id,
+            current_point_values.latest_sample_id,
+            points.point_name,
+            points.display_name,
+            points.equipment_id,
+            COALESCE(equipment.equipment_type, 'Unknown') AS equipment_type,
+            COALESCE(equipment.location, 'Unknown') AS location,
+            points.point_type,
+            points.data_type,
+            COALESCE(NULLIF(current_point_values.unit, ''), points.unit) AS unit,
+            current_point_values.value,
+            current_point_values.quality,
+            current_point_values.source,
+            current_point_values.source_timestamp,
+            current_point_values.received_timestamp,
+            current_point_values.stale_after_seconds,
+            current_point_values.overridden,
+            current_point_values.out_of_service,
+            current_point_values.protocol,
+            current_point_values.address,
+            current_point_values.updated_at
+        FROM current_point_values
+        LEFT JOIN points
+            ON current_point_values.point_id = points.id
+        LEFT JOIN equipment
+            ON points.equipment_id = equipment.equipment
+        WHERE current_point_values.point_id = ?
+        """,
+        (point_id,),
+    )
+    return current_point_value_from_row(cursor.fetchone())
 
 
 def point_exists(connection, point_id):
@@ -1105,7 +1120,113 @@ def get_point_unit(connection, point_id):
     return row[0]
 
 
-def ingest_point_sample(
+def upsert_current_point_value_projection(
+    connection,
+    point_id,
+    sample_id,
+    value,
+    unit,
+    quality,
+    source,
+    source_timestamp,
+    received_timestamp,
+    stale_after_seconds,
+    overridden,
+    out_of_service,
+    protocol,
+    address,
+):
+    """Update or create the latest-value projection for one point sample."""
+    existing_row = connection.execute(
+        """
+        SELECT id
+        FROM current_point_values
+        WHERE point_id = ?
+        """,
+        (point_id,),
+    ).fetchone()
+
+    if existing_row:
+        connection.execute(
+            """
+            UPDATE current_point_values
+            SET latest_sample_id = ?,
+                value = ?,
+                unit = ?,
+                quality = ?,
+                source = ?,
+                source_timestamp = ?,
+                received_timestamp = ?,
+                stale_after_seconds = ?,
+                overridden = ?,
+                out_of_service = ?,
+                protocol = ?,
+                address = ?,
+                updated_at = ?
+            WHERE point_id = ?
+            """,
+            (
+                sample_id,
+                value,
+                unit,
+                quality,
+                source,
+                source_timestamp,
+                received_timestamp,
+                stale_after_seconds,
+                overridden,
+                out_of_service,
+                protocol,
+                address,
+                received_timestamp,
+                point_id,
+            ),
+        )
+        return
+
+    connection.execute(
+        """
+        INSERT INTO current_point_values (
+            id,
+            point_id,
+            latest_sample_id,
+            value,
+            unit,
+            quality,
+            source,
+            source_timestamp,
+            received_timestamp,
+            stale_after_seconds,
+            overridden,
+            out_of_service,
+            protocol,
+            address,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            current_point_value_id(point_id),
+            point_id,
+            sample_id,
+            value,
+            unit,
+            quality,
+            source,
+            source_timestamp,
+            received_timestamp,
+            stale_after_seconds,
+            overridden,
+            out_of_service,
+            protocol,
+            address,
+            received_timestamp,
+        ),
+    )
+
+
+def ingest_point_sample_with_connection(
+    connection,
     point_id,
     value,
     quality="GOOD",
@@ -1119,9 +1240,8 @@ def ingest_point_sample(
     overridden=False,
     out_of_service=False,
     created_by="local-operator",
-    db_path=DATABASE_FILE,
 ):
-    """Append a point sample and update the current value projection."""
+    """Append a point sample and project it using an existing transaction."""
     normalized_value = normalize_text(value)
     normalized_quality = normalize_quality(quality)
     normalized_source = normalize_current_value_source(source)
@@ -1138,139 +1258,107 @@ def ingest_point_sample(
     normalized_created_by = normalize_text(created_by) or "local-operator"
     sample_id = point_sample_id(point_id)
 
+    point_unit = get_point_unit(connection, point_id)
+    normalized_unit = normalize_text(unit)
+    if not has_value(normalized_unit):
+        normalized_unit = point_unit
+
+    connection.execute(
+        """
+        INSERT INTO point_samples (
+            id,
+            point_id,
+            value,
+            unit,
+            quality,
+            source_timestamp,
+            received_timestamp,
+            source,
+            protocol,
+            address,
+            stale_after_seconds,
+            overridden,
+            out_of_service,
+            created_by
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            sample_id,
+            point_id,
+            normalized_value,
+            normalized_unit,
+            normalized_quality,
+            normalized_source_timestamp,
+            normalized_received_timestamp,
+            normalized_source,
+            normalized_protocol,
+            normalized_address,
+            normalized_stale_after_seconds,
+            normalized_overridden,
+            normalized_out_of_service,
+            normalized_created_by,
+        ),
+    )
+
+    upsert_current_point_value_projection(
+        connection,
+        point_id,
+        sample_id,
+        normalized_value,
+        normalized_unit,
+        normalized_quality,
+        normalized_source,
+        normalized_source_timestamp,
+        normalized_received_timestamp,
+        normalized_stale_after_seconds,
+        normalized_overridden,
+        normalized_out_of_service,
+        normalized_protocol,
+        normalized_address,
+    )
+
+    return get_current_point_value_with_connection(connection, point_id)
+
+
+def ingest_point_sample(
+    point_id,
+    value,
+    quality="GOOD",
+    source="MANUAL",
+    unit=None,
+    source_timestamp=None,
+    received_timestamp=None,
+    protocol="",
+    address="",
+    stale_after_seconds=DEFAULT_STALE_AFTER_SECONDS,
+    overridden=False,
+    out_of_service=False,
+    created_by="local-operator",
+    db_path=DATABASE_FILE,
+):
+    """Append a point sample and update the projection in one transaction."""
     with sqlite3.connect(db_path) as connection:
         ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
-        point_unit = get_point_unit(connection, point_id)
-        normalized_unit = normalize_text(unit)
-        if not has_value(normalized_unit):
-            normalized_unit = point_unit
-
-        connection.execute(
-            """
-            INSERT INTO point_samples (
-                id,
+        with connection:
+            begin_transaction(connection)
+            return ingest_point_sample_with_connection(
+                connection,
                 point_id,
                 value,
-                unit,
-                quality,
-                source_timestamp,
-                received_timestamp,
-                source,
-                protocol,
-                address,
-                stale_after_seconds,
-                overridden,
-                out_of_service,
-                created_by
+                quality=quality,
+                source=source,
+                unit=unit,
+                source_timestamp=source_timestamp,
+                received_timestamp=received_timestamp,
+                protocol=protocol,
+                address=address,
+                stale_after_seconds=stale_after_seconds,
+                overridden=overridden,
+                out_of_service=out_of_service,
+                created_by=created_by,
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                sample_id,
-                point_id,
-                normalized_value,
-                normalized_unit,
-                normalized_quality,
-                normalized_source_timestamp,
-                normalized_received_timestamp,
-                normalized_source,
-                normalized_protocol,
-                normalized_address,
-                normalized_stale_after_seconds,
-                normalized_overridden,
-                normalized_out_of_service,
-                normalized_created_by,
-            ),
-        )
-
-        existing_row = connection.execute(
-            """
-            SELECT id
-            FROM current_point_values
-            WHERE point_id = ?
-            """,
-            (point_id,),
-        ).fetchone()
-
-        if existing_row:
-            connection.execute(
-                """
-                UPDATE current_point_values
-                SET latest_sample_id = ?,
-                    value = ?,
-                    unit = ?,
-                    quality = ?,
-                    source = ?,
-                    source_timestamp = ?,
-                    received_timestamp = ?,
-                    stale_after_seconds = ?,
-                    overridden = ?,
-                    out_of_service = ?,
-                    protocol = ?,
-                    address = ?,
-                    updated_at = ?
-                WHERE point_id = ?
-                """,
-                (
-                    sample_id,
-                    normalized_value,
-                    normalized_unit,
-                    normalized_quality,
-                    normalized_source,
-                    normalized_source_timestamp,
-                    normalized_received_timestamp,
-                    normalized_stale_after_seconds,
-                    normalized_overridden,
-                    normalized_out_of_service,
-                    normalized_protocol,
-                    normalized_address,
-                    normalized_received_timestamp,
-                    point_id,
-                ),
-            )
-        else:
-            connection.execute(
-                """
-                INSERT INTO current_point_values (
-                    id,
-                    point_id,
-                    latest_sample_id,
-                    value,
-                    unit,
-                    quality,
-                    source,
-                    source_timestamp,
-                    received_timestamp,
-                    stale_after_seconds,
-                    overridden,
-                    out_of_service,
-                    protocol,
-                    address,
-                    updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    current_point_value_id(point_id),
-                    point_id,
-                    sample_id,
-                    normalized_value,
-                    normalized_unit,
-                    normalized_quality,
-                    normalized_source,
-                    normalized_source_timestamp,
-                    normalized_received_timestamp,
-                    normalized_stale_after_seconds,
-                    normalized_overridden,
-                    normalized_out_of_service,
-                    normalized_protocol,
-                    normalized_address,
-                    normalized_received_timestamp,
-                ),
-            )
-
-    return get_current_point_value(point_id, db_path)
 
 
 def update_current_point_value(
@@ -1378,16 +1466,22 @@ def apply_scenario(scenario_id, db_path=DATABASE_FILE):
         raise LookupError(f"Scenario not found: {scenario_id}")
 
     scenario = ALARM_SCENARIOS[scenario_id]
-    updated_values = [
-        update_current_point_value(
-            update["point_id"],
-            update["value"],
-            quality=update["quality"],
-            source=update["source"],
-            db_path=db_path,
-        )
-        for update in scenario["updates"]
-    ]
+    updated_values = []
+    with sqlite3.connect(db_path) as connection:
+        ensure_point_sample_table(connection)
+        ensure_current_point_value_table(connection)
+        with connection:
+            begin_transaction(connection)
+            for update in scenario["updates"]:
+                updated_values.append(
+                    ingest_point_sample_with_connection(
+                        connection,
+                        update["point_id"],
+                        update["value"],
+                        quality=update["quality"],
+                        source=update["source"],
+                    )
+                )
 
     return {
         "scenario_id": scenario_id,
@@ -1781,6 +1875,7 @@ def evaluate_generated_alarms(db_path=DATABASE_FILE):
     with sqlite3.connect(db_path) as connection:
         ensure_generated_alarm_table(connection)
         ensure_alarm_event_table(connection)
+        begin_transaction(connection)
         open_generated_alarms = get_open_generated_alarms_by_rule(connection)
         handled_open_rule_ids = set()
 
@@ -2313,6 +2408,7 @@ def acknowledge_generated_alarm(
     with sqlite3.connect(db_path) as connection:
         ensure_generated_alarm_table(connection)
         ensure_alarm_event_table(connection)
+        begin_transaction(connection)
         alarm_row = connection.execute(
             """
             SELECT

@@ -878,6 +878,52 @@ class QualityAwarePointSampleTests(unittest.TestCase):
         self.assertEqual(sample_quality, "GOOD")
         self.assertEqual(current_point_value["value"], "245")
 
+    def test_manual_point_update_rolls_back_sample_when_projection_update_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            before_current_value = connection.execute(
+                """
+                SELECT value, latest_sample_id
+                FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        with (
+            mock.patch.object(
+                backend_summary,
+                "upsert_current_point_value_projection",
+                side_effect=RuntimeError("projection failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.update_current_point_value(
+                "UPS-A_OUTPUT_KW",
+                "245",
+                quality="GOOD",
+                source="MANUAL",
+                db_path=temp_db_path,
+            )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            after_current_value = connection.execute(
+                """
+                SELECT value, latest_sample_id
+                FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        self.assertEqual(after_count, before_count)
+        self.assertEqual(after_current_value, before_current_value)
+
     def test_scenario_apply_creates_point_samples(self):
         temp_db_path = self.load_temp_sample_database()
 
@@ -2035,6 +2081,80 @@ class AlarmScenarioTests(unittest.TestCase):
 
         self.assertEqual(generated_alarms, [])
 
+    def test_multi_point_scenario_rolls_back_when_one_update_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+        original_ingest = backend_summary.ingest_point_sample_with_connection
+        call_count = {"count": 0}
+        test_scenario = {
+            "label": "Test Multi Point Failure",
+            "description": "Exercise transactional scenario rollback.",
+            "updates": [
+                {
+                    "point_id": "UPS-A_OUTPUT_KW",
+                    "value": "245",
+                    "quality": "GOOD",
+                    "source": "SCENARIO",
+                },
+                {
+                    "point_id": "CRAC-2_SUPPLY_AIR_TEMP",
+                    "value": "72",
+                    "quality": "GOOD",
+                    "source": "SCENARIO",
+                },
+            ],
+        }
+
+        def fail_second_ingest(connection, *args, **kwargs):
+            call_count["count"] += 1
+            if call_count["count"] == 2:
+                raise RuntimeError("scenario update failed")
+
+            return original_ingest(connection, *args, **kwargs)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            before_ups_value = connection.execute(
+                """
+                SELECT value, source
+                FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        with (
+            mock.patch.dict(
+                backend_summary.ALARM_SCENARIOS,
+                {"test-multi-point-failure": test_scenario},
+            ),
+            mock.patch.object(
+                backend_summary,
+                "ingest_point_sample_with_connection",
+                side_effect=fail_second_ingest,
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.apply_scenario(
+                "test-multi-point-failure",
+                db_path=temp_db_path,
+            )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            after_ups_value = connection.execute(
+                """
+                SELECT value, source
+                FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        self.assertEqual(after_sample_count, before_sample_count)
+        self.assertEqual(after_ups_value, before_ups_value)
+
     def test_applying_scenario_does_not_update_generated_summary_until_evaluation(self):
         temp_db_path = self.load_temp_sample_database()
 
@@ -3056,7 +3176,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             backend_summary.evaluate_generated_alarms(temp_db_path)
 
         events = backend_summary.get_alarm_events(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
 
+        self.assertEqual(generated_alarms[0]["state"], "PENDING")
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "PENDING_CREATED")
         self.assertEqual(events[0]["rule_id"], "RULE-UPS-A-HIGH-LOAD")
@@ -3077,12 +3199,34 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             backend_summary.evaluate_generated_alarms(temp_db_path)
 
         events = backend_summary.get_alarm_events(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
 
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "ALARM_ACTIVATED")
         self.assertEqual(events[0]["previous_state"], "")
         self.assertEqual(events[0]["new_state"], "ACTIVE")
         self.assertEqual(events[0]["event_timestamp"], "2026-05-01 12:00:00")
+
+    def test_generated_alarm_creation_rolls_back_when_event_insert_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+
+        with (
+            mock.patch.object(
+                backend_summary,
+                "insert_alarm_event_for_evaluation",
+                side_effect=RuntimeError("event insert failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.evaluate_generated_alarms(temp_db_path)
+
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+        events = backend_summary.get_alarm_events(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
+        self.assertEqual(events, [])
 
     def test_promoting_pending_alarm_to_active_inserts_event(self):
         temp_db_path = self.load_temp_sample_database()
@@ -3106,7 +3250,9 @@ class GeneratedAlarmStateTests(unittest.TestCase):
 
         events = backend_summary.get_alarm_events(temp_db_path)
         event_types = [event["event_type"] for event in events]
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
 
+        self.assertEqual(generated_alarms[0]["state"], "ACTIVE")
         self.assertEqual(event_types, ["ALARM_ACTIVATED", "PENDING_CREATED"])
         self.assertEqual(events[0]["previous_state"], "PENDING")
         self.assertEqual(events[0]["new_state"], "ACTIVE")
@@ -3136,6 +3282,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.clear_ups_high_load_rule(temp_db_path)
         backend_summary.evaluate_generated_alarms(temp_db_path)
         events = backend_summary.get_alarm_events(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
 
         clear_events = [
             event
@@ -3143,6 +3290,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             if event["event_type"] == "ALARM_CLEARED"
         ]
 
+        self.assertEqual(generated_alarms[0]["state"], "CLEARED")
         self.assertEqual(len(clear_events), 1)
         self.assertEqual(clear_events[0]["previous_state"], "ACTIVE")
         self.assertEqual(clear_events[0]["new_state"], "CLEARED")
@@ -3166,12 +3314,15 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             )
 
         events = backend_summary.get_alarm_events(temp_db_path)
+        generated_alarm = backend_summary.get_generated_alarms(temp_db_path)[0]
         acknowledgement_events = [
             event
             for event in events
             if event["event_type"] == "ALARM_ACKNOWLEDGED"
         ]
 
+        self.assertTrue(generated_alarm["acknowledged"])
+        self.assertEqual(generated_alarm["acknowledged_by"], "operator-a")
         self.assertEqual(len(acknowledgement_events), 1)
         self.assertEqual(acknowledgement_events[0]["generated_alarm_id"], alarm_id)
         self.assertEqual(acknowledgement_events[0]["previous_state"], "ACTIVE")
@@ -3181,6 +3332,38 @@ class GeneratedAlarmStateTests(unittest.TestCase):
             acknowledgement_events[0]["event_timestamp"],
             "2026-05-01 13:00:00",
         )
+
+    def test_acknowledge_rolls_back_when_event_insert_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+        self.trigger_ups_high_load_rule(temp_db_path)
+        backend_summary.evaluate_generated_alarms(temp_db_path)
+        alarm_id = backend_summary.get_generated_alarms(temp_db_path)[0]["id"]
+
+        with (
+            mock.patch.object(
+                backend_summary,
+                "insert_alarm_event",
+                side_effect=RuntimeError("event insert failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.acknowledge_generated_alarm(
+                alarm_id,
+                acknowledged_by="operator-a",
+                db_path=temp_db_path,
+            )
+
+        generated_alarm = backend_summary.get_generated_alarms(temp_db_path)[0]
+        acknowledgement_events = [
+            event
+            for event in backend_summary.get_alarm_events(temp_db_path)
+            if event["event_type"] == "ALARM_ACKNOWLEDGED"
+        ]
+
+        self.assertFalse(generated_alarm["acknowledged"])
+        self.assertEqual(generated_alarm["acknowledged_at"], "")
+        self.assertEqual(generated_alarm["acknowledged_by"], "")
+        self.assertEqual(acknowledgement_events, [])
 
     def test_alarm_events_endpoint_returns_context(self):
         temp_db_path = self.load_temp_sample_database()

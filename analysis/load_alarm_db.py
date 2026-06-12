@@ -83,6 +83,12 @@ def current_timestamp():
     return datetime.now(UTC).replace(microsecond=0, tzinfo=None).isoformat(sep=" ")
 
 
+def begin_transaction(connection):
+    """Start an explicit SQLite transaction unless one is already active."""
+    if not connection.in_transaction:
+        connection.execute("BEGIN")
+
+
 def create_alarm_table(connection):
     """Create a table for sample BMS/EPMS alarm records."""
     connection.execute(
@@ -629,6 +635,7 @@ def load_current_point_values_to_sqlite(
     with sqlite3.connect(db_path) as connection:
         create_point_sample_table(connection)
         create_current_point_value_table(connection)
+        begin_transaction(connection)
         connection.execute("DELETE FROM current_point_values")
         connection.execute("DELETE FROM point_samples")
 
@@ -728,6 +735,7 @@ def reset_generated_alarms(db_path=DATABASE_FILE):
     with sqlite3.connect(db_path) as connection:
         create_generated_alarm_table(connection)
         create_alarm_event_table(connection)
+        begin_transaction(connection)
         connection.execute("DELETE FROM alarm_events")
         connection.execute("DELETE FROM generated_alarms")
 
