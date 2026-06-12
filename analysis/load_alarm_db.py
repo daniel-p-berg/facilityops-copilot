@@ -350,7 +350,7 @@ def create_alarm_event_table(connection):
         CREATE TABLE IF NOT EXISTS alarm_events (
             id TEXT PRIMARY KEY,
             generated_alarm_id TEXT,
-            rule_id TEXT NOT NULL,
+            rule_id TEXT,
             point_id TEXT NOT NULL,
             equipment_id TEXT NOT NULL,
             event_type TEXT NOT NULL,
@@ -374,19 +374,23 @@ def create_alarm_event_table(connection):
         for row in connection.execute("PRAGMA table_info(alarm_events)")
     }
     generated_alarm_id_column = columns.get("generated_alarm_id")
-    if generated_alarm_id_column and generated_alarm_id_column[3]:
-        migrate_alarm_events_to_nullable_generated_alarm_id(connection)
+    rule_id_column = columns.get("rule_id")
+    if (
+        (generated_alarm_id_column and generated_alarm_id_column[3])
+        or (rule_id_column and rule_id_column[3])
+    ):
+        migrate_alarm_events_to_nullable_audit_links(connection)
 
 
-def migrate_alarm_events_to_nullable_generated_alarm_id(connection):
-    """Allow rule audit events that are not tied to a generated alarm row."""
+def migrate_alarm_events_to_nullable_audit_links(connection):
+    """Allow audit events that are not tied to generated alarms or rules."""
     connection.execute("ALTER TABLE alarm_events RENAME TO alarm_events_old")
     connection.execute(
         """
         CREATE TABLE alarm_events (
             id TEXT PRIMARY KEY,
             generated_alarm_id TEXT,
-            rule_id TEXT NOT NULL,
+            rule_id TEXT,
             point_id TEXT NOT NULL,
             equipment_id TEXT NOT NULL,
             event_type TEXT NOT NULL,

@@ -12,6 +12,7 @@ from backend.summary import DATABASE_DISPLAY_PATH
 from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
 from backend.summary import evaluate_generated_alarms
+from backend.summary import evaluate_point_health
 from backend.summary import get_alarm_rule_catalog
 from backend.summary import get_alarm_summary
 from backend.summary import get_current_point_values
@@ -206,6 +207,15 @@ def read_alarm_events():
         return error_response
 
     return {"alarm_events": get_alarm_events()}
+
+
+@app.post("/point-health/evaluate")
+def evaluate_point_health_state():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return evaluate_point_health()
 
 
 @app.post("/generated-alarms/{alarm_id}/acknowledge")

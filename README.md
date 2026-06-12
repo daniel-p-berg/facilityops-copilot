@@ -43,6 +43,8 @@ Current point values are maintained as the latest-value projection of append-onl
 
 Alarm rules can be created for existing points through the dashboard or the local API for local demo tuning. Existing rule edits are limited to thresholds, clear values, delay, severity, enabled state, and alarm message; creating or editing rules does not automatically evaluate or rewrite generated alarms. Rule creation and edits are recorded in append-only `alarm_events` audit rows.
 
+Point sample health changes are also recorded in `alarm_events`: quality changes, override changes, out-of-service changes, and stale samples found by the explicit point health evaluation endpoint. The app does not run a background staleness scheduler.
+
 Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates create point samples, use `SCENARIO` as the current value source, and do not automatically evaluate generated alarms.
 
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. Process alarm rules only evaluate against eligible samples: `GOOD` quality, not stale, not overridden, and not out of service. `UNKNOWN` quality is normalized to `UNCERTAIN`.
@@ -76,7 +78,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated and alarm rules can be created or edited from the dashboard.
+The dashboard calls `/summary`, `/scenarios`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
 

@@ -16,6 +16,7 @@ from backend.domain.alarm_evaluator import MATCH_OPERATORS
 from backend.domain.alarm_evaluator import normalize_text
 from backend.domain.alarm_evaluator import pending_delay_has_elapsed
 from backend.domain.alarm_evaluator import parse_delay_seconds
+from backend.domain.alarm_evaluator import sample_is_stale
 from backend.domain.alarm_evaluator import TRUE_VALUES
 
 
@@ -411,7 +412,7 @@ def ensure_alarm_event_table(connection):
         CREATE TABLE IF NOT EXISTS alarm_events (
             id TEXT PRIMARY KEY,
             generated_alarm_id TEXT,
-            rule_id TEXT NOT NULL,
+            rule_id TEXT,
             point_id TEXT NOT NULL,
             equipment_id TEXT NOT NULL,
             event_type TEXT NOT NULL,
@@ -435,19 +436,23 @@ def ensure_alarm_event_table(connection):
         for row in connection.execute("PRAGMA table_info(alarm_events)")
     }
     generated_alarm_id_column = columns.get("generated_alarm_id")
-    if generated_alarm_id_column and generated_alarm_id_column[3]:
-        migrate_alarm_events_to_nullable_generated_alarm_id(connection)
+    rule_id_column = columns.get("rule_id")
+    if (
+        (generated_alarm_id_column and generated_alarm_id_column[3])
+        or (rule_id_column and rule_id_column[3])
+    ):
+        migrate_alarm_events_to_nullable_audit_links(connection)
 
 
-def migrate_alarm_events_to_nullable_generated_alarm_id(connection):
-    """Allow rule audit events that are not tied to a generated alarm row."""
+def migrate_alarm_events_to_nullable_audit_links(connection):
+    """Allow audit events that are not tied to generated alarms or rules."""
     connection.execute("ALTER TABLE alarm_events RENAME TO alarm_events_old")
     connection.execute(
         """
         CREATE TABLE alarm_events (
             id TEXT PRIMARY KEY,
             generated_alarm_id TEXT,
-            rule_id TEXT NOT NULL,
+            rule_id TEXT,
             point_id TEXT NOT NULL,
             equipment_id TEXT NOT NULL,
             event_type TEXT NOT NULL,
@@ -1392,6 +1397,170 @@ def get_point_unit(connection, point_id):
     return row[0]
 
 
+def get_current_point_health_projection(connection, point_id):
+    """Return current point health facts before a new sample is projected."""
+    row = connection.execute(
+        """
+        SELECT
+            current_point_values.point_id,
+            current_point_values.latest_sample_id,
+            current_point_values.quality,
+            current_point_values.overridden,
+            current_point_values.out_of_service,
+            COALESCE(points.equipment_id, '') AS equipment_id
+        FROM current_point_values
+        LEFT JOIN points
+            ON current_point_values.point_id = points.id
+        WHERE current_point_values.point_id = ?
+        """,
+        (point_id,),
+    ).fetchone()
+    if row is None:
+        return None
+
+    (
+        current_point_id,
+        latest_sample_id,
+        quality,
+        overridden,
+        out_of_service,
+        equipment_id,
+    ) = row
+    return {
+        "point_id": current_point_id,
+        "latest_sample_id": latest_sample_id,
+        "quality": quality,
+        "overridden": bool(overridden),
+        "out_of_service": bool(out_of_service),
+        "equipment_id": equipment_id,
+    }
+
+
+def point_health_change_details(field_name, previous_value, new_value):
+    """Return compact old/new point health details."""
+    return {
+        "changed_field": field_name,
+        "old_value": previous_value,
+        "new_value": new_value,
+    }
+
+
+def insert_point_health_event(
+    connection,
+    point_id,
+    equipment_id,
+    event_type,
+    event_timestamp,
+    value="",
+    sample_id="",
+    previous_state="",
+    new_state="",
+    message="",
+    details=None,
+):
+    """Append one point health audit event."""
+    insert_alarm_event(
+        connection,
+        generated_alarm_id=None,
+        rule_id=None,
+        point_id=point_id,
+        equipment_id=equipment_id,
+        event_type=event_type,
+        event_timestamp=event_timestamp,
+        value=value,
+        sample_id=sample_id,
+        previous_state=previous_state,
+        new_state=new_state,
+        acknowledged_by="local-operator",
+        message=message,
+        details=details,
+    )
+
+
+def insert_point_health_change_events(
+    connection,
+    previous_projection,
+    point_id,
+    equipment_id,
+    value,
+    sample_id,
+    quality,
+    overridden,
+    out_of_service,
+    event_timestamp,
+):
+    """Append quality, override, and out-of-service change events for one sample."""
+    if previous_projection is None:
+        return
+
+    previous_quality = normalize_text(previous_projection["quality"]).upper()
+    if previous_quality == "UNKNOWN":
+        previous_quality = "UNCERTAIN"
+    if previous_quality != quality:
+        insert_point_health_event(
+            connection,
+            point_id,
+            equipment_id,
+            "POINT_QUALITY_CHANGED",
+            event_timestamp,
+            value=value,
+            sample_id=sample_id,
+            previous_state=previous_quality,
+            new_state=quality,
+            message=f"Point quality changed from {previous_quality} to {quality}",
+            details=point_health_change_details(
+                "quality",
+                previous_quality,
+                quality,
+            ),
+        )
+
+    previous_overridden = previous_projection["overridden"]
+    new_overridden = bool(overridden)
+    if previous_overridden != new_overridden:
+        insert_point_health_event(
+            connection,
+            point_id,
+            equipment_id,
+            "POINT_OVERRIDE_CHANGED",
+            event_timestamp,
+            value=value,
+            sample_id=sample_id,
+            previous_state=str(previous_overridden),
+            new_state=str(new_overridden),
+            message=f"Point override changed from {previous_overridden} to {new_overridden}",
+            details=point_health_change_details(
+                "overridden",
+                previous_overridden,
+                new_overridden,
+            ),
+        )
+
+    previous_out_of_service = previous_projection["out_of_service"]
+    new_out_of_service = bool(out_of_service)
+    if previous_out_of_service != new_out_of_service:
+        insert_point_health_event(
+            connection,
+            point_id,
+            equipment_id,
+            "POINT_OUT_OF_SERVICE_CHANGED",
+            event_timestamp,
+            value=value,
+            sample_id=sample_id,
+            previous_state=str(previous_out_of_service),
+            new_state=str(new_out_of_service),
+            message=(
+                "Point out-of-service changed from "
+                f"{previous_out_of_service} to {new_out_of_service}"
+            ),
+            details=point_health_change_details(
+                "out_of_service",
+                previous_out_of_service,
+                new_out_of_service,
+            ),
+        )
+
+
 def upsert_current_point_value_projection(
     connection,
     point_id,
@@ -1531,6 +1700,7 @@ def ingest_point_sample_with_connection(
     sample_id = point_sample_id(point_id)
 
     point_unit = get_point_unit(connection, point_id)
+    previous_projection = get_current_point_health_projection(connection, point_id)
     normalized_unit = normalize_text(unit)
     if not has_value(normalized_unit):
         normalized_unit = point_unit
@@ -1589,6 +1759,18 @@ def ingest_point_sample_with_connection(
         normalized_protocol,
         normalized_address,
     )
+    insert_point_health_change_events(
+        connection,
+        previous_projection,
+        point_id,
+        previous_projection["equipment_id"] if previous_projection else "",
+        normalized_value,
+        sample_id,
+        normalized_quality,
+        normalized_overridden,
+        normalized_out_of_service,
+        normalized_received_timestamp,
+    )
 
     return get_current_point_value_with_connection(connection, point_id)
 
@@ -1613,6 +1795,7 @@ def ingest_point_sample(
     with sqlite3.connect(db_path) as connection:
         ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
+        ensure_alarm_event_table(connection)
         with connection:
             begin_transaction(connection)
             return ingest_point_sample_with_connection(
@@ -1742,6 +1925,7 @@ def apply_scenario(scenario_id, db_path=DATABASE_FILE):
     with sqlite3.connect(db_path) as connection:
         ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
+        ensure_alarm_event_table(connection)
         with connection:
             begin_transaction(connection)
             for update in scenario["updates"]:
@@ -1761,6 +1945,130 @@ def apply_scenario(scenario_id, db_path=DATABASE_FILE):
         "description": scenario["description"],
         "updated_count": len(updated_values),
         "current_point_values": updated_values,
+    }
+
+
+def point_stale_event_exists(connection, point_id, sample_id):
+    """Return True when this current sample already has a stale audit event."""
+    row = connection.execute(
+        """
+        SELECT 1
+        FROM alarm_events
+        WHERE event_type = 'POINT_STALE'
+          AND point_id = ?
+          AND sample_id = ?
+        """,
+        (point_id, normalize_text(sample_id)),
+    ).fetchone()
+    return row is not None
+
+
+def current_point_value_is_stale(
+    quality,
+    source_timestamp,
+    received_timestamp,
+    stale_after_seconds,
+    evaluation_timestamp,
+):
+    """Return True when a current point value is stale for audit purposes."""
+    normalized_quality = normalize_text(quality).upper()
+    if normalized_quality == "STALE":
+        return True
+
+    return sample_is_stale(
+        source_timestamp=source_timestamp,
+        received_timestamp=received_timestamp,
+        stale_after_seconds=stale_after_seconds,
+        evaluation_timestamp=evaluation_timestamp,
+    )
+
+
+def evaluate_point_health(db_path=DATABASE_FILE, evaluation_timestamp=None):
+    """Evaluate current point health and append stale audit events on demand."""
+    timestamp = evaluation_timestamp or current_timestamp()
+    checked_count = 0
+    stale_count = 0
+    new_stale_events_count = 0
+
+    with sqlite3.connect(db_path) as connection:
+        ensure_point_sample_table(connection)
+        ensure_current_point_value_table(connection)
+        ensure_alarm_event_table(connection)
+        with connection:
+            begin_transaction(connection)
+            cursor = connection.execute(
+                """
+                SELECT
+                    current_point_values.point_id,
+                    current_point_values.latest_sample_id,
+                    points.point_name,
+                    points.display_name,
+                    COALESCE(points.equipment_id, '') AS equipment_id,
+                    current_point_values.value,
+                    current_point_values.quality,
+                    current_point_values.source,
+                    current_point_values.source_timestamp,
+                    current_point_values.received_timestamp,
+                    current_point_values.stale_after_seconds
+                FROM current_point_values
+                LEFT JOIN points
+                    ON current_point_values.point_id = points.id
+                ORDER BY points.equipment_id ASC, points.point_name ASC
+                """
+            )
+            for (
+                point_id,
+                latest_sample_id,
+                point_name,
+                display_name,
+                equipment_id,
+                value,
+                quality,
+                source,
+                source_timestamp,
+                received_timestamp,
+                stale_after_seconds,
+            ) in cursor.fetchall():
+                checked_count += 1
+                if not current_point_value_is_stale(
+                    quality,
+                    source_timestamp,
+                    received_timestamp,
+                    stale_after_seconds,
+                    timestamp,
+                ):
+                    continue
+
+                stale_count += 1
+                if point_stale_event_exists(connection, point_id, latest_sample_id):
+                    continue
+
+                insert_point_health_event(
+                    connection,
+                    point_id,
+                    equipment_id,
+                    "POINT_STALE",
+                    timestamp,
+                    value=value,
+                    sample_id=latest_sample_id,
+                    previous_state="Not stale",
+                    new_state="Stale",
+                    message=f"Point sample is stale: {display_name or point_name}",
+                    details={
+                        "quality": quality,
+                        "source": source,
+                        "source_timestamp": source_timestamp,
+                        "received_timestamp": received_timestamp,
+                        "stale_after_seconds": stale_after_seconds,
+                        "evaluation_timestamp": timestamp,
+                    },
+                )
+                new_stale_events_count += 1
+
+    return {
+        "checked_count": checked_count,
+        "stale_count": stale_count,
+        "new_stale_events_count": new_stale_events_count,
     }
 
 

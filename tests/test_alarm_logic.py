@@ -1062,6 +1062,305 @@ class QualityAwarePointSampleTests(unittest.TestCase):
         self.assertEqual(generated_alarms, [])
 
 
+class PointHealthAuditTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        with sqlite3.connect(temp_db_path) as connection:
+            connection.execute("UPDATE alarm_rules SET delay_seconds = 0")
+        return temp_db_path
+
+    def point_health_events(self, db_path, event_type=None):
+        events = [
+            event
+            for event in backend_summary.get_alarm_events(db_path)
+            if event["event_type"].startswith("POINT_")
+        ]
+        if event_type is not None:
+            events = [
+                event
+                for event in events
+                if event["event_type"] == event_type
+            ]
+        return events
+
+    def test_ingesting_changed_quality_inserts_quality_changed_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        current_point_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="BAD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        events = self.point_health_events(temp_db_path, "POINT_QUALITY_CHANGED")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["rule_id"], None)
+        self.assertEqual(events[0]["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(events[0]["equipment_id"], "UPS-A")
+        self.assertEqual(events[0]["sample_id"], current_point_value["latest_sample_id"])
+        self.assertEqual(events[0]["previous_state"], "GOOD")
+        self.assertEqual(events[0]["new_state"], "BAD")
+        details = json.loads(events[0]["details_json"])
+        self.assertEqual(details["changed_field"], "quality")
+        self.assertEqual(details["old_value"], "GOOD")
+        self.assertEqual(details["new_value"], "BAD")
+
+    def test_ingesting_same_quality_again_does_not_duplicate_quality_change_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="BAD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "246",
+            quality="BAD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        events = self.point_health_events(temp_db_path, "POINT_QUALITY_CHANGED")
+
+        self.assertEqual(len(events), 1)
+
+    def test_changing_overridden_flag_inserts_override_changed_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            overridden=True,
+            db_path=temp_db_path,
+        )
+        events = self.point_health_events(temp_db_path, "POINT_OVERRIDE_CHANGED")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["point_id"], "UPS-A_OUTPUT_KW")
+        details = json.loads(events[0]["details_json"])
+        self.assertEqual(details["changed_field"], "overridden")
+        self.assertFalse(details["old_value"])
+        self.assertTrue(details["new_value"])
+
+    def test_changing_out_of_service_flag_inserts_out_of_service_changed_event(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            out_of_service=True,
+            db_path=temp_db_path,
+        )
+        events = self.point_health_events(temp_db_path, "POINT_OUT_OF_SERVICE_CHANGED")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["point_id"], "UPS-A_OUTPUT_KW")
+        details = json.loads(events[0]["details_json"])
+        self.assertEqual(details["changed_field"], "out_of_service")
+        self.assertFalse(details["old_value"])
+        self.assertTrue(details["new_value"])
+
+    def test_point_sample_ingest_rolls_back_when_health_event_insert_fails(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with sqlite3.connect(temp_db_path) as connection:
+            before_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            before_current_value = connection.execute(
+                """
+                SELECT value, quality, latest_sample_id
+                FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        with (
+            mock.patch.object(
+                backend_summary,
+                "insert_alarm_event",
+                side_effect=RuntimeError("point health event failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            backend_summary.update_current_point_value(
+                "UPS-A_OUTPUT_KW",
+                "245",
+                quality="BAD",
+                source="MANUAL",
+                db_path=temp_db_path,
+            )
+
+        with sqlite3.connect(temp_db_path) as connection:
+            after_sample_count = connection.execute(
+                "SELECT COUNT(*) FROM point_samples"
+            ).fetchone()[0]
+            after_current_value = connection.execute(
+                """
+                SELECT value, quality, latest_sample_id
+                FROM current_point_values
+                WHERE point_id = 'UPS-A_OUTPUT_KW'
+                """
+            ).fetchone()
+
+        self.assertEqual(after_sample_count, before_sample_count)
+        self.assertEqual(after_current_value, before_current_value)
+        self.assertEqual(self.point_health_events(temp_db_path), [])
+
+    def test_point_health_evaluation_inserts_stale_event_for_newly_stale_point(self):
+        temp_db_path = self.load_temp_sample_database()
+        current_point_value = backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            received_timestamp="2026-05-01 12:00:00",
+            stale_after_seconds=30,
+            db_path=temp_db_path,
+        )
+
+        summary = backend_summary.evaluate_point_health(
+            temp_db_path,
+            evaluation_timestamp="2026-05-01 12:01:00",
+        )
+        events = self.point_health_events(temp_db_path, "POINT_STALE")
+
+        self.assertEqual(summary["checked_count"], 17)
+        self.assertEqual(summary["stale_count"], 1)
+        self.assertEqual(summary["new_stale_events_count"], 1)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(events[0]["sample_id"], current_point_value["latest_sample_id"])
+        self.assertEqual(events[0]["previous_state"], "Not stale")
+        self.assertEqual(events[0]["new_state"], "Stale")
+        details = json.loads(events[0]["details_json"])
+        self.assertEqual(details["stale_after_seconds"], 30)
+        self.assertEqual(details["evaluation_timestamp"], "2026-05-01 12:01:00")
+
+    def test_repeated_point_health_evaluation_does_not_duplicate_stale_event(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            received_timestamp="2026-05-01 12:00:00",
+            stale_after_seconds=30,
+            db_path=temp_db_path,
+        )
+
+        first_summary = backend_summary.evaluate_point_health(
+            temp_db_path,
+            evaluation_timestamp="2026-05-01 12:01:00",
+        )
+        second_summary = backend_summary.evaluate_point_health(
+            temp_db_path,
+            evaluation_timestamp="2026-05-01 12:02:00",
+        )
+        events = self.point_health_events(temp_db_path, "POINT_STALE")
+
+        self.assertEqual(first_summary["new_stale_events_count"], 1)
+        self.assertEqual(second_summary["new_stale_events_count"], 0)
+        self.assertEqual(len(events), 1)
+
+    def test_point_health_evaluate_endpoint_returns_summary_counts(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="GOOD",
+            source="MANUAL",
+            received_timestamp="2026-05-01 12:00:00",
+            stale_after_seconds=30,
+            db_path=temp_db_path,
+        )
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "evaluate_point_health",
+                lambda: backend_summary.evaluate_point_health(
+                    temp_db_path,
+                    evaluation_timestamp="2026-05-01 12:01:00",
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/point-health/evaluate",
+                method="POST",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["checked_count"], 17)
+        self.assertEqual(data["stale_count"], 1)
+        self.assertEqual(data["new_stale_events_count"], 1)
+
+    def test_alarm_events_endpoint_returns_point_health_context(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="BAD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_alarm_events",
+                lambda: backend_summary.get_alarm_events(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-events",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(len(data["alarm_events"]), 1)
+
+        event = data["alarm_events"][0]
+        self.assertEqual(event["event_type"], "POINT_QUALITY_CHANGED")
+        self.assertEqual(event["rule_id"], None)
+        self.assertEqual(event["rule_name"], "")
+        self.assertEqual(event["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(event["point_name"], "OUTPUT_KW")
+        self.assertEqual(event["display_name"], "UPS-A Output kW")
+        self.assertEqual(event["equipment_id"], "UPS-A")
+
+    def test_generated_alarm_evaluation_does_not_create_from_bad_health_sample(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.update_current_point_value(
+            "UPS-A_OUTPUT_KW",
+            "245",
+            quality="BAD",
+            source="MANUAL",
+            db_path=temp_db_path,
+        )
+        summary = backend_summary.evaluate_generated_alarms(temp_db_path)
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(summary["created_count"], 0)
+        self.assertEqual(generated_alarms, [])
+
+
 class ManualCurrentPointValueUpdateTests(unittest.TestCase):
     def load_temp_sample_database(self):
         temp_dir = tempfile.TemporaryDirectory()
@@ -2874,6 +3173,7 @@ class GeneratedAlarmStateTests(unittest.TestCase):
         self.assertIn("triggering_value", generated_alarm_columns)
         self.assertIn("triggering_quality", generated_alarm_columns)
         self.assertEqual(alarm_event_columns["generated_alarm_id"][3], 0)
+        self.assertEqual(alarm_event_columns["rule_id"][3], 0)
 
     def test_evaluate_creates_active_alarm_for_triggered_rule(self):
         temp_db_path = self.load_temp_sample_database()
