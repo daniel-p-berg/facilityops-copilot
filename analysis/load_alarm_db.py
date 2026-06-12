@@ -49,6 +49,11 @@ POINT_COLUMNS = (
     "updated_at",
 )
 
+POINT_METADATA_MIGRATIONS = {
+    "protocol": "TEXT NOT NULL DEFAULT ''",
+    "address": "TEXT NOT NULL DEFAULT ''",
+}
+
 ALARM_RULE_COLUMNS = (
     "id",
     "point_id",
@@ -139,12 +144,31 @@ def create_point_table(connection):
             normal_max REAL,
             source_system TEXT NOT NULL,
             description TEXT NOT NULL,
+            protocol TEXT NOT NULL DEFAULT '',
+            address TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
         )
         """
     )
+    migrate_point_metadata_columns(connection)
+
+
+def migrate_point_metadata_columns(connection):
+    """Add optional static protocol/address metadata to older point tables."""
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(points)")
+    }
+    for column_name, column_definition in POINT_METADATA_MIGRATIONS.items():
+        if column_name not in columns:
+            connection.execute(
+                f"""
+                ALTER TABLE points
+                ADD COLUMN {column_name} {column_definition}
+                """
+            )
 
 
 def create_alarm_rule_table(connection):

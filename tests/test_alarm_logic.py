@@ -13,6 +13,7 @@ from analysis import load_alarm_db
 from backend.adapters.csv_replay_driver import CsvReplayDriver
 from backend.adapters.simulated_driver import SimulatedDriver
 from backend.domain import alarm_evaluator
+from backend.importers import modbus_importer
 from backend import main as backend_main
 from backend import summary as backend_summary
 from backend.services.point_ingest_service import ingest_driver_samples
@@ -339,6 +340,9 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("/drivers/simulated/read", dashboard_html)
         self.assertIn("Read CSV Replay Samples", dashboard_html)
         self.assertIn("/drivers/csv-replay/read", dashboard_html)
+        self.assertIn("Modbus Register Map Import", dashboard_html)
+        self.assertIn("/imports/modbus/preview", dashboard_html)
+        self.assertIn("/imports/modbus/commit", dashboard_html)
         self.assertNotIn("activeCriticalAlarms", dashboard_html)
         self.assertNotIn("active_critical_alarms", dashboard_html)
         self.assertNotIn("totalAlarmRecords", dashboard_html)
@@ -1664,6 +1668,254 @@ class CsvReplayDriverIngestTests(unittest.TestCase):
         self.assertEqual(len(summary["failed_samples"]), 1)
         self.assertEqual(summary["failed_samples"][0]["point_id"], "DOES-NOT-EXIST")
         self.assertIn("Point not found", summary["failed_samples"][0]["error"])
+
+
+class ModbusRegisterMapImportTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def temp_csv_path(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        return Path(temp_dir.name) / "modbus_map.csv"
+
+    def write_modbus_rows(self, rows):
+        csv_path = self.temp_csv_path()
+        write_csv_rows(csv_path, modbus_importer.REQUIRED_COLUMNS, rows)
+        return csv_path
+
+    def base_rows(self):
+        return [
+            {
+                "device_name": "PDU-MODBUS-1",
+                "slave_id": "11",
+                "function_code": "3",
+                "register_address": "40001",
+                "point_name": "LOAD_KW",
+                "data_type": "float32",
+                "scale": "0.1",
+                "unit": "kW",
+                "description": "PDU Modbus output load",
+            },
+            {
+                "device_name": "PDU-MODBUS-1",
+                "slave_id": "11",
+                "function_code": "3",
+                "register_address": "40003",
+                "point_name": "OUTPUT_VOLTAGE",
+                "data_type": "uint16",
+                "scale": "0.1",
+                "unit": "V",
+                "description": "PDU Modbus output voltage",
+            },
+        ]
+
+    def table_count(self, db_path, table_name):
+        with sqlite3.connect(db_path) as connection:
+            table_exists = connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = ?
+                """,
+                (table_name,),
+            ).fetchone()
+            if not table_exists:
+                return 0
+
+            return connection.execute(
+                f"SELECT COUNT(*) FROM {table_name}"
+            ).fetchone()[0]
+
+    def test_valid_csv_preview_succeeds(self):
+        csv_path = self.write_modbus_rows(self.base_rows())
+
+        preview = modbus_importer.preview_modbus_import(csv_path)
+
+        self.assertEqual(preview["errors"], [])
+        self.assertEqual(preview["summary"]["total_rows"], 2)
+        self.assertEqual(preview["summary"]["valid_rows"], 2)
+        self.assertEqual(preview["summary"]["would_create_point_count"], 2)
+        self.assertEqual(preview["rows"][0]["protocol"], "MODBUS")
+        self.assertEqual(
+            preview["rows"][0]["address"],
+            "slave_id=11;function_code=3;register_address=40001",
+        )
+
+    def test_preview_does_not_mutate_database(self):
+        temp_db_path = self.load_temp_sample_database()
+        before_counts = {
+            "equipment": self.table_count(temp_db_path, "equipment"),
+            "points": self.table_count(temp_db_path, "points"),
+            "point_samples": self.table_count(temp_db_path, "point_samples"),
+            "generated_alarms": self.table_count(temp_db_path, "generated_alarms"),
+            "alarm_events": self.table_count(temp_db_path, "alarm_events"),
+        }
+
+        preview = modbus_importer.preview_modbus_import(
+            modbus_importer.DEFAULT_MODBUS_IMPORT_CSV,
+            db_path=temp_db_path,
+        )
+
+        after_counts = {
+            "equipment": self.table_count(temp_db_path, "equipment"),
+            "points": self.table_count(temp_db_path, "points"),
+            "point_samples": self.table_count(temp_db_path, "point_samples"),
+            "generated_alarms": self.table_count(temp_db_path, "generated_alarms"),
+            "alarm_events": self.table_count(temp_db_path, "alarm_events"),
+        }
+        self.assertEqual(preview["errors"], [])
+        self.assertEqual(after_counts, before_counts)
+
+    def test_valid_commit_creates_equipment_and_points(self):
+        temp_db_path = self.load_temp_sample_database()
+        csv_path = self.write_modbus_rows(self.base_rows())
+
+        result = modbus_importer.commit_modbus_import(csv_path, db_path=temp_db_path)
+
+        self.assertTrue(result["committed"])
+        self.assertEqual(result["created_equipment_count"], 1)
+        self.assertEqual(result["created_point_count"], 2)
+        self.assertEqual(result["updated_point_count"], 0)
+        with sqlite3.connect(temp_db_path) as connection:
+            equipment_row = connection.execute(
+                """
+                SELECT equipment_type, source_system
+                FROM equipment
+                WHERE equipment = 'PDU-MODBUS-1'
+                """
+            ).fetchone()
+            point_rows = connection.execute(
+                """
+                SELECT id, protocol, address
+                FROM points
+                WHERE equipment_id = 'PDU-MODBUS-1'
+                ORDER BY id
+                """
+            ).fetchall()
+
+        self.assertEqual(equipment_row, ("PDU", "EPMS"))
+        self.assertEqual(len(point_rows), 2)
+        self.assertEqual(point_rows[0][1], "MODBUS")
+        self.assertEqual(
+            point_rows[0][2],
+            "slave_id=11;function_code=3;register_address=40001",
+        )
+
+    def test_commit_is_transactional(self):
+        temp_db_path = self.load_temp_sample_database()
+        csv_path = self.write_modbus_rows(self.base_rows())
+
+        with (
+            mock.patch.object(
+                modbus_importer,
+                "insert_alarm_event",
+                side_effect=RuntimeError("audit failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            modbus_importer.commit_modbus_import(csv_path, db_path=temp_db_path)
+
+        with sqlite3.connect(temp_db_path) as connection:
+            equipment_exists = connection.execute(
+                """
+                SELECT 1
+                FROM equipment
+                WHERE equipment = 'PDU-MODBUS-1'
+                """
+            ).fetchone()
+            point_count = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM points
+                WHERE equipment_id = 'PDU-MODBUS-1'
+                """
+            ).fetchone()[0]
+
+        self.assertIsNone(equipment_exists)
+        self.assertEqual(point_count, 0)
+
+    def test_missing_required_field_produces_validation_error(self):
+        rows = self.base_rows()
+        rows[0]["device_name"] = ""
+        csv_path = self.write_modbus_rows(rows)
+
+        preview = modbus_importer.preview_modbus_import(csv_path)
+
+        self.assertEqual(preview["summary"]["error_count"], 1)
+        self.assertEqual(preview["errors"][0]["field"], "device_name")
+        self.assertIn("Missing required field", preview["errors"][0]["message"])
+
+    def test_invalid_function_code_produces_validation_error(self):
+        rows = self.base_rows()
+        rows[0]["function_code"] = "9"
+        csv_path = self.write_modbus_rows(rows)
+
+        preview = modbus_importer.preview_modbus_import(csv_path)
+
+        self.assertEqual(preview["errors"][0]["field"], "function_code")
+        self.assertIn("function_code", preview["errors"][0]["message"])
+
+    def test_invalid_data_type_produces_validation_error(self):
+        rows = self.base_rows()
+        rows[0]["data_type"] = "complex64"
+        csv_path = self.write_modbus_rows(rows)
+
+        preview = modbus_importer.preview_modbus_import(csv_path)
+
+        self.assertEqual(preview["errors"][0]["field"], "data_type")
+        self.assertIn("data_type must be one of", preview["errors"][0]["message"])
+
+    def test_duplicate_modbus_address_in_csv_produces_validation_error(self):
+        rows = self.base_rows()
+        rows[1]["register_address"] = rows[0]["register_address"]
+        csv_path = self.write_modbus_rows(rows)
+
+        preview = modbus_importer.preview_modbus_import(csv_path)
+
+        self.assertEqual(preview["errors"][0]["field"], "register_address")
+        self.assertIn("Duplicate Modbus address tuple", preview["errors"][0]["message"])
+
+    def test_duplicate_point_name_in_csv_produces_validation_error(self):
+        rows = self.base_rows()
+        rows[1]["point_name"] = rows[0]["point_name"]
+        csv_path = self.write_modbus_rows(rows)
+
+        preview = modbus_importer.preview_modbus_import(csv_path)
+
+        self.assertEqual(preview["errors"][0]["field"], "point_name")
+        self.assertIn("Duplicate point_name", preview["errors"][0]["message"])
+
+    def test_commit_does_not_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+        csv_path = self.write_modbus_rows(self.base_rows())
+        before_count = self.table_count(temp_db_path, "generated_alarms")
+
+        modbus_importer.commit_modbus_import(csv_path, db_path=temp_db_path)
+
+        self.assertEqual(
+            self.table_count(temp_db_path, "generated_alarms"),
+            before_count,
+        )
+        self.assertEqual(backend_summary.get_generated_alarms(temp_db_path), [])
+
+    def test_commit_does_not_create_point_samples(self):
+        temp_db_path = self.load_temp_sample_database()
+        csv_path = self.write_modbus_rows(self.base_rows())
+        before_count = self.table_count(temp_db_path, "point_samples")
+
+        modbus_importer.commit_modbus_import(csv_path, db_path=temp_db_path)
+
+        self.assertEqual(
+            self.table_count(temp_db_path, "point_samples"),
+            before_count,
+        )
 
 
 class ManualCurrentPointValueUpdateTests(unittest.TestCase):

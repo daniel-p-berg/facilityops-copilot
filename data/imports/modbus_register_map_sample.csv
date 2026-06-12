@@ -1,0 +1,10 @@
+device_name,slave_id,function_code,register_address,point_name,data_type,scale,unit,description
+UPS-A,1,3,40001,OUTPUT_KW,float32,0.1,kW,UPS output load in kilowatts
+UPS-A,1,3,40003,BATTERY_VOLTAGE,uint16,0.1,V,UPS battery string voltage
+GEN-1,2,3,40010,FUEL_LEVEL,uint16,0.1,%,Generator day tank fuel level
+GEN-1,2,1,1,RUN_STATUS,boolean,1,,Generator running status
+ATS-1,3,3,40020,SOURCE_STATUS,enum,1,,ATS active source status where 1 is normal and 2 is emergency
+CRAH-1,4,3,40030,SUPPLY_AIR_TEMP,int16,0.1,deg F,CRAH supply air temperature
+CRAH-1,4,3,40031,RETURN_AIR_TEMP,int16,0.1,deg F,CRAH return air temperature
+TEMP-DH-A-1,5,3,40040,SPACE_TEMP,int16,0.1,deg F,Data Hall A cold aisle temperature
+HUM-DH-A-1,5,3,40041,RELATIVE_HUMIDITY,uint16,0.1,%,Data Hall A relative humidity

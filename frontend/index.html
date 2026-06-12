@@ -126,6 +126,7 @@
     }
 
     .count-list li,
+    .issue-list li,
     .alarm-row {
       display: flex;
       align-items: center;
@@ -136,8 +137,17 @@
     }
 
     .count-list li:last-child,
+    .issue-list li:last-child,
     .alarm-row:last-child {
       border-bottom: 0;
+    }
+
+    .issue-list {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
     }
 
     .label {
@@ -452,6 +462,18 @@
 
     <section class="panel catalog-section">
       <div class="section-heading">
+        <h2>Modbus Register Map Import</h2>
+        <button id="previewModbusImportButton" type="button">Preview Sample Modbus Map</button>
+      </div>
+      <div class="rule-form">
+        <button id="commitModbusImportButton" type="button" disabled>Commit Sample Modbus Map</button>
+      </div>
+      <div id="modbusImportSummary" class="note">No Modbus import preview has been run.</div>
+      <ul id="modbusImportIssues" class="issue-list"></ul>
+    </section>
+
+    <section class="panel catalog-section">
+      <div class="section-heading">
         <h2>Generated Alarms</h2>
         <button id="evaluateGeneratedAlarmsButton" type="button">Evaluate Generated Alarms</button>
       </div>
@@ -575,6 +597,8 @@
               <th>Data</th>
               <th>Normal</th>
               <th>Source</th>
+              <th>Protocol</th>
+              <th>Address</th>
               <th>Description</th>
             </tr>
           </thead>
@@ -682,6 +706,10 @@
     const readSimulatedDriverButton = document.getElementById("readSimulatedDriverButton");
     const csvReplaySequenceEl = document.getElementById("csvReplaySequence");
     const readCsvReplayButton = document.getElementById("readCsvReplayButton");
+    const previewModbusImportButton = document.getElementById("previewModbusImportButton");
+    const commitModbusImportButton = document.getElementById("commitModbusImportButton");
+    const modbusImportSummaryEl = document.getElementById("modbusImportSummary");
+    const modbusImportIssuesEl = document.getElementById("modbusImportIssues");
     const generatedAlarmRowsEl = document.getElementById("generatedAlarmRows");
     const alarmEventRowsEl = document.getElementById("alarmEventRows");
     const evaluateGeneratedAlarmsButton = document.getElementById("evaluateGeneratedAlarmsButton");
@@ -834,7 +862,7 @@
       pointRowsEl.innerHTML = "";
 
       if (points.length === 0) {
-        renderEmptyRow(pointRowsEl, 8, "No point records found.");
+        renderEmptyRow(pointRowsEl, 10, "No point records found.");
         return;
       }
 
@@ -847,9 +875,66 @@
         appendCell(row, point.data_type);
         appendCell(row, formatNormalRange(point));
         appendCell(row, point.source_system);
+        appendCell(row, point.protocol);
+        appendCell(row, point.address);
         appendCell(row, point.description);
         pointRowsEl.appendChild(row);
       });
+    }
+
+    function issueText(issue) {
+      const rowText = hasValue(issue.row_number) ? `row ${issue.row_number}` : "file";
+      const fieldText = hasValue(issue.field) ? ` ${issue.field}` : "";
+      return `${rowText}${fieldText}: ${issue.message}`;
+    }
+
+    function renderModbusImportResult(data) {
+      const summary = data.summary || {};
+      modbusImportSummaryEl.textContent = [
+        `Rows: ${displayValue(summary.total_rows, 0)}`,
+        `valid: ${displayValue(summary.valid_rows, 0)}`,
+        `errors: ${displayValue(summary.error_count, 0)}`,
+        `warnings: ${displayValue(summary.warning_count, 0)}`,
+        `create points: ${displayValue(summary.would_create_point_count, 0)}`,
+        `update points: ${displayValue(summary.would_update_point_count, 0)}`,
+        `skip points: ${displayValue(summary.would_skip_point_count, 0)}`,
+      ].join("; ");
+
+      if (data.committed) {
+        modbusImportSummaryEl.textContent += [
+          `; committed equipment: ${displayValue(data.created_equipment_count, 0)}`,
+          `created points: ${displayValue(data.created_point_count, 0)}`,
+          `updated points: ${displayValue(data.updated_point_count, 0)}`,
+          `skipped rows: ${displayValue((data.skipped_rows || []).length, 0)}`,
+        ].join("; ");
+      }
+
+      modbusImportIssuesEl.innerHTML = "";
+      const errors = data.errors || [];
+      const warnings = data.warnings || [];
+      const issues = [
+        ...errors.map((issue) => ({ ...issue, type: "Error" })),
+        ...warnings.map((issue) => ({ ...issue, type: "Warning" })),
+      ];
+      if (issues.length === 0) {
+        const item = document.createElement("li");
+        const label = document.createElement("span");
+        label.className = "label";
+        label.textContent = "No validation errors or warnings.";
+        item.appendChild(label);
+        modbusImportIssuesEl.appendChild(item);
+      } else {
+        issues.forEach((issue) => {
+          const item = document.createElement("li");
+          const label = document.createElement("span");
+          label.className = issue.type === "Error" ? "critical" : "warning";
+          label.textContent = `${issue.type}: ${issueText(issue)}`;
+          item.appendChild(label);
+          modbusImportIssuesEl.appendChild(item);
+        });
+      }
+
+      commitModbusImportButton.disabled = errors.length > 0;
     }
 
     function renderCreateAlarmRulePointOptions(points) {
@@ -1300,6 +1385,13 @@
       renderAlarmRules(data.alarm_rules);
     }
 
+    async function loadPoints() {
+      const response = await fetch("/points");
+      const data = await readJsonResponse(response, "point dictionary");
+      renderPoints(data.points);
+      renderCreateAlarmRulePointOptions(data.points);
+    }
+
     async function createAlarmRule(event) {
       event.preventDefault();
       createAlarmRuleButton.disabled = true;
@@ -1540,6 +1632,58 @@
       }
     }
 
+    async function previewModbusImport() {
+      previewModbusImportButton.disabled = true;
+      previewModbusImportButton.textContent = "Previewing...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/imports/modbus/preview", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await readJsonResponse(response, "Modbus import preview");
+        renderModbusImportResult(data);
+        statusEl.textContent = `Modbus import preview: ${data.summary.error_count} errors, ${data.summary.warning_count} warnings`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        previewModbusImportButton.disabled = false;
+        previewModbusImportButton.textContent = "Preview Sample Modbus Map";
+      }
+    }
+
+    async function commitModbusImport() {
+      commitModbusImportButton.disabled = true;
+      commitModbusImportButton.textContent = "Committing...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/imports/modbus/commit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await readJsonResponse(response, "Modbus import commit");
+        renderModbusImportResult(data);
+        await Promise.all([
+          loadPoints(),
+          loadAlarmEvents(),
+        ]);
+        statusEl.textContent = `Modbus import committed: ${data.created_point_count} points created, ${data.updated_point_count} points updated`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        commitModbusImportButton.disabled = false;
+        commitModbusImportButton.textContent = "Commit Sample Modbus Map";
+      }
+    }
+
     async function acknowledgeGeneratedAlarm(alarmId, button) {
       button.disabled = true;
       button.textContent = "Acknowledging...";
@@ -1624,6 +1768,8 @@
     evaluatePointHealthButton.addEventListener("click", evaluatePointHealth);
     readSimulatedDriverButton.addEventListener("click", readSimulatedDriverSamples);
     readCsvReplayButton.addEventListener("click", readCsvReplaySamples);
+    previewModbusImportButton.addEventListener("click", previewModbusImport);
+    commitModbusImportButton.addEventListener("click", commitModbusImport);
     createAlarmRuleFormEl.addEventListener("submit", createAlarmRule);
     createRuleTypeEl.addEventListener("change", () => {
       populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);

@@ -7,6 +7,9 @@ from fastapi.responses import JSONResponse
 
 from backend.adapters.csv_replay_driver import CsvReplayDriver
 from backend.adapters.simulated_driver import SimulatedDriver
+from backend.importers.modbus_importer import commit_modbus_import
+from backend.importers.modbus_importer import DEFAULT_MODBUS_IMPORT_CSV
+from backend.importers.modbus_importer import preview_modbus_import
 from backend.summary import acknowledge_generated_alarm
 from backend.summary import apply_scenario
 from backend.summary import create_alarm_rule
@@ -32,6 +35,7 @@ from backend.services.point_ingest_service import ingest_driver_samples
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_FILE = PROJECT_ROOT / "frontend" / "index.html"
 REPLAY_SAMPLE_FILE = PROJECT_ROOT / "data" / "replay_samples.csv"
+MODBUS_IMPORT_SAMPLE_FILE = DEFAULT_MODBUS_IMPORT_CSV
 
 app = FastAPI(title="FacilityOps Copilot API")
 
@@ -261,6 +265,48 @@ def read_csv_replay_driver_samples(payload: dict | None = Body(default=None)):
         "samples_ingested": summary["samples_ingested"],
         "failed_samples": summary["failed_samples"],
     }
+
+
+@app.post("/imports/modbus/preview")
+def preview_modbus_register_map(payload: dict | None = Body(default=None)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    payload = payload or {}
+    if not isinstance(payload, dict):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Modbus import preview body must be an object"},
+        )
+
+    return preview_modbus_import(
+        payload.get("csv_path", MODBUS_IMPORT_SAMPLE_FILE),
+        db_path=DATABASE_FILE,
+    )
+
+
+@app.post("/imports/modbus/commit")
+def commit_modbus_register_map(payload: dict | None = Body(default=None)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    payload = payload or {}
+    if not isinstance(payload, dict):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Modbus import commit body must be an object"},
+        )
+
+    result = commit_modbus_import(
+        payload.get("csv_path", MODBUS_IMPORT_SAMPLE_FILE),
+        db_path=DATABASE_FILE,
+    )
+    if not result["committed"]:
+        return JSONResponse(status_code=400, content=result)
+
+    return result
 
 
 @app.post("/generated-alarms/{alarm_id}/acknowledge")

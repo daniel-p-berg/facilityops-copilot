@@ -146,6 +146,10 @@ ALARM_SCENARIOS = {
         ],
     },
 }
+POINT_METADATA_MIGRATIONS = {
+    "protocol": "TEXT NOT NULL DEFAULT ''",
+    "address": "TEXT NOT NULL DEFAULT ''",
+}
 
 
 def current_timestamp():
@@ -585,6 +589,33 @@ def ensure_point_sample_table(connection):
     )
 
 
+def ensure_point_metadata_columns(connection):
+    """Add optional static protocol/address metadata to older point tables."""
+    table_exists = connection.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = 'points'
+        """
+    ).fetchone()
+    if not table_exists:
+        return
+
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(points)")
+    }
+    for column_name, column_definition in POINT_METADATA_MIGRATIONS.items():
+        if column_name not in columns:
+            connection.execute(
+                f"""
+                ALTER TABLE points
+                ADD COLUMN {column_name} {column_definition}
+                """
+            )
+
+
 def current_point_value_id(point_id):
     """Create a stable current point value id for a point."""
     return f"CPV-{point_id}"
@@ -725,6 +756,7 @@ def parse_boolean_flag(value, field_name):
 def get_point_dictionary(db_path=DATABASE_FILE):
     """Return point catalog records with equipment context."""
     with sqlite3.connect(db_path) as connection:
+        ensure_point_metadata_columns(connection)
         cursor = connection.execute(
             """
             SELECT
@@ -741,7 +773,9 @@ def get_point_dictionary(db_path=DATABASE_FILE):
                 points.normal_min,
                 points.normal_max,
                 points.source_system,
-                points.description
+                points.description,
+                points.protocol,
+                points.address
             FROM points
             LEFT JOIN equipment
                 ON points.equipment_id = equipment.equipment
@@ -764,6 +798,8 @@ def get_point_dictionary(db_path=DATABASE_FILE):
                 "normal_max": normal_max,
                 "source_system": source_system,
                 "description": description,
+                "protocol": protocol,
+                "address": address,
             }
             for (
                 point_id,
@@ -780,6 +816,8 @@ def get_point_dictionary(db_path=DATABASE_FILE):
                 normal_max,
                 source_system,
                 description,
+                protocol,
+                address,
             ) in cursor.fetchall()
         ]
 
