@@ -1308,6 +1308,345 @@ class AlarmRuleEditingTests(unittest.TestCase):
         self.assertEqual(generated_alarms, [])
 
 
+class AlarmRuleCreationTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path
+
+    def base_payload(self, **overrides):
+        payload = {
+            "id": "RULE-TEST-UPS-HIGH-LOAD",
+            "point_id": "UPS-A_OUTPUT_KW",
+            "rule_name": "Test UPS high load",
+            "rule_type": "analog_limit",
+            "operator": ">",
+            "threshold_value": "200",
+            "clear_value": "180",
+            "delay_seconds": "0",
+            "severity": "Warning",
+            "alarm_message": "UPS-A load is above the test limit",
+            "enabled": True,
+        }
+        payload.update(overrides)
+        return payload
+
+    def rules_by_id(self, db_path):
+        return {
+            rule["id"]: rule
+            for rule in backend_summary.get_alarm_rule_catalog(db_path)
+        }
+
+    def evaluations_by_rule_id(self, db_path):
+        return {
+            evaluation["id"]: evaluation
+            for evaluation in backend_summary.get_rule_evaluations(db_path)
+        }
+
+    def test_creating_analog_limit_rule_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.create_alarm_rule(
+            self.base_payload(),
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["id"], "RULE-TEST-UPS-HIGH-LOAD")
+        self.assertEqual(alarm_rule["rule_type"], "analog_limit")
+        self.assertEqual(alarm_rule["operator"], ">")
+        self.assertEqual(alarm_rule["threshold_value"], "200")
+        self.assertEqual(alarm_rule["clear_value"], "180")
+        self.assertEqual(alarm_rule["delay_seconds"], 0)
+        self.assertTrue(alarm_rule["enabled"])
+        self.assertEqual(alarm_rule["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(alarm_rule["equipment_id"], "UPS-A")
+
+    def test_creating_boolean_state_rule_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.create_alarm_rule(
+            self.base_payload(
+                id="RULE-TEST-PUMP-STOPPED",
+                point_id="CHW-P-1_RUN_STATUS",
+                rule_name="Test pump stopped",
+                rule_type="boolean_state",
+                operator="==",
+                threshold_value="false",
+                clear_value="true",
+                severity="Critical",
+                alarm_message="CHW-P-1 is not running",
+                enabled="yes",
+            ),
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["id"], "RULE-TEST-PUMP-STOPPED")
+        self.assertEqual(alarm_rule["rule_type"], "boolean_state")
+        self.assertEqual(alarm_rule["operator"], "==")
+        self.assertEqual(alarm_rule["threshold_value"], "false")
+        self.assertEqual(alarm_rule["clear_value"], "true")
+        self.assertEqual(alarm_rule["equipment_id"], "CHW-P-1")
+        self.assertTrue(alarm_rule["enabled"])
+
+    def test_creating_enum_match_rule_works(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        alarm_rule = backend_summary.create_alarm_rule(
+            self.base_payload(
+                id="RULE-TEST-UPS-BATTERY",
+                point_id="UPS-A_BATTERY_STATUS",
+                rule_name="Test UPS battery",
+                rule_type="enum_match",
+                operator="==",
+                threshold_value="On Battery",
+                clear_value="Normal",
+                severity="Critical",
+                alarm_message="UPS-A is on battery",
+                enabled="1",
+            ),
+            db_path=temp_db_path,
+        )
+
+        self.assertEqual(alarm_rule["id"], "RULE-TEST-UPS-BATTERY")
+        self.assertEqual(alarm_rule["rule_type"], "enum_match")
+        self.assertEqual(alarm_rule["threshold_value"], "On Battery")
+        self.assertEqual(alarm_rule["point_id"], "UPS-A_BATTERY_STATUS")
+        self.assertEqual(alarm_rule["equipment_id"], "UPS-A")
+
+    def test_duplicate_rule_id_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.create_alarm_rule(
+                self.base_payload(id="RULE-UPS-A-HIGH-LOAD"),
+                db_path=temp_db_path,
+            )
+
+    def test_invalid_point_id_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(LookupError):
+            backend_summary.create_alarm_rule(
+                self.base_payload(point_id="DOES_NOT_EXIST"),
+                db_path=temp_db_path,
+            )
+
+    def test_invalid_rule_type_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.create_alarm_rule(
+                self.base_payload(rule_type="rate_of_change"),
+                db_path=temp_db_path,
+            )
+
+    def test_invalid_operator_for_rule_type_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.create_alarm_rule(
+                self.base_payload(
+                    rule_type="boolean_state",
+                    operator=">",
+                    threshold_value="false",
+                ),
+                db_path=temp_db_path,
+            )
+
+    def test_invalid_severity_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.create_alarm_rule(
+                self.base_payload(severity="Emergency"),
+                db_path=temp_db_path,
+            )
+
+    def test_invalid_delay_seconds_returns_error(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with self.assertRaises(ValueError):
+            backend_summary.create_alarm_rule(
+                self.base_payload(delay_seconds="-1"),
+                db_path=temp_db_path,
+            )
+
+    def test_create_alarm_rule_endpoint_returns_context(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "create_alarm_rule",
+                lambda payload: backend_summary.create_alarm_rule(
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules",
+                method="POST",
+                body=self.base_payload(),
+            )
+
+        self.assertEqual(status, 200)
+        alarm_rule = data["alarm_rule"]
+        self.assertEqual(alarm_rule["id"], "RULE-TEST-UPS-HIGH-LOAD")
+        self.assertEqual(alarm_rule["point_id"], "UPS-A_OUTPUT_KW")
+        self.assertEqual(alarm_rule["point_name"], "OUTPUT_KW")
+        self.assertEqual(alarm_rule["equipment_id"], "UPS-A")
+
+    def test_create_alarm_rule_endpoint_returns_error_for_duplicate_id(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "create_alarm_rule",
+                lambda payload: backend_summary.create_alarm_rule(
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules",
+                method="POST",
+                body=self.base_payload(id="RULE-UPS-A-HIGH-LOAD"),
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("Alarm rule already exists", data["error"])
+
+    def test_create_alarm_rule_endpoint_returns_error_for_invalid_point_id(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "create_alarm_rule",
+                lambda payload: backend_summary.create_alarm_rule(
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules",
+                method="POST",
+                body=self.base_payload(point_id="DOES_NOT_EXIST"),
+            )
+
+        self.assertEqual(status, 404)
+        self.assertIn("Point not found", data["error"])
+
+    def test_create_alarm_rule_endpoint_returns_error_for_invalid_operator(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "create_alarm_rule",
+                lambda payload: backend_summary.create_alarm_rule(
+                    payload,
+                    db_path=temp_db_path,
+                ),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules",
+                method="POST",
+                body=self.base_payload(rule_type="enum_match", operator=">"),
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("operator for enum_match must be one of", data["error"])
+
+    def test_created_rule_appears_in_alarm_rules_and_rule_evaluations(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.create_alarm_rule(
+            self.base_payload(threshold_value="180"),
+            db_path=temp_db_path,
+        )
+
+        rules_by_id = self.rules_by_id(temp_db_path)
+        evaluations_by_rule_id = self.evaluations_by_rule_id(temp_db_path)
+
+        self.assertIn("RULE-TEST-UPS-HIGH-LOAD", rules_by_id)
+        self.assertIn("RULE-TEST-UPS-HIGH-LOAD", evaluations_by_rule_id)
+        self.assertTrue(evaluations_by_rule_id["RULE-TEST-UPS-HIGH-LOAD"]["is_triggered"])
+        self.assertEqual(
+            evaluations_by_rule_id["RULE-TEST-UPS-HIGH-LOAD"]["equipment_id"],
+            "UPS-A",
+        )
+
+    def test_created_rule_appears_in_get_endpoints(self):
+        temp_db_path = self.load_temp_sample_database()
+        backend_summary.create_alarm_rule(
+            self.base_payload(threshold_value="180"),
+            db_path=temp_db_path,
+        )
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_alarm_rule_catalog",
+                lambda: backend_summary.get_alarm_rule_catalog(temp_db_path),
+            ),
+            mock.patch.object(
+                backend_main,
+                "get_rule_evaluations",
+                lambda: backend_summary.get_rule_evaluations(temp_db_path),
+            ),
+        ):
+            rules_status, rules_data = get_json_from_asgi_app(
+                backend_main.app,
+                "/alarm-rules",
+            )
+            evaluations_status, evaluations_data = get_json_from_asgi_app(
+                backend_main.app,
+                "/rule-evaluations",
+            )
+
+        rule_ids = {
+            rule["id"]
+            for rule in rules_data["alarm_rules"]
+        }
+        evaluation_ids = {
+            evaluation["id"]
+            for evaluation in evaluations_data["rule_evaluations"]
+        }
+
+        self.assertEqual(rules_status, 200)
+        self.assertEqual(evaluations_status, 200)
+        self.assertIn("RULE-TEST-UPS-HIGH-LOAD", rule_ids)
+        self.assertIn("RULE-TEST-UPS-HIGH-LOAD", evaluation_ids)
+
+    def test_creating_rule_does_not_create_generated_alarms(self):
+        temp_db_path = self.load_temp_sample_database()
+
+        backend_summary.create_alarm_rule(
+            self.base_payload(threshold_value="180"),
+            db_path=temp_db_path,
+        )
+        generated_alarms = backend_summary.get_generated_alarms(temp_db_path)
+
+        self.assertEqual(generated_alarms, [])
+
+
 class AlarmScenarioTests(unittest.TestCase):
     def load_temp_sample_database(self):
         temp_dir = tempfile.TemporaryDirectory()

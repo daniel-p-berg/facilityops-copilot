@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from backend.summary import acknowledge_generated_alarm
 from backend.summary import apply_scenario
+from backend.summary import create_alarm_rule
 from backend.summary import DATABASE_DISPLAY_PATH
 from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
@@ -76,6 +77,28 @@ def read_alarm_rules():
         return error_response
 
     return {"alarm_rules": get_alarm_rule_catalog()}
+
+
+@app.post("/alarm-rules")
+def create_alarm_rule_state(payload: dict = Body(...)):
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    try:
+        alarm_rule = create_alarm_rule(payload)
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
+    except ValueError as error:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(error)},
+        )
+
+    return {"alarm_rule": alarm_rule}
 
 
 @app.put("/alarm-rules/{rule_id}")

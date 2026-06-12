@@ -336,6 +336,32 @@
       width: 22rem;
     }
 
+    .rule-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+
+    .rule-form label {
+      color: var(--muted);
+      display: grid;
+      font-size: 0.78rem;
+      font-weight: 700;
+      gap: 4px;
+      text-transform: uppercase;
+    }
+
+    .rule-form input,
+    .rule-form select {
+      width: 100%;
+    }
+
+    .rule-form .wide-field {
+      grid-column: span 2;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -507,6 +533,64 @@
 
     <section class="panel catalog-section">
       <h2>Alarm Rule Catalog</h2>
+      <form id="createAlarmRuleForm" class="rule-form">
+        <label>
+          Rule ID
+          <input id="createRuleId" type="text" required>
+        </label>
+        <label>
+          Rule Name
+          <input id="createRuleName" type="text" required>
+        </label>
+        <label>
+          Point
+          <select id="createRulePointId" required></select>
+        </label>
+        <label>
+          Rule Type
+          <select id="createRuleType" required>
+            <option value="analog_limit">analog_limit</option>
+            <option value="boolean_state">boolean_state</option>
+            <option value="enum_match">enum_match</option>
+          </select>
+        </label>
+        <label>
+          Operator
+          <select id="createRuleOperator" required></select>
+        </label>
+        <label>
+          Threshold
+          <input id="createRuleThreshold" type="text">
+        </label>
+        <label>
+          Clear
+          <input id="createRuleClear" type="text">
+        </label>
+        <label>
+          Delay Seconds
+          <input id="createRuleDelay" type="text" value="0">
+        </label>
+        <label>
+          Severity
+          <select id="createRuleSeverity" required>
+            <option value="Critical">Critical</option>
+            <option value="Warning" selected>Warning</option>
+            <option value="Info">Info</option>
+          </select>
+        </label>
+        <label>
+          Enabled
+          <select id="createRuleEnabled" required>
+            <option value="true" selected>Yes</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+        <label class="wide-field">
+          Alarm Message
+          <input id="createRuleMessage" type="text" required>
+        </label>
+        <button id="createAlarmRuleButton" type="submit">Create Alarm Rule</button>
+      </form>
       <div class="table-wrap">
         <table>
           <thead>
@@ -549,6 +633,19 @@
     const ruleEvaluationRowsEl = document.getElementById("ruleEvaluationRows");
     const pointRowsEl = document.getElementById("pointRows");
     const alarmRuleRowsEl = document.getElementById("alarmRuleRows");
+    const createAlarmRuleFormEl = document.getElementById("createAlarmRuleForm");
+    const createAlarmRuleButton = document.getElementById("createAlarmRuleButton");
+    const createRuleIdEl = document.getElementById("createRuleId");
+    const createRuleNameEl = document.getElementById("createRuleName");
+    const createRulePointIdEl = document.getElementById("createRulePointId");
+    const createRuleTypeEl = document.getElementById("createRuleType");
+    const createRuleOperatorEl = document.getElementById("createRuleOperator");
+    const createRuleThresholdEl = document.getElementById("createRuleThreshold");
+    const createRuleClearEl = document.getElementById("createRuleClear");
+    const createRuleDelayEl = document.getElementById("createRuleDelay");
+    const createRuleSeverityEl = document.getElementById("createRuleSeverity");
+    const createRuleEnabledEl = document.getElementById("createRuleEnabled");
+    const createRuleMessageEl = document.getElementById("createRuleMessage");
 
     function setError(message) {
       errorEl.textContent = message;
@@ -698,6 +795,19 @@
       });
     }
 
+    function renderCreateAlarmRulePointOptions(points) {
+      const selectedPointId = createRulePointIdEl.value;
+      createRulePointIdEl.innerHTML = "";
+
+      points.forEach((point) => {
+        const option = document.createElement("option");
+        option.value = point.id;
+        option.textContent = `${point.equipment_id} - ${point.display_name}`;
+        option.selected = selectedPointId === point.id;
+        createRulePointIdEl.appendChild(option);
+      });
+    }
+
     function qualityClass(quality) {
       const normalizedQuality = displayValue(quality, "").toLowerCase();
 
@@ -728,6 +838,27 @@
       });
 
       return select;
+    }
+
+    function operatorValuesForRuleType(ruleType) {
+      if (ruleType === "analog_limit") {
+        return [">", ">=", "<", "<="];
+      }
+
+      return ["==", "!="];
+    }
+
+    function populateOperatorSelect(select, ruleType) {
+      const selectedOperator = select.value;
+      select.innerHTML = "";
+
+      operatorValuesForRuleType(ruleType).forEach((operator) => {
+        const option = document.createElement("option");
+        option.value = operator;
+        option.textContent = operator;
+        option.selected = selectedOperator === operator;
+        select.appendChild(option);
+      });
     }
 
     function createValueInput(value, className = "value-input") {
@@ -1061,6 +1192,50 @@
       renderAlarmRules(data.alarm_rules);
     }
 
+    async function createAlarmRule(event) {
+      event.preventDefault();
+      createAlarmRuleButton.disabled = true;
+      createAlarmRuleButton.textContent = "Creating...";
+      errorEl.hidden = true;
+
+      try {
+        const response = await fetch("/alarm-rules", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: createRuleIdEl.value,
+            point_id: createRulePointIdEl.value,
+            rule_name: createRuleNameEl.value,
+            rule_type: createRuleTypeEl.value,
+            operator: createRuleOperatorEl.value,
+            threshold_value: createRuleThresholdEl.value,
+            clear_value: createRuleClearEl.value,
+            delay_seconds: createRuleDelayEl.value,
+            severity: createRuleSeverityEl.value,
+            enabled: createRuleEnabledEl.value === "true",
+            alarm_message: createRuleMessageEl.value,
+          }),
+        });
+        const data = await readJsonResponse(response, "alarm rule creation");
+        createAlarmRuleFormEl.reset();
+        populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
+        await Promise.all([
+          loadSummary(),
+          loadAlarmRules(),
+          loadRuleEvaluations(),
+          loadGeneratedAlarms(),
+        ]);
+        statusEl.textContent = `${data.alarm_rule.id} created. Generated alarms were not evaluated.`;
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        createAlarmRuleButton.disabled = false;
+        createAlarmRuleButton.textContent = "Create Alarm Rule";
+      }
+    }
+
     async function updateAlarmRule(ruleId, values, button) {
       button.disabled = true;
       button.textContent = "Updating...";
@@ -1239,6 +1414,7 @@
         renderCurrentPointValues(currentPointValuesData.current_point_values);
         renderRuleEvaluations(ruleEvaluationsData.rule_evaluations);
         renderPoints(pointsData.points);
+        renderCreateAlarmRulePointOptions(pointsData.points);
         renderAlarmRules(alarmRulesData.alarm_rules);
         statusEl.textContent = "Workbench loaded from local API";
       } catch (error) {
@@ -1247,6 +1423,11 @@
     }
 
     evaluateGeneratedAlarmsButton.addEventListener("click", evaluateGeneratedAlarms);
+    createAlarmRuleFormEl.addEventListener("submit", createAlarmRule);
+    createRuleTypeEl.addEventListener("change", () => {
+      populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
+    });
+    populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
     loadWorkbench();
   </script>
 </body>

@@ -16,6 +16,12 @@ ANALOG_OPERATORS = {">", ">=", "<", "<="}
 MATCH_OPERATORS = {"==", "!="}
 TRUE_VALUES = {"true", "1", "yes", "on"}
 FALSE_VALUES = {"false", "0", "no", "off"}
+ALLOWED_ALARM_RULE_TYPES = {"analog_limit", "boolean_state", "enum_match"}
+ALARM_RULE_OPERATORS_BY_TYPE = {
+    "analog_limit": ANALOG_OPERATORS,
+    "boolean_state": MATCH_OPERATORS,
+    "enum_match": MATCH_OPERATORS,
+}
 ALLOWED_ALARM_RULE_SEVERITIES = {"Critical", "Warning", "Info"}
 EDITABLE_ALARM_RULE_FIELDS = {
     "threshold_value",
@@ -406,6 +412,27 @@ def normalize_alarm_rule_severity(value):
     return severity_by_name[normalized_value]
 
 
+def normalize_alarm_rule_type(value):
+    """Normalize and validate an alarm rule type."""
+    normalized_value = normalize_text(value).lower()
+    if normalized_value not in ALLOWED_ALARM_RULE_TYPES:
+        allowed_values = ", ".join(sorted(ALLOWED_ALARM_RULE_TYPES))
+        raise ValueError(f"rule_type must be one of: {allowed_values}")
+
+    return normalized_value
+
+
+def validate_alarm_rule_operator(rule_type, operator):
+    """Validate that an operator is supported for an alarm rule type."""
+    normalized_operator = normalize_text(operator)
+    allowed_operators = ALARM_RULE_OPERATORS_BY_TYPE[rule_type]
+    if normalized_operator not in allowed_operators:
+        allowed_values = ", ".join(sorted(allowed_operators))
+        raise ValueError(f"operator for {rule_type} must be one of: {allowed_values}")
+
+    return normalized_operator
+
+
 def parse_enabled_flag(value):
     """Parse an enabled flag into a predictable SQLite integer."""
     if isinstance(value, bool):
@@ -710,6 +737,112 @@ def get_alarm_rule(rule_id, db_path=DATABASE_FILE):
             return rule
 
     return None
+
+
+def require_alarm_rule_fields(payload, required_fields):
+    """Validate that a request body includes non-blank required rule fields."""
+    missing_fields = [
+        field
+        for field in required_fields
+        if field not in payload or not has_value(payload[field])
+    ]
+    if missing_fields:
+        field_list = ", ".join(missing_fields)
+        raise ValueError(f"Missing required alarm rule field(s): {field_list}")
+
+
+def create_alarm_rule(payload, db_path=DATABASE_FILE):
+    """Create an alarm rule for an existing point and return its enriched record."""
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        raise ValueError("alarm rule create body must be an object")
+
+    required_fields = {
+        "id",
+        "point_id",
+        "rule_name",
+        "rule_type",
+        "operator",
+        "severity",
+        "alarm_message",
+        "enabled",
+    }
+    allowed_fields = required_fields | {
+        "threshold_value",
+        "clear_value",
+        "delay_seconds",
+    }
+    unsupported_fields = sorted(set(payload) - allowed_fields)
+    if unsupported_fields:
+        field_list = ", ".join(unsupported_fields)
+        raise ValueError(f"Unsupported alarm rule field(s): {field_list}")
+    require_alarm_rule_fields(payload, required_fields)
+
+    rule_id = normalize_text(payload["id"])
+    point_id = normalize_text(payload["point_id"])
+    rule_name = normalize_text(payload["rule_name"])
+    rule_type = normalize_alarm_rule_type(payload["rule_type"])
+    operator = validate_alarm_rule_operator(rule_type, payload["operator"])
+    severity = normalize_alarm_rule_severity(payload["severity"])
+    alarm_message = normalize_text(payload["alarm_message"])
+    enabled = parse_enabled_flag(payload["enabled"])
+    threshold_value = normalize_optional_catalog_text(payload.get("threshold_value", ""))
+    clear_value = normalize_optional_catalog_text(payload.get("clear_value", ""))
+    delay_seconds = parse_non_negative_delay_seconds(payload.get("delay_seconds", 0))
+    timestamp = current_timestamp()
+
+    with sqlite3.connect(db_path) as connection:
+        existing_rule = connection.execute(
+            """
+            SELECT 1
+            FROM alarm_rules
+            WHERE id = ?
+            """,
+            (rule_id,),
+        ).fetchone()
+        if existing_rule:
+            raise ValueError(f"Alarm rule already exists: {rule_id}")
+        if not point_exists(connection, point_id):
+            raise LookupError(f"Point not found: {point_id}")
+
+        connection.execute(
+            """
+            INSERT INTO alarm_rules (
+                id,
+                point_id,
+                rule_name,
+                rule_type,
+                operator,
+                threshold_value,
+                clear_value,
+                severity,
+                alarm_message,
+                enabled,
+                delay_seconds,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                rule_id,
+                point_id,
+                rule_name,
+                rule_type,
+                operator,
+                threshold_value,
+                clear_value,
+                severity,
+                alarm_message,
+                enabled,
+                delay_seconds,
+                timestamp,
+                timestamp,
+            ),
+        )
+
+    return get_alarm_rule(rule_id, db_path)
 
 
 def update_alarm_rule(rule_id, updates, db_path=DATABASE_FILE):
