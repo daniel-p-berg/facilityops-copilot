@@ -80,6 +80,16 @@ REQUIRED_CURRENT_POINT_VALUES = {
 
 
 def get_json_from_asgi_app(app, path, method="GET", body=None):
+    status, _headers, response_body = get_response_from_asgi_app(
+        app,
+        path,
+        method=method,
+        body=body,
+    )
+    return status, json.loads(response_body.decode("utf-8"))
+
+
+def get_response_from_asgi_app(app, path, method="GET", body=None):
     async def make_request():
         messages = []
         request_sent = False
@@ -136,7 +146,11 @@ def get_json_from_asgi_app(app, path, method="GET", body=None):
             for message in messages
             if message["type"] == "http.response.body"
         )
-        return response_start["status"], json.loads(response_body.decode("utf-8"))
+        response_headers = {
+            key.decode("latin-1"): value.decode("latin-1")
+            for key, value in response_start.get("headers", [])
+        }
+        return response_start["status"], response_headers, response_body
 
     return asyncio.run(make_request())
 
@@ -357,6 +371,19 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertNotIn("totalAlarmRecords", dashboard_html)
         self.assertNotIn("total_alarm_records", dashboard_html)
         self.assertNotIn("sourceCounts", dashboard_html)
+
+
+class DashboardRouteTests(unittest.TestCase):
+    def test_root_and_dashboard_routes_return_dashboard_html(self):
+        for path in ("/", "/dashboard"):
+            status, headers, body = get_response_from_asgi_app(backend_main.app, path)
+            body_text = body.decode("utf-8")
+
+            self.assertEqual(status, 200)
+            self.assertIn("text/html", headers.get("content-type", ""))
+            self.assertIn("FacilityOps Workbench", body_text)
+            self.assertIn("/summary", body_text)
+            self.assertIn("/replay/csv/step", body_text)
 
 
 class PointAndAlarmRuleCatalogTests(unittest.TestCase):

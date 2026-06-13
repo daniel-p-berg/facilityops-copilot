@@ -426,6 +426,15 @@ def apply_alarm_scenario(scenario_id: str):
         )
 
 
+def dashboard_response():
+    return FileResponse(FRONTEND_FILE)
+
+
+@app.get("/")
+def read_root_dashboard():
+    return dashboard_response()
+
+
 @app.get("/dashboard")
 def read_dashboard():
-    return FileResponse(FRONTEND_FILE)
+    return dashboard_response()
