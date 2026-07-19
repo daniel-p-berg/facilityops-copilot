@@ -1,57 +1,34 @@
-# AGENTS.md
+# FacilityOps Copilot Repository Instructions
 
-This repository is for FacilityOps Copilot, a simulated BMS/EPMS monitoring stack for mission-critical facility operations.
+Before planning or changing the product, read:
 
-## Project Purpose
+- [`docs/PRODUCT_CHARTER.md`](docs/PRODUCT_CHARTER.md) for the approved product direction and boundaries.
+- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) for verified current behavior and gaps.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) for approved milestone order and scope.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the implemented and planned architecture.
+- [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) before planning or changing facility topology, facility-domain behavior, pressure relationships, operating modes, or scenario content.
+- [`docs/decisions/README.md`](docs/decisions/README.md) and all relevant accepted ADRs before making architectural or domain-model decisions.
 
-The goal is to demonstrate how a building controls technician can use AI-assisted development to understand and work across the full stack: sample facility data, database storage, backend APIs, dashboards, and AI-generated operational analysis.
+Work on one user-approved roadmap slice at a time. If a slice depends on an unresolved architectural decision, first draft a proposed ADR and stop for explicit approval before implementing that decision. Stop and ask for direction if a request conflicts with the product charter. Do not change the product charter, or reorder, remove, or materially expand major roadmap milestones, without explicit user approval.
 
-## Domain Context
+## Safety and data
 
-BMS means building management system, such as Niagara, Schneider EcoStruxure, or similar platforms.
+- Never command, configure, or write back to an external BAS, EPMS, PLC, SCADA, DCIM, or physical facility system.
+- Local laboratory writes are allowed when they support import, replay, simulation, scenarios, alarm evaluation, acknowledgements, audit, testing, or local configuration.
+- Use fictional, synthetic, sanitized, non-sensitive, or explicitly authorized read-only data only.
+- Never commit credentials, customer data, proprietary exports, real facility network information, or confidential configurations.
+- Treat alarm priority, point condition, operational risk, advisory classification, and incident severity as separate concerns until an approved architecture decision resolves their vocabularies.
 
-EPMS means electrical power monitoring system.
+## Engineering
 
-The project uses simulated data only. Do not use real customer data, real IP addresses, real credentials, proprietary exports, or vendor-specific confidential information.
+- Preserve the implemented Northstar Data Hall fixture and its regression behavior.
+- Keep authoritative state and acceptance determinations deterministic. AI may advise in the future but must not own alarm, equipment, system, facility, consequence, or functional-test decisions.
+- Prefer readable Python and straightforward designs over clever abstractions.
+- Use SQLite, FastAPI, and the minimal frontend consistently with the current architecture unless an approved roadmap slice changes that direction.
+- Add deterministic tests for behavior changes and verify in proportion to risk.
+- Update relevant documentation and `docs/PROJECT_STATUS.md` whenever verified behavior changes.
+- Do not claim planned or unverified behavior as implemented.
 
-## Equipment Types
+## Reporting
 
-Use realistic mission-critical facility equipment, including:
-
-- UPS
-- Generator
-- ATS
-- PDU
-- CRAC
-- AHU
-- Chilled water pump
-- Temperature sensor
-- Humidity sensor
-- Electrical meter
-
-## Alarm Severity
-
-Use these alarm severity levels:
-
-- Critical
-- High
-- Medium
-- Low
-
-Critical alarms should be highlighted in summaries and reports.
-
-## Coding Preferences
-
-- Keep the code readable.
-- Prefer simple Python before clever abstractions.
-- Use SQLite for local database work.
-- Use FastAPI for the backend.
-- Use plain HTML or a minimal frontend at first.
-- Add tests for analysis logic.
-- Update documentation when behavior changes.
-
-## Reporting Style
-
-Reports should be written for facilities operations personnel, not software engineers.
-
-The system should explain what happened, what equipment was affected, what the likely operational concern is, and what follow-up action an operator or technician should consider.
+Write operational output for facilities personnel. Explain what happened, affected equipment and systems, operational consequences, supporting evidence, uncertainty, and the follow-up an operator or technician should consider. Highlight urgent conditions without assuming the unresolved severity architecture has been settled.
