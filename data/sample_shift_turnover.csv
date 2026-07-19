@@ -1,0 +1,2 @@
+id,shift_date,shift_name,outgoing_operator,incoming_operator,facility_state,watch_items,open_actions,turnover_risk
+SHIFT-20260501-DAY,2026-05-01,Day to Swing,operator-a,operator-b,Data Hall A stable on utility watch with UPS-A recovered and CRAC-2 cooling trend improving,"Verify ATS-1 normal source stability; track GEN-1 fuel vendor ETA; confirm CRAC-2 supply temperature below 64 deg F","CA-FUEL-001 and CA-CRAC-001 remain open",Medium

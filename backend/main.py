@@ -18,15 +18,24 @@ from backend.summary import DATABASE_FILE
 from backend.summary import LOADER_COMMAND
 from backend.summary import evaluate_generated_alarms
 from backend.summary import evaluate_point_health
+from backend.summary import get_alarm_correlations
 from backend.summary import get_alarm_rule_catalog
 from backend.summary import get_alarm_summary
 from backend.summary import get_current_point_values
+from backend.summary import get_corrective_actions
 from backend.summary import get_equipment_inventory
+from backend.summary import get_equipment_out_of_service_records
 from backend.summary import get_alarm_events
+from backend.summary import get_facility_scenarios
 from backend.summary import get_generated_alarms
+from backend.summary import get_incident_timeline
+from backend.summary import get_operations_overview
 from backend.summary import get_point_dictionary
+from backend.summary import get_procedure_references
+from backend.summary import get_reliability_reports
 from backend.summary import get_rule_evaluations
 from backend.summary import get_scenarios
+from backend.summary import get_shift_turnover_notes
 from backend.summary import update_alarm_rule
 from backend.summary import update_current_point_value
 from backend.services.csv_replay_runner import run_all_csv_replay_steps
@@ -72,6 +81,89 @@ def read_equipment():
         return error_response
 
     return {"equipment": get_equipment_inventory()}
+
+
+@app.get("/operations/overview")
+def read_operations_overview():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return get_operations_overview()
+
+
+@app.get("/facility-scenarios")
+def read_facility_scenarios():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"facility_scenarios": get_facility_scenarios()}
+
+
+@app.get("/alarm-correlations")
+def read_alarm_correlations():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"alarm_correlations": get_alarm_correlations()}
+
+
+@app.get("/incident-timeline")
+def read_incident_timeline():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"incident_timeline": get_incident_timeline()}
+
+
+@app.get("/shift-turnover")
+def read_shift_turnover_notes():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"shift_turnover": get_shift_turnover_notes()}
+
+
+@app.get("/equipment-out-of-service")
+def read_equipment_out_of_service_records():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {
+        "equipment_out_of_service": get_equipment_out_of_service_records(),
+    }
+
+
+@app.get("/corrective-actions")
+def read_corrective_actions():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"corrective_actions": get_corrective_actions()}
+
+
+@app.get("/procedure-references")
+def read_procedure_references():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"procedure_references": get_procedure_references()}
+
+
+@app.get("/reliability-reports")
+def read_reliability_reports():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    return {"reliability_reports": get_reliability_reports()}
 
 
 @app.get("/points")

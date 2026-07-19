@@ -1,0 +1,10 @@
+id,scenario_id,event_timestamp,event_type,equipment_id,title,description,source,actor,severity
+TL-001,SCN-UTILITY-COOLING-001,2026-05-01 12:00,Source Disturbance,MTR-UTILITY-1,Utility voltage sag observed,Incoming utility voltage dipped below preferred operating band and started enhanced watch,EPMS,system,Warning
+TL-002,SCN-UTILITY-COOLING-001,2026-05-01 12:02,Alarm,ATS-1,ATS normal source unavailable,ATS-1 normal source indication changed to unavailable during the utility disturbance,EPMS,system,Critical
+TL-003,SCN-UTILITY-COOLING-001,2026-05-01 12:03,Alarm,UPS-A,UPS-A on battery,UPS-A battery status changed to On Battery while supporting Data Hall A load,EPMS,system,Critical
+TL-004,SCN-UTILITY-COOLING-001,2026-05-01 12:06,Operator Action,UPS-A,UPS autonomy check completed,Operator confirmed load level and reviewed remaining battery autonomy,Operations,operator-a,Info
+TL-005,SCN-UTILITY-COOLING-001,2026-05-01 12:08,Alarm,GEN-1,Generator fuel below readiness target,GEN-1 day tank fuel level was below the standby readiness target,EPMS,system,Warning
+TL-006,SCN-UTILITY-COOLING-001,2026-05-01 12:12,Alarm,CRAC-2,CRAC-2 high supply temperature,CRAC-2 supply air temperature rose above the data hall cooling target after the power event,BMS,system,Warning
+TL-007,SCN-UTILITY-COOLING-001,2026-05-01 12:18,Corrective Action,GEN-1,Fuel vendor dispatched,Facilities manager requested priority day tank refill and verification,Operations,facilities-manager,Info
+TL-008,SCN-UTILITY-COOLING-001,2026-05-01 12:31,Recovery Check,CRAC-2,Cooling trend improving,Supply temperature trend moved back toward normal range after airflow verification,BMS,operator-b,Info
+TL-009,SCN-UTILITY-COOLING-001,2026-05-01 13:05,Shift Turnover,OPS,Turnover briefing prepared,Open actions and equipment constraints were packaged for the incoming shift,Operations,shift-lead-a,Info

@@ -1,0 +1,5 @@
+id,scenario_id,procedure_type,procedure_code,title,applicability,reference_step,owner,location
+PROC-EOP-UTILITY-LOSS,SCN-UTILITY-COOLING-001,EOP,EOP-EPMS-UTILITY-LOSS,Utility Source Loss Response,ATS normal source unavailable or UPS battery support observed,Steps 2-6 verify source status and protect UPS autonomy,Operations,Procedure binder EOP-03
+PROC-MOP-GEN-FUEL,SCN-UTILITY-COOLING-001,MOP,MOP-GEN-FUEL-RESTORE,Generator Day Tank Refuel And Verification,GEN-1 below standby readiness target during power event,Steps 4-9 coordinate vendor refill and post-fill EPMS verification,Facilities,Procedure binder MOP-11
+PROC-SOP-CRAC-RECOVERY,SCN-UTILITY-COOLING-001,SOP,SOP-BMS-CRAC-HIGH-SAT,CRAC High Supply Air Temperature Response,CRAC-2 supply air temperature above data hall target,"Steps 1-5 check airflow, filters, and trend recovery",Mechanical,Procedure binder SOP-07
+PROC-SOP-TURNOVER,SCN-UTILITY-COOLING-001,SOP,SOP-OPS-SHIFT-TURNOVER,Shift Turnover With Open Facility Risk,Any unresolved Critical or High reliability watch at shift change,Steps 3-6 document open actions and acceptance by incoming operator,Operations,Procedure binder SOP-01

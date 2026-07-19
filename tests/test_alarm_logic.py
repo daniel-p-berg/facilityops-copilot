@@ -366,6 +366,13 @@ class DashboardGeneratedAlarmSourceTests(unittest.TestCase):
         self.assertIn("Modbus Register Map Import", dashboard_html)
         self.assertIn("/imports/modbus/preview", dashboard_html)
         self.assertIn("/imports/modbus/commit", dashboard_html)
+        self.assertIn("End-To-End Facility Scenario", dashboard_html)
+        self.assertIn("Explainable Alarm Correlation", dashboard_html)
+        self.assertIn("Incident Timeline", dashboard_html)
+        self.assertIn("Equipment Out Of Service", dashboard_html)
+        self.assertIn("MOP / SOP / EOP References", dashboard_html)
+        self.assertIn("Management Reliability Report", dashboard_html)
+        self.assertIn("/operations/overview", dashboard_html)
         self.assertNotIn("activeCriticalAlarms", dashboard_html)
         self.assertNotIn("active_critical_alarms", dashboard_html)
         self.assertNotIn("totalAlarmRecords", dashboard_html)
@@ -384,6 +391,123 @@ class DashboardRouteTests(unittest.TestCase):
             self.assertIn("FacilityOps Workbench", body_text)
             self.assertIn("/summary", body_text)
             self.assertIn("/replay/csv/step", body_text)
+
+
+class OperationsContextTests(unittest.TestCase):
+    def load_temp_sample_database(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        temp_db_path = Path(temp_dir.name) / "facilityops_test.sqlite3"
+        load_counts = load_alarm_db.load_sample_data_to_sqlite(db_path=temp_db_path)
+        return temp_db_path, load_counts
+
+    def table_count(self, db_path, table_name):
+        with sqlite3.connect(db_path) as connection:
+            return connection.execute(
+                f"SELECT COUNT(*) FROM {table_name}"
+            ).fetchone()[0]
+
+    def current_values_by_point_id(self, db_path):
+        return {
+            value["point_id"]: value
+            for value in backend_summary.get_current_point_values(db_path)
+        }
+
+    def evaluations_by_rule_id(self, db_path):
+        return {
+            evaluation["id"]: evaluation
+            for evaluation in backend_summary.get_rule_evaluations(db_path)
+        }
+
+    def test_loader_creates_and_loads_operations_context_tables(self):
+        temp_db_path, load_counts = self.load_temp_sample_database()
+
+        self.assertEqual(load_counts["facility_scenario_records"], 1)
+        self.assertEqual(load_counts["alarm_correlation_records"], 1)
+        self.assertEqual(load_counts["alarm_correlation_member_records"], 5)
+        self.assertEqual(load_counts["incident_timeline_records"], 9)
+        self.assertEqual(load_counts["shift_turnover_records"], 1)
+        self.assertEqual(load_counts["equipment_out_of_service_records"], 2)
+        self.assertEqual(load_counts["corrective_action_records"], 4)
+        self.assertEqual(load_counts["procedure_reference_records"], 4)
+        self.assertEqual(load_counts["reliability_report_records"], 1)
+        self.assertEqual(self.table_count(temp_db_path, "facility_scenarios"), 1)
+        self.assertEqual(self.table_count(temp_db_path, "alarm_correlation_members"), 5)
+        self.assertEqual(self.table_count(temp_db_path, "corrective_actions"), 4)
+
+    def test_operations_overview_returns_correlated_facility_story(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        overview = backend_summary.get_operations_overview(temp_db_path)
+
+        self.assertEqual(
+            overview["active_scenario"]["id"],
+            "SCN-UTILITY-COOLING-001",
+        )
+        self.assertIn("Utility Sag", overview["active_scenario"]["name"])
+        self.assertEqual(len(overview["alarm_correlations"]), 1)
+        correlation = overview["alarm_correlations"][0]
+        self.assertEqual(correlation["confidence"], "High")
+        self.assertIn("UPS-A", correlation["impacted_equipment_list"])
+        self.assertEqual(len(correlation["evidence_members"]), 5)
+        self.assertEqual(overview["incident_timeline"][0]["equipment_id"], "MTR-UTILITY-1")
+        self.assertEqual(
+            overview["latest_reliability_report"]["availability_percent"],
+            99.99,
+        )
+        procedure_types = {
+            procedure["procedure_type"]
+            for procedure in overview["procedure_references"]
+        }
+        self.assertEqual(procedure_types, {"EOP", "MOP", "SOP"})
+
+    def test_operations_overview_endpoint_returns_payload(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        with (
+            mock.patch.object(backend_main, "DATABASE_FILE", temp_db_path),
+            mock.patch.object(
+                backend_main,
+                "get_operations_overview",
+                lambda: backend_summary.get_operations_overview(temp_db_path),
+            ),
+        ):
+            status, data = get_json_from_asgi_app(
+                backend_main.app,
+                "/operations/overview",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["active_scenario"]["id"], "SCN-UTILITY-COOLING-001")
+        self.assertEqual(len(data["alarm_correlations"][0]["evidence_members"]), 5)
+        self.assertEqual(len(data["equipment_out_of_service"]), 2)
+        self.assertEqual(data["latest_reliability_report"]["nuisance_alarm_count"], 0)
+
+    def test_multi_point_facility_scenario_updates_expected_points(self):
+        temp_db_path, _load_counts = self.load_temp_sample_database()
+
+        result = backend_summary.apply_scenario(
+            "trigger-utility-cooling-event",
+            db_path=temp_db_path,
+        )
+        current_values = self.current_values_by_point_id(temp_db_path)
+        evaluations = self.evaluations_by_rule_id(temp_db_path)
+
+        self.assertEqual(result["updated_count"], 5)
+        self.assertEqual(
+            current_values["ATS-1_NORMAL_SOURCE_AVAILABLE"]["value"],
+            "false",
+        )
+        self.assertEqual(current_values["UPS-A_BATTERY_STATUS"]["value"], "On Battery")
+        self.assertEqual(current_values["UPS-A_OUTPUT_KW"]["value"], "246")
+        self.assertEqual(current_values["GEN-1_FUEL_LEVEL"]["value"], "32")
+        self.assertEqual(current_values["CRAC-2_SUPPLY_AIR_TEMP"]["value"], "71")
+        self.assertTrue(
+            evaluations["RULE-ATS-1-NORMAL-SOURCE-UNAVAILABLE"]["is_triggered"],
+        )
+        self.assertTrue(evaluations["RULE-UPS-A-ON-BATTERY"]["is_triggered"])
+        self.assertTrue(evaluations["RULE-CRAC-2-HIGH-SUPPLY-AIR-TEMP"]["is_triggered"])
 
 
 class PointAndAlarmRuleCatalogTests(unittest.TestCase):

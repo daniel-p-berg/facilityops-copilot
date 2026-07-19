@@ -13,7 +13,7 @@ The project uses sample building automation and electrical power monitoring data
 - Expose summary data through a backend API
 - Build a simple dashboard for operations review
 - Generate daily facility operations briefings
-- Explore how AI-assisted coding can expand the capabilities of controls technicians
+- Demonstrate end-to-end facility operations workflows: alarm correlation, event history, shift turnover, equipment out-of-service tracking, incident timelines, corrective actions, procedure references, and reliability reporting
 
 ## Initial Scope
 
@@ -55,6 +55,8 @@ The backend includes a static Modbus register map importer for local catalog set
 
 Alarm scenarios are deterministic dashboard and API controls that set known current point values into alarm or normal demo conditions. Scenario updates create point samples, use `SCENARIO` as the current value source, and do not automatically evaluate generated alarms.
 
+The dashboard also includes a deterministic operations overview for an end-to-end facility scenario: utility disturbance, ATS source loss indication, UPS battery support, generator fuel readiness constraint, and CRAC supply temperature drift. This overview is seeded local data, not an AI-generated root cause engine. It demonstrates explainable correlation evidence, event history, shift turnover notes, equipment out-of-service records, corrective actions, MOP/SOP/EOP references, and management-level reliability reporting.
+
 The operational reset endpoint restores the local sandbox to a deterministic runtime baseline without deleting catalog configuration. `POST /scenario/reset-operational-state` clears generated alarms and alarm/audit events, replaces point samples with the seeded baseline samples, and resets current point values from `data/sample_current_point_values.csv`. Equipment, points, alarm rules, imported Modbus point catalog records, and point protocol/address metadata are preserved.
 
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. Process alarm rules only evaluate against eligible samples: `GOOD` quality, not stale, not overridden, and not out of service. `UNKNOWN` quality is normalized to `UNCERTAIN`.
@@ -88,7 +90,7 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The dashboard calls `/summary`, `/scenarios`, `/scenario/reset-operational-state`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, operational state can be reset, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
+The dashboard calls `/summary`, `/operations/overview`, `/scenarios`, `/scenario/reset-operational-state`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, operations scenario context, explainable alarm correlation, incident timeline, shift turnover, equipment OOS records, corrective actions, procedure references, reliability reporting, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, operational state can be reset, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
 
@@ -166,10 +168,23 @@ List alarm scenarios:
 curl http://127.0.0.1:8000/scenarios
 ```
 
+Call the operations overview endpoint:
+
+```bash
+curl http://127.0.0.1:8000/operations/overview
+```
+
 Apply an alarm scenario:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/scenarios/trigger-ups-high-load/apply
+```
+
+Apply the end-to-end facility scenario, then explicitly evaluate generated alarms:
+
+```bash
+curl -X POST http://127.0.0.1:8000/scenarios/trigger-utility-cooling-event/apply
+curl -X POST http://127.0.0.1:8000/generated-alarms/evaluate
 ```
 
 Call the read-only rule evaluations endpoint:

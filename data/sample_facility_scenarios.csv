@@ -1,0 +1,2 @@
+id,name,status,risk_level,start_time,end_time,operating_mode,incident_commander,summary,operator_goal
+SCN-UTILITY-COOLING-001,Utility Sag With UPS Load And Cooling Watch,Active Drill,Elevated,2026-05-01 12:00,2026-05-01 13:15,Degraded utility watch,Shift Lead A,"Utility voltage instability drove ATS source loss indications and UPS battery support while cooling supply temperature drifted high. Generator readiness was constrained by low fuel.",Stabilize data hall power and cooling while protecting standby generation margin

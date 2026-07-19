@@ -1,0 +1,3 @@
+id,equipment_id,status,oos_type,started_at,expected_return_at,returned_at,reason,operational_impact,mitigation,approved_by
+OOS-GEN-1-DAY-TANK,GEN-1,Active,Derated standby readiness,2026-05-01 11:45,2026-05-01 16:00,,Day tank below site readiness target,Standby generation margin reduced until refuel is confirmed,Keep UPS autonomy watch active and expedite fuel vendor response,Facilities Manager
+OOS-CRAC-2-FILTER,CRAC-2,Planned,Maintenance watch,2026-05-01 13:30,2026-05-01 15:00,,Filter inspection required after high supply temperature drift,Cooling redundancy remains available through adjacent CRAC units,Run CRAC recovery SOP after inspection,Mechanical Lead

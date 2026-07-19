@@ -1,0 +1,6 @@
+id,correlation_id,alarm_rule_id,point_id,equipment_id,contribution,evidence
+CORR-MEMBER-001,CORR-UTILITY-UPS-COOLING,RULE-ATS-1-NORMAL-SOURCE-UNAVAILABLE,ATS-1_NORMAL_SOURCE_AVAILABLE,ATS-1,Primary initiating alarm,Normal source unavailable appears at the start of the event window
+CORR-MEMBER-002,CORR-UTILITY-UPS-COOLING,RULE-UPS-A-ON-BATTERY,UPS-A_BATTERY_STATUS,UPS-A,Power continuity consequence,UPS battery support is consistent with upstream source instability
+CORR-MEMBER-003,CORR-UTILITY-UPS-COOLING,RULE-UPS-A-HIGH-LOAD,UPS-A_OUTPUT_KW,UPS-A,Load and autonomy stressor,UPS load above preferred range reduces response margin during battery operation
+CORR-MEMBER-004,CORR-UTILITY-UPS-COOLING,RULE-GEN-1-LOW-FUEL,GEN-1_FUEL_LEVEL,GEN-1,Standby readiness constraint,Generator fuel is below readiness target during a power event
+CORR-MEMBER-005,CORR-UTILITY-UPS-COOLING,RULE-CRAC-2-HIGH-SUPPLY-AIR-TEMP,CRAC-2_SUPPLY_AIR_TEMP,CRAC-2,Secondary cooling watch,Cooling supply temperature drifted after the power disturbance and needs recovery confirmation

@@ -12,6 +12,19 @@ EQUIPMENT_FILE = PROJECT_ROOT / "data" / "sample_equipment.csv"
 POINT_FILE = PROJECT_ROOT / "data" / "sample_points.csv"
 ALARM_RULE_FILE = PROJECT_ROOT / "data" / "sample_alarm_rules.csv"
 CURRENT_POINT_VALUE_FILE = PROJECT_ROOT / "data" / "sample_current_point_values.csv"
+FACILITY_SCENARIO_FILE = PROJECT_ROOT / "data" / "sample_facility_scenarios.csv"
+ALARM_CORRELATION_FILE = PROJECT_ROOT / "data" / "sample_alarm_correlations.csv"
+ALARM_CORRELATION_MEMBER_FILE = (
+    PROJECT_ROOT / "data" / "sample_alarm_correlation_members.csv"
+)
+INCIDENT_TIMELINE_FILE = PROJECT_ROOT / "data" / "sample_incident_timeline.csv"
+SHIFT_TURNOVER_FILE = PROJECT_ROOT / "data" / "sample_shift_turnover.csv"
+EQUIPMENT_OUT_OF_SERVICE_FILE = (
+    PROJECT_ROOT / "data" / "sample_equipment_out_of_service.csv"
+)
+CORRECTIVE_ACTION_FILE = PROJECT_ROOT / "data" / "sample_corrective_actions.csv"
+PROCEDURE_REFERENCE_FILE = PROJECT_ROOT / "data" / "sample_procedure_references.csv"
+RELIABILITY_REPORT_FILE = PROJECT_ROOT / "data" / "sample_reliability_reports.csv"
 DATABASE_FILE = PROJECT_ROOT / "db" / "facilityops.sqlite3"
 
 ALARM_COLUMNS = (
@@ -77,6 +90,125 @@ CURRENT_POINT_VALUE_COLUMNS = (
     "quality",
     "source",
     "updated_at",
+)
+
+FACILITY_SCENARIO_COLUMNS = (
+    "id",
+    "name",
+    "status",
+    "risk_level",
+    "start_time",
+    "end_time",
+    "operating_mode",
+    "incident_commander",
+    "summary",
+    "operator_goal",
+)
+
+ALARM_CORRELATION_COLUMNS = (
+    "id",
+    "scenario_id",
+    "title",
+    "status",
+    "confidence",
+    "window_start",
+    "window_end",
+    "primary_equipment",
+    "impacted_equipment",
+    "root_cause_hypothesis",
+    "explanation",
+    "recommended_focus",
+)
+
+ALARM_CORRELATION_MEMBER_COLUMNS = (
+    "id",
+    "correlation_id",
+    "alarm_rule_id",
+    "point_id",
+    "equipment_id",
+    "contribution",
+    "evidence",
+)
+
+INCIDENT_TIMELINE_COLUMNS = (
+    "id",
+    "scenario_id",
+    "event_timestamp",
+    "event_type",
+    "equipment_id",
+    "title",
+    "description",
+    "source",
+    "actor",
+    "severity",
+)
+
+SHIFT_TURNOVER_COLUMNS = (
+    "id",
+    "shift_date",
+    "shift_name",
+    "outgoing_operator",
+    "incoming_operator",
+    "facility_state",
+    "watch_items",
+    "open_actions",
+    "turnover_risk",
+)
+
+EQUIPMENT_OUT_OF_SERVICE_COLUMNS = (
+    "id",
+    "equipment_id",
+    "status",
+    "oos_type",
+    "started_at",
+    "expected_return_at",
+    "returned_at",
+    "reason",
+    "operational_impact",
+    "mitigation",
+    "approved_by",
+)
+
+CORRECTIVE_ACTION_COLUMNS = (
+    "id",
+    "scenario_id",
+    "equipment_id",
+    "action_type",
+    "priority",
+    "status",
+    "owner",
+    "due_at",
+    "completed_at",
+    "description",
+    "verification",
+)
+
+PROCEDURE_REFERENCE_COLUMNS = (
+    "id",
+    "scenario_id",
+    "procedure_type",
+    "procedure_code",
+    "title",
+    "applicability",
+    "reference_step",
+    "owner",
+    "location",
+)
+
+RELIABILITY_REPORT_COLUMNS = (
+    "id",
+    "period_start",
+    "period_end",
+    "generated_at",
+    "availability_percent",
+    "critical_alarm_count",
+    "warning_alarm_count",
+    "mttr_minutes",
+    "oos_hours",
+    "corrective_actions_open",
+    "corrective_actions_closed",
+    "nuisance_alarm_count",
+    "executive_summary",
 )
 
 BLANK_VALUES = {"", "null", "none", "n/a"}
@@ -406,6 +538,210 @@ def create_alarm_event_table(connection):
         migrate_alarm_events_to_nullable_audit_links(connection)
 
 
+def create_facility_scenario_table(connection):
+    """Create table for seeded end-to-end facility scenarios."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS facility_scenarios (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            risk_level TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            operating_mode TEXT NOT NULL,
+            incident_commander TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            operator_goal TEXT NOT NULL
+        )
+        """
+    )
+
+
+def create_alarm_correlation_table(connection):
+    """Create table for explainable alarm correlation records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alarm_correlations (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            confidence TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            primary_equipment TEXT NOT NULL,
+            impacted_equipment TEXT NOT NULL,
+            root_cause_hypothesis TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            recommended_focus TEXT NOT NULL,
+            FOREIGN KEY (scenario_id) REFERENCES facility_scenarios (id)
+        )
+        """
+    )
+
+
+def create_alarm_correlation_member_table(connection):
+    """Create table for correlation evidence rows."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alarm_correlation_members (
+            id TEXT PRIMARY KEY,
+            correlation_id TEXT NOT NULL,
+            alarm_rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            contribution TEXT NOT NULL,
+            evidence TEXT NOT NULL,
+            FOREIGN KEY (correlation_id) REFERENCES alarm_correlations (id),
+            FOREIGN KEY (alarm_rule_id) REFERENCES alarm_rules (id),
+            FOREIGN KEY (point_id) REFERENCES points (id),
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
+
+
+def create_incident_timeline_table(connection):
+    """Create table for seeded incident timeline events."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_timeline (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            event_timestamp TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            source TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            FOREIGN KEY (scenario_id) REFERENCES facility_scenarios (id)
+        )
+        """
+    )
+
+
+def create_shift_turnover_table(connection):
+    """Create table for shift turnover records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_turnover (
+            id TEXT PRIMARY KEY,
+            shift_date TEXT NOT NULL,
+            shift_name TEXT NOT NULL,
+            outgoing_operator TEXT NOT NULL,
+            incoming_operator TEXT NOT NULL,
+            facility_state TEXT NOT NULL,
+            watch_items TEXT NOT NULL,
+            open_actions TEXT NOT NULL,
+            turnover_risk TEXT NOT NULL
+        )
+        """
+    )
+
+
+def create_equipment_out_of_service_table(connection):
+    """Create table for equipment out-of-service tracking."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS equipment_out_of_service (
+            id TEXT PRIMARY KEY,
+            equipment_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            oos_type TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            expected_return_at TEXT NOT NULL,
+            returned_at TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            operational_impact TEXT NOT NULL,
+            mitigation TEXT NOT NULL,
+            approved_by TEXT NOT NULL,
+            FOREIGN KEY (equipment_id) REFERENCES equipment (equipment)
+        )
+        """
+    )
+
+
+def create_corrective_action_table(connection):
+    """Create table for corrective action records."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS corrective_actions (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            status TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            due_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL,
+            description TEXT NOT NULL,
+            verification TEXT NOT NULL,
+            FOREIGN KEY (scenario_id) REFERENCES facility_scenarios (id)
+        )
+        """
+    )
+
+
+def create_procedure_reference_table(connection):
+    """Create table for MOP, SOP, and EOP references."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS procedure_references (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            procedure_type TEXT NOT NULL,
+            procedure_code TEXT NOT NULL,
+            title TEXT NOT NULL,
+            applicability TEXT NOT NULL,
+            reference_step TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            location TEXT NOT NULL,
+            FOREIGN KEY (scenario_id) REFERENCES facility_scenarios (id)
+        )
+        """
+    )
+
+
+def create_reliability_report_table(connection):
+    """Create table for management-level reliability report rows."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reliability_reports (
+            id TEXT PRIMARY KEY,
+            period_start TEXT NOT NULL,
+            period_end TEXT NOT NULL,
+            generated_at TEXT NOT NULL,
+            availability_percent REAL NOT NULL,
+            critical_alarm_count INTEGER NOT NULL,
+            warning_alarm_count INTEGER NOT NULL,
+            mttr_minutes INTEGER NOT NULL,
+            oos_hours REAL NOT NULL,
+            corrective_actions_open INTEGER NOT NULL,
+            corrective_actions_closed INTEGER NOT NULL,
+            nuisance_alarm_count INTEGER NOT NULL,
+            executive_summary TEXT NOT NULL
+        )
+        """
+    )
+
+
+def create_operational_context_tables(connection):
+    """Create all seeded operations context tables."""
+    create_facility_scenario_table(connection)
+    create_alarm_correlation_table(connection)
+    create_alarm_correlation_member_table(connection)
+    create_incident_timeline_table(connection)
+    create_shift_turnover_table(connection)
+    create_equipment_out_of_service_table(connection)
+    create_corrective_action_table(connection)
+    create_procedure_reference_table(connection)
+    create_reliability_report_table(connection)
+
+
 def migrate_alarm_events_to_nullable_audit_links(connection):
     """Allow audit events that are not tied to generated alarms or rules."""
     connection.execute("ALTER TABLE alarm_events RENAME TO alarm_events_old")
@@ -481,10 +817,16 @@ def read_csv_rows(csv_path, required_columns):
             missing = ", ".join(sorted(missing_columns))
             raise ValueError(f"Missing required CSV columns: {missing}")
 
-        return [
-            {column: row[column] for column in required_columns}
-            for row in reader
-        ]
+        rows = []
+        for row_number, row in enumerate(reader, start=2):
+            if None in row:
+                raise ValueError(
+                    "Unexpected extra CSV columns "
+                    f"in {csv_path} row {row_number}: {row[None]}"
+                )
+            rows.append({column: row[column] for column in required_columns})
+
+        return rows
 
 
 def read_alarm_rows(csv_path):
@@ -586,6 +928,22 @@ def read_current_point_value_rows(csv_path):
         row["quality"] = normalize_quality(row["quality"])
         row["source"] = optional_text(row["source"]).upper()
         row["updated_at"] = optional_text(row["updated_at"])
+
+    return rows
+
+
+def read_reliability_report_rows(csv_path):
+    """Read reliability report records with numeric management metrics."""
+    rows = read_csv_rows(csv_path, RELIABILITY_REPORT_COLUMNS)
+    for row in rows:
+        row["availability_percent"] = float(row["availability_percent"])
+        row["critical_alarm_count"] = int(row["critical_alarm_count"])
+        row["warning_alarm_count"] = int(row["warning_alarm_count"])
+        row["mttr_minutes"] = int(row["mttr_minutes"])
+        row["oos_hours"] = float(row["oos_hours"])
+        row["corrective_actions_open"] = int(row["corrective_actions_open"])
+        row["corrective_actions_closed"] = int(row["corrective_actions_closed"])
+        row["nuisance_alarm_count"] = int(row["nuisance_alarm_count"])
 
     return rows
 
@@ -877,12 +1235,160 @@ def reset_generated_alarms(db_path=DATABASE_FILE):
         connection.execute("DELETE FROM generated_alarms")
 
 
+def replace_table_rows(connection, table_name, columns, rows):
+    """Replace rows in a trusted table using trusted CSV column names."""
+    column_sql = ", ".join(columns)
+    placeholder_sql = ", ".join(f":{column}" for column in columns)
+    connection.execute(f"DELETE FROM {table_name}")
+    connection.executemany(
+        f"""
+        INSERT INTO {table_name} (
+            {column_sql}
+        )
+        VALUES (
+            {placeholder_sql}
+        )
+        """,
+        rows,
+    )
+
+
+def load_operational_context_to_sqlite(
+    facility_scenario_csv_path=FACILITY_SCENARIO_FILE,
+    alarm_correlation_csv_path=ALARM_CORRELATION_FILE,
+    alarm_correlation_member_csv_path=ALARM_CORRELATION_MEMBER_FILE,
+    incident_timeline_csv_path=INCIDENT_TIMELINE_FILE,
+    shift_turnover_csv_path=SHIFT_TURNOVER_FILE,
+    equipment_out_of_service_csv_path=EQUIPMENT_OUT_OF_SERVICE_FILE,
+    corrective_action_csv_path=CORRECTIVE_ACTION_FILE,
+    procedure_reference_csv_path=PROCEDURE_REFERENCE_FILE,
+    reliability_report_csv_path=RELIABILITY_REPORT_FILE,
+    db_path=DATABASE_FILE,
+):
+    """Load deterministic operations context for the portfolio scenario."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    facility_scenario_rows = read_csv_rows(
+        facility_scenario_csv_path,
+        FACILITY_SCENARIO_COLUMNS,
+    )
+    alarm_correlation_rows = read_csv_rows(
+        alarm_correlation_csv_path,
+        ALARM_CORRELATION_COLUMNS,
+    )
+    alarm_correlation_member_rows = read_csv_rows(
+        alarm_correlation_member_csv_path,
+        ALARM_CORRELATION_MEMBER_COLUMNS,
+    )
+    incident_timeline_rows = read_csv_rows(
+        incident_timeline_csv_path,
+        INCIDENT_TIMELINE_COLUMNS,
+    )
+    shift_turnover_rows = read_csv_rows(
+        shift_turnover_csv_path,
+        SHIFT_TURNOVER_COLUMNS,
+    )
+    equipment_out_of_service_rows = read_csv_rows(
+        equipment_out_of_service_csv_path,
+        EQUIPMENT_OUT_OF_SERVICE_COLUMNS,
+    )
+    corrective_action_rows = read_csv_rows(
+        corrective_action_csv_path,
+        CORRECTIVE_ACTION_COLUMNS,
+    )
+    procedure_reference_rows = read_csv_rows(
+        procedure_reference_csv_path,
+        PROCEDURE_REFERENCE_COLUMNS,
+    )
+    reliability_report_rows = read_reliability_report_rows(
+        reliability_report_csv_path,
+    )
+
+    with sqlite3.connect(db_path) as connection:
+        create_operational_context_tables(connection)
+        begin_transaction(connection)
+        replace_table_rows(
+            connection,
+            "alarm_correlation_members",
+            ALARM_CORRELATION_MEMBER_COLUMNS,
+            alarm_correlation_member_rows,
+        )
+        replace_table_rows(
+            connection,
+            "alarm_correlations",
+            ALARM_CORRELATION_COLUMNS,
+            alarm_correlation_rows,
+        )
+        replace_table_rows(
+            connection,
+            "incident_timeline",
+            INCIDENT_TIMELINE_COLUMNS,
+            incident_timeline_rows,
+        )
+        replace_table_rows(
+            connection,
+            "shift_turnover",
+            SHIFT_TURNOVER_COLUMNS,
+            shift_turnover_rows,
+        )
+        replace_table_rows(
+            connection,
+            "equipment_out_of_service",
+            EQUIPMENT_OUT_OF_SERVICE_COLUMNS,
+            equipment_out_of_service_rows,
+        )
+        replace_table_rows(
+            connection,
+            "corrective_actions",
+            CORRECTIVE_ACTION_COLUMNS,
+            corrective_action_rows,
+        )
+        replace_table_rows(
+            connection,
+            "procedure_references",
+            PROCEDURE_REFERENCE_COLUMNS,
+            procedure_reference_rows,
+        )
+        replace_table_rows(
+            connection,
+            "reliability_reports",
+            RELIABILITY_REPORT_COLUMNS,
+            reliability_report_rows,
+        )
+        replace_table_rows(
+            connection,
+            "facility_scenarios",
+            FACILITY_SCENARIO_COLUMNS,
+            facility_scenario_rows,
+        )
+
+    return {
+        "facility_scenario_records": len(facility_scenario_rows),
+        "alarm_correlation_records": len(alarm_correlation_rows),
+        "alarm_correlation_member_records": len(alarm_correlation_member_rows),
+        "incident_timeline_records": len(incident_timeline_rows),
+        "shift_turnover_records": len(shift_turnover_rows),
+        "equipment_out_of_service_records": len(equipment_out_of_service_rows),
+        "corrective_action_records": len(corrective_action_rows),
+        "procedure_reference_records": len(procedure_reference_rows),
+        "reliability_report_records": len(reliability_report_rows),
+    }
+
+
 def load_sample_data_to_sqlite(
     alarm_csv_path=ALARM_FILE,
     equipment_csv_path=EQUIPMENT_FILE,
     point_csv_path=POINT_FILE,
     alarm_rule_csv_path=ALARM_RULE_FILE,
     current_point_value_csv_path=CURRENT_POINT_VALUE_FILE,
+    facility_scenario_csv_path=FACILITY_SCENARIO_FILE,
+    alarm_correlation_csv_path=ALARM_CORRELATION_FILE,
+    alarm_correlation_member_csv_path=ALARM_CORRELATION_MEMBER_FILE,
+    incident_timeline_csv_path=INCIDENT_TIMELINE_FILE,
+    shift_turnover_csv_path=SHIFT_TURNOVER_FILE,
+    equipment_out_of_service_csv_path=EQUIPMENT_OUT_OF_SERVICE_FILE,
+    corrective_action_csv_path=CORRECTIVE_ACTION_FILE,
+    procedure_reference_csv_path=PROCEDURE_REFERENCE_FILE,
+    reliability_report_csv_path=RELIABILITY_REPORT_FILE,
     db_path=DATABASE_FILE,
 ):
     """Load sample facility records into SQLite."""
@@ -894,9 +1400,21 @@ def load_sample_data_to_sqlite(
         current_point_value_csv_path,
         db_path,
     )
+    operational_context_counts = load_operational_context_to_sqlite(
+        facility_scenario_csv_path=facility_scenario_csv_path,
+        alarm_correlation_csv_path=alarm_correlation_csv_path,
+        alarm_correlation_member_csv_path=alarm_correlation_member_csv_path,
+        incident_timeline_csv_path=incident_timeline_csv_path,
+        shift_turnover_csv_path=shift_turnover_csv_path,
+        equipment_out_of_service_csv_path=equipment_out_of_service_csv_path,
+        corrective_action_csv_path=corrective_action_csv_path,
+        procedure_reference_csv_path=procedure_reference_csv_path,
+        reliability_report_csv_path=reliability_report_csv_path,
+        db_path=db_path,
+    )
     reset_generated_alarms(db_path)
 
-    return {
+    load_counts = {
         "alarm_records": 0,
         "equipment_records": equipment_count,
         "point_records": point_count,
@@ -904,6 +1422,8 @@ def load_sample_data_to_sqlite(
         "current_point_value_records": current_point_value_count,
         "point_sample_records": current_point_value_count,
     }
+    load_counts.update(operational_context_counts)
+    return load_counts
 
 
 def get_group_counts(connection, column_name):
@@ -993,6 +1513,7 @@ def print_verification_summary(
     alarm_rule_record_count=None,
     current_point_value_record_count=None,
     point_sample_record_count=None,
+    operational_context_counts=None,
 ):
     print("Legacy alarm records loaded: 0")
     if equipment_record_count is not None:
@@ -1005,6 +1526,10 @@ def print_verification_summary(
         print(f"Current point value records loaded: {current_point_value_record_count}")
     if point_sample_record_count is not None:
         print(f"Point sample records loaded: {point_sample_record_count}")
+    if operational_context_counts:
+        print("Operational context records loaded:")
+        for label, count in operational_context_counts.items():
+            print(f"- {label}: {count}")
     print(
         "Generated alarm records present: "
         f"{generated_alarm_summary['total_generated_alarm_records']}"
@@ -1038,6 +1563,21 @@ def main():
         alarm_rule_record_count=load_counts["alarm_rule_records"],
         current_point_value_record_count=load_counts["current_point_value_records"],
         point_sample_record_count=load_counts["point_sample_records"],
+        operational_context_counts={
+            "facility scenarios": load_counts["facility_scenario_records"],
+            "alarm correlations": load_counts["alarm_correlation_records"],
+            "correlation evidence rows": load_counts[
+                "alarm_correlation_member_records"
+            ],
+            "incident timeline events": load_counts["incident_timeline_records"],
+            "shift turnover notes": load_counts["shift_turnover_records"],
+            "equipment OOS records": load_counts[
+                "equipment_out_of_service_records"
+            ],
+            "corrective actions": load_counts["corrective_action_records"],
+            "procedure references": load_counts["procedure_reference_records"],
+            "reliability reports": load_counts["reliability_report_records"],
+        },
     )
 
 

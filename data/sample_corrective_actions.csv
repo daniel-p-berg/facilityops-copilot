@@ -1,0 +1,5 @@
+id,scenario_id,equipment_id,action_type,priority,status,owner,due_at,completed_at,description,verification
+CA-FUEL-001,SCN-UTILITY-COOLING-001,GEN-1,Readiness Restoration,High,Open,Facilities Manager,2026-05-01 16:00,,Refill GEN-1 day tank above standby readiness target and record post-fill level,Verify GEN-1 fuel level above 80 percent in EPMS
+CA-ATS-001,SCN-UTILITY-COOLING-001,ATS-1,Source Stability Check,Critical,Completed,Electrical Lead,2026-05-01 12:45,2026-05-01 12:38,Validate ATS-1 normal source returned stable and no retransfer lockout is active,ATS-1 normal source available and no active transfer alarms
+CA-CRAC-001,SCN-UTILITY-COOLING-001,CRAC-2,Cooling Recovery,Medium,Open,Mechanical Lead,2026-05-01 15:00,,Inspect CRAC-2 filters and verify supply temperature returns below 64 deg F,Trend supply air temperature for 30 minutes after inspection
+CA-TURNOVER-001,SCN-UTILITY-COOLING-001,OPS,Shift Handoff,Medium,Completed,Shift Lead A,2026-05-01 13:10,2026-05-01 13:05,"Brief incoming shift on correlated power event, OOS constraints, and open corrective actions",Incoming operator accepted turnover note

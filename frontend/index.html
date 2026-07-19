@@ -117,6 +117,105 @@
       margin-bottom: 16px;
     }
 
+    .operations-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .summary-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .summary-field {
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+
+    .summary-field-label {
+      color: var(--muted);
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .summary-field-value {
+      display: block;
+      font-weight: 700;
+      margin-top: 2px;
+      overflow-wrap: anywhere;
+    }
+
+    .record-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .record {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+    }
+
+    .record:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .record-title {
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .record-meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 2px;
+    }
+
+    .record-body {
+      margin-top: 8px;
+    }
+
+    .evidence-list {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    .evidence-list li {
+      border-left: 3px solid var(--line);
+      padding-left: 10px;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .metric-value {
+      color: var(--accent);
+      font-size: 1.55rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
     .count-list {
       list-style: none;
       margin: 0;
@@ -376,7 +475,8 @@
     @media (max-width: 760px) {
       header,
       .overview,
-      .grid {
+      .grid,
+      .operations-layout {
         grid-template-columns: 1fr;
       }
 
@@ -438,6 +538,78 @@
       <div class="panel">
         <h2>Active Equipment Counts</h2>
         <ul id="equipmentCounts" class="count-list"></ul>
+      </div>
+    </section>
+
+    <section class="operations-layout">
+      <div class="panel">
+        <h2>End-To-End Facility Scenario</h2>
+        <div id="operationsScenario" class="record-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Management Reliability Report</h2>
+        <div id="reliabilityReport" class="record-list"></div>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
+      <h2>Explainable Alarm Correlation</h2>
+      <div id="alarmCorrelationRows" class="record-list"></div>
+    </section>
+
+    <section class="panel catalog-section">
+      <h2>Incident Timeline</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Equipment</th>
+              <th>Severity</th>
+              <th>Title</th>
+              <th>Description</th>
+              <th>Source</th>
+              <th>Actor</th>
+            </tr>
+          </thead>
+          <tbody id="incidentTimelineRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Shift Turnover</h2>
+        <div id="shiftTurnoverRows" class="record-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Equipment Out Of Service</h2>
+        <div id="equipmentOutOfServiceRows" class="record-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Corrective Actions</h2>
+        <div id="correctiveActionRows" class="record-list"></div>
+      </div>
+    </section>
+
+    <section class="panel catalog-section">
+      <h2>MOP / SOP / EOP References</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Code</th>
+              <th>Title</th>
+              <th>Applicability</th>
+              <th>Reference Step</th>
+              <th>Owner</th>
+              <th>Location</th>
+            </tr>
+          </thead>
+          <tbody id="procedureReferenceRows"></tbody>
+        </table>
       </div>
     </section>
 
@@ -725,6 +897,14 @@
     const severityCountsEl = document.getElementById("severityCounts");
     const stateCountsEl = document.getElementById("stateCounts");
     const equipmentCountsEl = document.getElementById("equipmentCounts");
+    const operationsScenarioEl = document.getElementById("operationsScenario");
+    const reliabilityReportEl = document.getElementById("reliabilityReport");
+    const alarmCorrelationRowsEl = document.getElementById("alarmCorrelationRows");
+    const incidentTimelineRowsEl = document.getElementById("incidentTimelineRows");
+    const shiftTurnoverRowsEl = document.getElementById("shiftTurnoverRows");
+    const equipmentOutOfServiceRowsEl = document.getElementById("equipmentOutOfServiceRows");
+    const correctiveActionRowsEl = document.getElementById("correctiveActionRows");
+    const procedureReferenceRowsEl = document.getElementById("procedureReferenceRows");
     const scenarioButtonsEl = document.getElementById("scenarioButtons");
     const resetOperationalStateButton = document.getElementById("resetOperationalStateButton");
     const resetOperationalStateSummaryEl = document.getElementById("resetOperationalStateSummary");
@@ -869,6 +1049,305 @@
       renderCounts(severityCountsEl, summary.active_generated_alarm_severity_counts);
       renderCounts(stateCountsEl, summary.generated_alarm_state_counts);
       renderCounts(equipmentCountsEl, summary.active_generated_alarm_equipment_counts);
+    }
+
+    function renderEmptyRecord(container, message) {
+      container.innerHTML = "";
+      const empty = document.createElement("div");
+      empty.className = "note";
+      empty.textContent = message;
+      container.appendChild(empty);
+    }
+
+    function appendSummaryField(container, labelText, value) {
+      const field = document.createElement("div");
+      const label = document.createElement("span");
+      const fieldValue = document.createElement("span");
+
+      field.className = "summary-field";
+      label.className = "summary-field-label";
+      fieldValue.className = "summary-field-value";
+      label.textContent = labelText;
+      fieldValue.textContent = displayValue(value);
+      field.append(label, fieldValue);
+      container.appendChild(field);
+    }
+
+    function appendRecordMeta(record, text) {
+      if (!hasValue(text)) {
+        return;
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "record-meta";
+      meta.textContent = text;
+      record.appendChild(meta);
+    }
+
+    function renderOperationsScenario(scenario) {
+      operationsScenarioEl.innerHTML = "";
+
+      if (!scenario) {
+        renderEmptyRecord(operationsScenarioEl, "No facility scenario found.");
+        return;
+      }
+
+      const record = document.createElement("div");
+      const title = document.createElement("div");
+      const body = document.createElement("div");
+      const fields = document.createElement("div");
+
+      record.className = "record";
+      title.className = "record-title";
+      body.className = "record-body";
+      fields.className = "summary-fields";
+      title.textContent = scenario.name;
+      body.textContent = scenario.summary;
+      record.appendChild(title);
+      appendRecordMeta(
+        record,
+        `${scenario.status} | ${scenario.risk_level} risk | ${scenario.start_time} to ${scenario.end_time}`,
+      );
+      record.appendChild(body);
+      appendSummaryField(fields, "Operating Mode", scenario.operating_mode);
+      appendSummaryField(fields, "Incident Commander", scenario.incident_commander);
+      appendSummaryField(fields, "Operator Goal", scenario.operator_goal);
+      record.appendChild(fields);
+      operationsScenarioEl.appendChild(record);
+    }
+
+    function renderReliabilityReport(report) {
+      reliabilityReportEl.innerHTML = "";
+
+      if (!report) {
+        renderEmptyRecord(reliabilityReportEl, "No reliability report found.");
+        return;
+      }
+
+      const record = document.createElement("div");
+      const title = document.createElement("div");
+      const body = document.createElement("div");
+      const metrics = document.createElement("div");
+
+      record.className = "record";
+      title.className = "record-title";
+      body.className = "record-body";
+      metrics.className = "metric-strip";
+      title.textContent = `${report.period_start} to ${report.period_end}`;
+      record.appendChild(title);
+      appendRecordMeta(record, `Generated ${report.generated_at}`);
+      body.textContent = report.executive_summary;
+      [
+        [`${displayValue(report.availability_percent, "0")}%`, "Availability"],
+        [report.critical_alarm_count, "Critical Alarms"],
+        [report.warning_alarm_count, "Warning Alarms"],
+        [`${displayValue(report.mttr_minutes, "0")}m`, "MTTR"],
+        [`${displayValue(report.oos_hours, "0")}h`, "OOS Hours"],
+        [report.corrective_actions_open, "Open Actions"],
+      ].forEach(([value, labelText]) => {
+        const metric = document.createElement("div");
+        const metricValue = document.createElement("div");
+        const metricLabel = document.createElement("div");
+        metricValue.className = "metric-value";
+        metricLabel.className = "metric-label";
+        metricValue.textContent = displayValue(value, "0");
+        metricLabel.textContent = labelText;
+        metric.append(metricValue, metricLabel);
+        metrics.appendChild(metric);
+      });
+      record.append(body, metrics);
+      reliabilityReportEl.appendChild(record);
+    }
+
+    function renderAlarmCorrelations(correlations) {
+      alarmCorrelationRowsEl.innerHTML = "";
+
+      if (correlations.length === 0) {
+        renderEmptyRecord(alarmCorrelationRowsEl, "No alarm correlations found.");
+        return;
+      }
+
+      correlations.forEach((correlation) => {
+        const record = document.createElement("div");
+        const title = document.createElement("div");
+        const body = document.createElement("div");
+        const focus = document.createElement("div");
+        const evidenceList = document.createElement("ul");
+
+        record.className = "record";
+        title.className = "record-title";
+        body.className = "record-body";
+        focus.className = "record-meta";
+        evidenceList.className = "evidence-list";
+        title.textContent = correlation.title;
+        record.appendChild(title);
+        appendRecordMeta(
+          record,
+          `${correlation.status} | ${correlation.confidence} confidence | ${correlation.window_start} to ${correlation.window_end}`,
+        );
+        body.textContent = correlation.explanation;
+        focus.textContent = `Focus: ${correlation.recommended_focus}`;
+        (correlation.evidence_members || []).forEach((member) => {
+          const item = document.createElement("li");
+          const evidenceTitle = document.createElement("div");
+          const evidenceBody = document.createElement("div");
+          evidenceTitle.className = "record-title";
+          evidenceBody.className = "record-meta";
+          evidenceTitle.textContent = `${member.equipment_id} - ${member.contribution}`;
+          evidenceBody.textContent = `${member.rule_name || member.alarm_rule_id}: ${member.evidence}`;
+          item.append(evidenceTitle, evidenceBody);
+          evidenceList.appendChild(item);
+        });
+        record.append(body, focus, evidenceList);
+        alarmCorrelationRowsEl.appendChild(record);
+      });
+    }
+
+    function renderIncidentTimeline(events) {
+      incidentTimelineRowsEl.innerHTML = "";
+
+      if (events.length === 0) {
+        renderEmptyRow(incidentTimelineRowsEl, 8, "No incident timeline events found.");
+        return;
+      }
+
+      events.forEach((event) => {
+        const row = document.createElement("tr");
+        appendCell(row, event.event_timestamp);
+        appendCell(row, event.event_type);
+        appendCell(row, event.equipment_id);
+        appendCell(row, event.severity);
+        appendCell(row, event.title);
+        appendCell(row, event.description);
+        appendCell(row, event.source);
+        appendCell(row, event.actor);
+        incidentTimelineRowsEl.appendChild(row);
+      });
+    }
+
+    function renderShiftTurnover(notes) {
+      shiftTurnoverRowsEl.innerHTML = "";
+
+      if (notes.length === 0) {
+        renderEmptyRecord(shiftTurnoverRowsEl, "No shift turnover notes found.");
+        return;
+      }
+
+      notes.forEach((note) => {
+        const record = document.createElement("div");
+        const title = document.createElement("div");
+        const body = document.createElement("div");
+        const actions = document.createElement("div");
+
+        record.className = "record";
+        title.className = "record-title";
+        body.className = "record-body";
+        actions.className = "record-meta";
+        title.textContent = note.shift_name;
+        record.appendChild(title);
+        appendRecordMeta(
+          record,
+          `${note.shift_date} | ${note.outgoing_operator} to ${note.incoming_operator} | ${note.turnover_risk} risk`,
+        );
+        body.textContent = note.facility_state;
+        actions.textContent = `Open: ${note.open_actions}`;
+        record.append(body, actions);
+        shiftTurnoverRowsEl.appendChild(record);
+      });
+    }
+
+    function renderEquipmentOutOfService(records) {
+      equipmentOutOfServiceRowsEl.innerHTML = "";
+
+      if (records.length === 0) {
+        renderEmptyRecord(equipmentOutOfServiceRowsEl, "No equipment OOS records found.");
+        return;
+      }
+
+      records.forEach((oosRecord) => {
+        const record = document.createElement("div");
+        const title = document.createElement("div");
+        const body = document.createElement("div");
+        const mitigation = document.createElement("div");
+
+        record.className = "record";
+        title.className = "record-title";
+        body.className = "record-body";
+        mitigation.className = "record-meta";
+        title.textContent = `${oosRecord.equipment_id} - ${oosRecord.status}`;
+        record.appendChild(title);
+        appendRecordMeta(
+          record,
+          `${oosRecord.oos_type} | return ${displayValue(oosRecord.expected_return_at)}`,
+        );
+        body.textContent = oosRecord.operational_impact;
+        mitigation.textContent = `Mitigation: ${oosRecord.mitigation}`;
+        record.append(body, mitigation);
+        equipmentOutOfServiceRowsEl.appendChild(record);
+      });
+    }
+
+    function renderCorrectiveActions(actions) {
+      correctiveActionRowsEl.innerHTML = "";
+
+      if (actions.length === 0) {
+        renderEmptyRecord(correctiveActionRowsEl, "No corrective actions found.");
+        return;
+      }
+
+      actions.forEach((action) => {
+        const record = document.createElement("div");
+        const title = document.createElement("div");
+        const body = document.createElement("div");
+        const verification = document.createElement("div");
+
+        record.className = "record";
+        title.className = "record-title";
+        body.className = "record-body";
+        verification.className = "record-meta";
+        title.textContent = `${action.id} - ${action.status}`;
+        record.appendChild(title);
+        appendRecordMeta(
+          record,
+          `${action.priority} | ${action.equipment_id} | owner ${action.owner} | due ${action.due_at}`,
+        );
+        body.textContent = action.description;
+        verification.textContent = `Verify: ${action.verification}`;
+        record.append(body, verification);
+        correctiveActionRowsEl.appendChild(record);
+      });
+    }
+
+    function renderProcedureReferences(procedures) {
+      procedureReferenceRowsEl.innerHTML = "";
+
+      if (procedures.length === 0) {
+        renderEmptyRow(procedureReferenceRowsEl, 7, "No procedure references found.");
+        return;
+      }
+
+      procedures.forEach((procedure) => {
+        const row = document.createElement("tr");
+        appendCell(row, procedure.procedure_type);
+        appendCell(row, procedure.procedure_code);
+        appendCell(row, procedure.title);
+        appendCell(row, procedure.applicability);
+        appendCell(row, procedure.reference_step);
+        appendCell(row, procedure.owner);
+        appendCell(row, procedure.location);
+        procedureReferenceRowsEl.appendChild(row);
+      });
+    }
+
+    function renderOperationsOverview(overview) {
+      renderOperationsScenario(overview.active_scenario);
+      renderReliabilityReport(overview.latest_reliability_report);
+      renderAlarmCorrelations(overview.alarm_correlations || []);
+      renderIncidentTimeline(overview.incident_timeline || []);
+      renderShiftTurnover(overview.shift_turnover || []);
+      renderEquipmentOutOfService(overview.equipment_out_of_service || []);
+      renderCorrectiveActions(overview.corrective_actions || []);
+      renderProcedureReferences(overview.procedure_references || []);
     }
 
     function formatNormalRange(point) {
@@ -1415,6 +1894,12 @@
       renderSummary(data);
     }
 
+    async function loadOperationsOverview() {
+      const response = await fetch("/operations/overview");
+      const data = await readJsonResponse(response, "operations overview");
+      renderOperationsOverview(data);
+    }
+
     async function loadGeneratedAlarms() {
       const response = await fetch("/generated-alarms");
       const data = await readJsonResponse(response, "generated alarms");
@@ -1874,6 +2359,7 @@
       try {
         const responses = await Promise.all([
           fetch("/summary"),
+          fetch("/operations/overview"),
           fetch("/scenarios"),
           fetch("/generated-alarms"),
           fetch("/alarm-events"),
@@ -1884,6 +2370,7 @@
         ]);
         const [
           summaryData,
+          operationsOverviewData,
           scenariosData,
           generatedAlarmsData,
           alarmEventsData,
@@ -1893,16 +2380,18 @@
           alarmRulesData,
         ] = await Promise.all([
           readJsonResponse(responses[0], "alarm summary"),
-          readJsonResponse(responses[1], "alarm scenarios"),
-          readJsonResponse(responses[2], "generated alarms"),
-          readJsonResponse(responses[3], "alarm events"),
-          readJsonResponse(responses[4], "current point values"),
-          readJsonResponse(responses[5], "alarm rule evaluations"),
-          readJsonResponse(responses[6], "point dictionary"),
-          readJsonResponse(responses[7], "alarm rule catalog"),
+          readJsonResponse(responses[1], "operations overview"),
+          readJsonResponse(responses[2], "alarm scenarios"),
+          readJsonResponse(responses[3], "generated alarms"),
+          readJsonResponse(responses[4], "alarm events"),
+          readJsonResponse(responses[5], "current point values"),
+          readJsonResponse(responses[6], "alarm rule evaluations"),
+          readJsonResponse(responses[7], "point dictionary"),
+          readJsonResponse(responses[8], "alarm rule catalog"),
         ]);
 
         renderSummary(summaryData);
+        renderOperationsOverview(operationsOverviewData);
         renderScenarioButtons(scenariosData.scenarios);
         renderGeneratedAlarms(generatedAlarmsData.generated_alarms);
         renderAlarmEvents(alarmEventsData.alarm_events);

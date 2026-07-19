@@ -145,6 +145,81 @@ ALARM_SCENARIOS = {
             },
         ],
     },
+    "trigger-utility-cooling-event": {
+        "label": "Trigger Utility + Cooling Event",
+        "description": (
+            "Apply the multi-equipment facility scenario used by the operations "
+            "overview."
+        ),
+        "updates": [
+            {
+                "point_id": "ATS-1_NORMAL_SOURCE_AVAILABLE",
+                "value": "false",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "UPS-A_BATTERY_STATUS",
+                "value": "On Battery",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "UPS-A_OUTPUT_KW",
+                "value": "246",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "GEN-1_FUEL_LEVEL",
+                "value": "32",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "CRAC-2_SUPPLY_AIR_TEMP",
+                "value": "71",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
+    "normalize-utility-cooling-event": {
+        "label": "Normalize Utility + Cooling Event",
+        "description": "Restore the multi-equipment facility scenario points to baseline.",
+        "updates": [
+            {
+                "point_id": "ATS-1_NORMAL_SOURCE_AVAILABLE",
+                "value": "true",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "UPS-A_BATTERY_STATUS",
+                "value": "Normal",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "UPS-A_OUTPUT_KW",
+                "value": "185",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "GEN-1_FUEL_LEVEL",
+                "value": "82",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+            {
+                "point_id": "CRAC-2_SUPPLY_AIR_TEMP",
+                "value": "59.8",
+                "quality": "GOOD",
+                "source": "SCENARIO",
+            },
+        ],
+    },
 }
 POINT_METADATA_MIGRATIONS = {
     "protocol": "TEXT NOT NULL DEFAULT ''",
@@ -310,6 +385,300 @@ def get_equipment_inventory(db_path=DATABASE_FILE):
                 notes,
             ) in cursor.fetchall()
         ]
+
+
+def get_facility_scenarios(db_path=DATABASE_FILE):
+    """Return seeded end-to-end facility scenario records."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                id,
+                name,
+                status,
+                risk_level,
+                start_time,
+                end_time,
+                operating_mode,
+                incident_commander,
+                summary,
+                operator_goal
+            FROM facility_scenarios
+            ORDER BY start_time DESC, id ASC
+            """
+        )
+        return rows_as_dicts(cursor)
+
+
+def get_alarm_correlations(db_path=DATABASE_FILE):
+    """Return explainable alarm correlations with evidence members."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        correlation_cursor = connection.execute(
+            """
+            SELECT
+                id,
+                scenario_id,
+                title,
+                status,
+                confidence,
+                window_start,
+                window_end,
+                primary_equipment,
+                impacted_equipment,
+                root_cause_hypothesis,
+                explanation,
+                recommended_focus
+            FROM alarm_correlations
+            ORDER BY window_start DESC, id ASC
+            """
+        )
+        correlations = rows_as_dicts(correlation_cursor)
+        member_cursor = connection.execute(
+            """
+            SELECT
+                alarm_correlation_members.id,
+                alarm_correlation_members.correlation_id,
+                alarm_correlation_members.alarm_rule_id,
+                COALESCE(alarm_rules.rule_name, '') AS rule_name,
+                alarm_correlation_members.point_id,
+                COALESCE(points.display_name, '') AS display_name,
+                alarm_correlation_members.equipment_id,
+                alarm_correlation_members.contribution,
+                alarm_correlation_members.evidence
+            FROM alarm_correlation_members
+            LEFT JOIN alarm_rules
+                ON alarm_correlation_members.alarm_rule_id = alarm_rules.id
+            LEFT JOIN points
+                ON alarm_correlation_members.point_id = points.id
+            ORDER BY alarm_correlation_members.id ASC
+            """
+        )
+        members_by_correlation_id = {}
+        for member in rows_as_dicts(member_cursor):
+            members_by_correlation_id.setdefault(member["correlation_id"], []).append(member)
+
+    for correlation in correlations:
+        correlation["impacted_equipment_list"] = split_semicolon_list(
+            correlation["impacted_equipment"],
+        )
+        correlation["evidence_members"] = members_by_correlation_id.get(
+            correlation["id"],
+            [],
+        )
+
+    return correlations
+
+
+def get_incident_timeline(db_path=DATABASE_FILE):
+    """Return incident timeline rows for operational review."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                incident_timeline.id,
+                incident_timeline.scenario_id,
+                incident_timeline.event_timestamp,
+                incident_timeline.event_type,
+                incident_timeline.equipment_id,
+                COALESCE(equipment.equipment_type, '') AS equipment_type,
+                COALESCE(equipment.location, '') AS location,
+                incident_timeline.title,
+                incident_timeline.description,
+                incident_timeline.source,
+                incident_timeline.actor,
+                incident_timeline.severity
+            FROM incident_timeline
+            LEFT JOIN equipment
+                ON incident_timeline.equipment_id = equipment.equipment
+            ORDER BY incident_timeline.event_timestamp ASC, incident_timeline.id ASC
+            """
+        )
+        return rows_as_dicts(cursor)
+
+
+def get_shift_turnover_notes(db_path=DATABASE_FILE):
+    """Return shift turnover notes."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                id,
+                shift_date,
+                shift_name,
+                outgoing_operator,
+                incoming_operator,
+                facility_state,
+                watch_items,
+                open_actions,
+                turnover_risk
+            FROM shift_turnover
+            ORDER BY shift_date DESC, id ASC
+            """
+        )
+        notes = rows_as_dicts(cursor)
+
+    for note in notes:
+        note["watch_item_list"] = split_semicolon_list(note["watch_items"])
+        note["open_action_list"] = split_semicolon_list(note["open_actions"])
+
+    return notes
+
+
+def get_equipment_out_of_service_records(db_path=DATABASE_FILE):
+    """Return equipment out-of-service tracking records."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                equipment_out_of_service.id,
+                equipment_out_of_service.equipment_id,
+                COALESCE(equipment.equipment_type, '') AS equipment_type,
+                COALESCE(equipment.location, '') AS location,
+                equipment_out_of_service.status,
+                equipment_out_of_service.oos_type,
+                equipment_out_of_service.started_at,
+                equipment_out_of_service.expected_return_at,
+                equipment_out_of_service.returned_at,
+                equipment_out_of_service.reason,
+                equipment_out_of_service.operational_impact,
+                equipment_out_of_service.mitigation,
+                equipment_out_of_service.approved_by
+            FROM equipment_out_of_service
+            LEFT JOIN equipment
+                ON equipment_out_of_service.equipment_id = equipment.equipment
+            ORDER BY
+                CASE equipment_out_of_service.status
+                    WHEN 'Active' THEN 0
+                    WHEN 'Planned' THEN 1
+                    ELSE 2
+                END,
+                equipment_out_of_service.started_at ASC
+            """
+        )
+        return rows_as_dicts(cursor)
+
+
+def get_corrective_actions(db_path=DATABASE_FILE):
+    """Return corrective action records."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                corrective_actions.id,
+                corrective_actions.scenario_id,
+                corrective_actions.equipment_id,
+                COALESCE(equipment.equipment_type, '') AS equipment_type,
+                COALESCE(equipment.location, '') AS location,
+                corrective_actions.action_type,
+                corrective_actions.priority,
+                corrective_actions.status,
+                corrective_actions.owner,
+                corrective_actions.due_at,
+                corrective_actions.completed_at,
+                corrective_actions.description,
+                corrective_actions.verification
+            FROM corrective_actions
+            LEFT JOIN equipment
+                ON corrective_actions.equipment_id = equipment.equipment
+            ORDER BY
+                CASE corrective_actions.status
+                    WHEN 'Open' THEN 0
+                    WHEN 'In Progress' THEN 1
+                    ELSE 2
+                END,
+                CASE corrective_actions.priority
+                    WHEN 'Critical' THEN 0
+                    WHEN 'High' THEN 1
+                    WHEN 'Medium' THEN 2
+                    ELSE 3
+                END,
+                corrective_actions.due_at ASC
+            """
+        )
+        return rows_as_dicts(cursor)
+
+
+def get_procedure_references(db_path=DATABASE_FILE):
+    """Return MOP, SOP, and EOP references for the facility scenario."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                id,
+                scenario_id,
+                procedure_type,
+                procedure_code,
+                title,
+                applicability,
+                reference_step,
+                owner,
+                location
+            FROM procedure_references
+            ORDER BY
+                CASE procedure_type
+                    WHEN 'EOP' THEN 0
+                    WHEN 'MOP' THEN 1
+                    WHEN 'SOP' THEN 2
+                    ELSE 3
+                END,
+                procedure_code ASC
+            """
+        )
+        return rows_as_dicts(cursor)
+
+
+def get_reliability_reports(db_path=DATABASE_FILE):
+    """Return management-level reliability report rows."""
+    with sqlite3.connect(db_path) as connection:
+        ensure_operational_context_tables(connection)
+        cursor = connection.execute(
+            """
+            SELECT
+                id,
+                period_start,
+                period_end,
+                generated_at,
+                availability_percent,
+                critical_alarm_count,
+                warning_alarm_count,
+                mttr_minutes,
+                oos_hours,
+                corrective_actions_open,
+                corrective_actions_closed,
+                nuisance_alarm_count,
+                executive_summary
+            FROM reliability_reports
+            ORDER BY period_end DESC, id ASC
+            """
+        )
+        return rows_as_dicts(cursor)
+
+
+def get_operations_overview(db_path=DATABASE_FILE):
+    """Return a combined operations overview for the workbench dashboard."""
+    facility_scenarios = get_facility_scenarios(db_path)
+    reliability_reports = get_reliability_reports(db_path)
+    return {
+        "facility_scenarios": facility_scenarios,
+        "active_scenario": facility_scenarios[0] if facility_scenarios else None,
+        "alarm_correlations": get_alarm_correlations(db_path),
+        "incident_timeline": get_incident_timeline(db_path),
+        "shift_turnover": get_shift_turnover_notes(db_path),
+        "equipment_out_of_service": get_equipment_out_of_service_records(db_path),
+        "corrective_actions": get_corrective_actions(db_path),
+        "procedure_references": get_procedure_references(db_path),
+        "reliability_reports": reliability_reports,
+        "latest_reliability_report": (
+            reliability_reports[0] if reliability_reports else None
+        ),
+    }
 
 
 def ensure_generated_alarm_table(connection):
@@ -614,6 +983,177 @@ def ensure_point_metadata_columns(connection):
                 ADD COLUMN {column_name} {column_definition}
                 """
             )
+
+
+def ensure_operational_context_tables(connection):
+    """Create read-only seeded operations context tables when missing."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS facility_scenarios (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            risk_level TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            operating_mode TEXT NOT NULL,
+            incident_commander TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            operator_goal TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alarm_correlations (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            confidence TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            primary_equipment TEXT NOT NULL,
+            impacted_equipment TEXT NOT NULL,
+            root_cause_hypothesis TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            recommended_focus TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alarm_correlation_members (
+            id TEXT PRIMARY KEY,
+            correlation_id TEXT NOT NULL,
+            alarm_rule_id TEXT NOT NULL,
+            point_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            contribution TEXT NOT NULL,
+            evidence TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_timeline (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            event_timestamp TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            source TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            severity TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_turnover (
+            id TEXT PRIMARY KEY,
+            shift_date TEXT NOT NULL,
+            shift_name TEXT NOT NULL,
+            outgoing_operator TEXT NOT NULL,
+            incoming_operator TEXT NOT NULL,
+            facility_state TEXT NOT NULL,
+            watch_items TEXT NOT NULL,
+            open_actions TEXT NOT NULL,
+            turnover_risk TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS equipment_out_of_service (
+            id TEXT PRIMARY KEY,
+            equipment_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            oos_type TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            expected_return_at TEXT NOT NULL,
+            returned_at TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            operational_impact TEXT NOT NULL,
+            mitigation TEXT NOT NULL,
+            approved_by TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS corrective_actions (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            status TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            due_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL,
+            description TEXT NOT NULL,
+            verification TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS procedure_references (
+            id TEXT PRIMARY KEY,
+            scenario_id TEXT NOT NULL,
+            procedure_type TEXT NOT NULL,
+            procedure_code TEXT NOT NULL,
+            title TEXT NOT NULL,
+            applicability TEXT NOT NULL,
+            reference_step TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            location TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reliability_reports (
+            id TEXT PRIMARY KEY,
+            period_start TEXT NOT NULL,
+            period_end TEXT NOT NULL,
+            generated_at TEXT NOT NULL,
+            availability_percent REAL NOT NULL,
+            critical_alarm_count INTEGER NOT NULL,
+            warning_alarm_count INTEGER NOT NULL,
+            mttr_minutes INTEGER NOT NULL,
+            oos_hours REAL NOT NULL,
+            corrective_actions_open INTEGER NOT NULL,
+            corrective_actions_closed INTEGER NOT NULL,
+            nuisance_alarm_count INTEGER NOT NULL,
+            executive_summary TEXT NOT NULL
+        )
+        """
+    )
+
+
+def rows_as_dicts(cursor):
+    """Return SQLite rows as dictionaries using cursor column names."""
+    column_names = [description[0] for description in cursor.description]
+    return [
+        dict(zip(column_names, row, strict=True))
+        for row in cursor.fetchall()
+    ]
+
+
+def split_semicolon_list(value):
+    """Return a display-friendly list from a semicolon-delimited field."""
+    if not has_value(value):
+        return []
+
+    return [
+        item.strip()
+        for item in normalize_text(value).split(";")
+        if item.strip()
+    ]
 
 
 def current_point_value_id(point_id):
