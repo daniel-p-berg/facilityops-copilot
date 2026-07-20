@@ -65,11 +65,11 @@ Link the charter, roadmap milestone, architecture, status evidence, and related 
 
 ## Decision index
 
-No ADRs have been accepted yet.
+ADR 0001 has been accepted.
 
 | ADR | Title | Status | Date | Supersedes |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| [ADR 0001](0001-minimum-flagship-topology.md) | Minimum flagship topology | Accepted | 2026-07-20 | None |
 
 The index must be updated whenever an ADR is added or changes status.
 
