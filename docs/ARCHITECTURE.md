@@ -114,9 +114,9 @@ The product boundary prohibits any future external command, configuration change
 
 ### Verification architecture
 
-The repository contains one standard-library `unittest` module with 211 test methods covering legacy summaries, SQLite loading, catalogs, point ingestion and health, adapters, replay, reset, Modbus import, rule editing and creation, scenarios, deterministic evaluation, generated-alarm lifecycle, audit behavior, and API/dashboard behavior.
+The repository contains one standard-library `unittest` module with 211 test methods covering legacy summaries, SQLite loading, catalogs, point ingestion and health, adapters, replay, reset, Modbus import, rule editing and creation, scenarios, deterministic evaluation, generated-alarm lifecycle, audit behavior, and API/dashboard behavior. `scripts/run_verification.py` bounds application import to 30 seconds and the complete suite to 300 seconds while invoking the existing unittest discovery command unchanged.
 
-At this checkpoint the full suite is not verified in the local environment because importing FastAPI stalled under the local Python 3.12 environment. Targeted isolated-database checks of non-HTTP paths completed successfully. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the exact verification statement.
+Milestone 1.1 reproduced the reported import stall in a reused project-local virtual environment and traced it to a mixed Python 3.12/3.14 environment containing macOS cloud-offloaded package files. No application-code or test change was required. With the recorded Python 3.12 dependency set, the application import completed within its bound and all 211 tests passed against isolated test state. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for exact versions, timings, counts, and remaining limits.
 
 ## Implemented limitations
 

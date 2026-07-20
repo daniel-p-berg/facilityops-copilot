@@ -237,11 +237,24 @@ The `.venv` folder is local development environment data and should not be commi
 
 ## Running Tests
 
-Run the standard-library unittest suite:
+Use Python 3.12 and create a fresh virtual environment. Do not reuse a virtual environment after changing Python minor versions. On macOS, a checkout under a cloud-synchronized folder can offload virtual-environment files as `dataless` placeholders and block imports while macOS retrieves them; place the verification environment under `/tmp` or another non-synchronized local path.
+
+The following commands create a disposable environment, install the pinned direct dependencies, print the resolved runtime versions, bound the application import to 30 seconds, and bound the complete suite to 300 seconds:
 
 ```bash
-python3 -m unittest discover -s tests
+FACILITYOPS_VERIFY_ROOT="$(mktemp -d /tmp/facilityops-verify.XXXXXX)"
+python3.12 -m venv "$FACILITYOPS_VERIFY_ROOT/venv"
+"$FACILITYOPS_VERIFY_ROOT/venv/bin/python" -m pip install -r requirements.txt
+"$FACILITYOPS_VERIFY_ROOT/venv/bin/python" scripts/run_verification.py
 ```
+
+The bounded runner invokes the existing standard-library test command without skipping or rewriting tests:
+
+```bash
+python -m unittest discover -s tests
+```
+
+All mutating test cases use isolated temporary SQLite databases. The verification runner and suite do not load, reset, or overwrite the normal `db/facilityops.sqlite3` database.
 
 ## Current Stack
 

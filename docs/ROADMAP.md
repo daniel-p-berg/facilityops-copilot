@@ -12,7 +12,9 @@ Milestones are intentionally small and verifiable. They do not promise delivery 
 
 ## Milestone 1 — Repeatable verification baseline
 
-**Status:** Planned
+**Status:** Completed
+
+**Completion evidence:** The bounded application import succeeded, all 211 discovered tests passed, all 8 representative API/dashboard smoke checks passed, and verification used isolated database state without changing the normal application database.
 
 **Scope**
 

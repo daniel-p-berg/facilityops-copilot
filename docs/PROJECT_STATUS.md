@@ -2,8 +2,9 @@
 
 ## Status basis
 
-- **Status date:** 2026-07-19
+- **Status date:** 2026-07-20
 - **Checkpoint commit:** `627d37ef99e9d9b3936317cffbe9c5037537b219`
+- **Verification base commit:** `5718e5060935ba8b813b7354be094d44f4ee383b`
 - **Implemented legacy environment:** Fictional Northstar Data Hall
 - **Planned flagship:** Fictional Advanced Materials Research and Precision-Environment Facility
 - **Planned golden scenario:** Process-exhaust failure causing pressure-cascade degradation
@@ -12,7 +13,19 @@ This document reports verified repository reality separately from the intended p
 
 ## Verification record
 
-Targeted checks completed successfully against an isolated temporary SQLite database for:
+Milestone 1.1 verification reproduced the previously reported import stall and identified an environmental cause rather than an application-code or test defect. The reused project-local `.venv` contained both Python 3.12 and 3.14 interpreter/package artifacts, while its default `python` executable selected Python 3.12. On macOS, 1,993 files in that environment were cloud-offloaded `dataless` placeholders. Bounded diagnostics showed Python blocked in `importlib` while reading an offloaded Uvicorn module. Imports completed after the required files were hydrated.
+
+The repeatable baseline uses a fresh Python 3.12 environment outside the cloud-synchronized repository, pinned direct dependencies from `requirements.txt`, and `python scripts/run_verification.py`. The runner records resolved versions, limits the application import to 30 seconds, and limits `python -m unittest discover -s tests` to 300 seconds.
+
+Verification completed with Python 3.12.13, FastAPI 0.136.3, Starlette 1.2.1, Pydantic 2.13.4, Uvicorn 0.49.0, AnyIO 4.13.0, and the Python standard-library `unittest` runner:
+
+- `import backend.main` completed successfully in 0.613 seconds.
+- All 211 discovered tests passed: 211 passed, 0 failed, 0 errored, and 0 skipped.
+- The test body completed in 2.693 seconds; the bounded suite process completed in 2.949 seconds.
+- A bounded eight-test API/dashboard smoke selection passed in 0.364 seconds, covering dashboard loading, operations summary, scenario application, generated-alarm evaluation, operational reset, replay, and Modbus import preview behavior.
+- The normal `db/facilityops.sqlite3` SHA-256 remained unchanged before and after verification.
+
+The earlier targeted checks completed successfully against an isolated temporary SQLite database for:
 
 - Sample loading and expected record counts.
 - Seeded operations-overview retrieval.
@@ -22,7 +35,7 @@ Targeted checks completed successfully against an isolated temporary SQLite data
 - Static Modbus-map preview with zero validation errors.
 - Six deterministic CSV replay steps and six ingested samples.
 
-The complete 211-test suite remains **unknown/unverified**. The documented test command did not begin executing tests because importing FastAPI stalled in the local Python 3.12 environment and was interrupted. No full-suite pass is claimed.
+The full-suite result above supersedes the earlier unknown status. It verifies the current 211-test suite in the recorded environment; it does not establish production readiness or validate every possible dependency combination.
 
 ## Implemented
 
@@ -139,8 +152,7 @@ Planned capabilities are not implemented and must not be presented as current be
 
 ## Unknown/Not Verified
 
-- Complete result of the 211-test suite in the current local environment.
-- Startup and live HTTP behavior of every route with the currently installed FastAPI, Starlette, and Pydantic versions.
+- Live Uvicorn startup and network HTTP behavior of every route. Application import and in-process ASGI route behavior are covered by the verified suite.
 - Cross-browser behavior and accessibility of the workbench.
 - Concurrency, performance, locking, and data-volume limits.
 - Behavior with SQLite foreign-key enforcement enabled.
