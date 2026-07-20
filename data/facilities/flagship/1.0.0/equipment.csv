@@ -1,0 +1,11 @@
+facility_id,fixture_version,equipment,equipment_type,location,criticality,source_system,notes
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,FAN-EXHAUST-DUTY,Process Exhaust Fan,Exhaust Treatment Area,Critical,SYNTHETIC,Duty fan for the minimum process-exhaust topology
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,FAN-EXHAUST-STANDBY,Process Exhaust Fan,Exhaust Treatment Area,Critical,SYNTHETIC,Standby fan for the minimum process-exhaust topology
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,SENSOR-EXHAUST-AIRFLOW,Airflow Instrument,Shared Process Exhaust Path,Critical,SYNTHETIC,Measures delivered process-exhaust airflow
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,SENSOR-EXHAUST-DUCT-STATIC,Duct Pressure Instrument,Shared Process Exhaust Path,Critical,SYNTHETIC,Measures shared-path duct static pressure
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,DAMPER-EXHAUST-SHARED,Exhaust Damper,Shared Process Exhaust Path,Critical,SYNTHETIC,Provides shared exhaust damper position feedback
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,MONITOR-TREATMENT,Treatment Monitor,Exhaust Treatment Area,Critical,SYNTHETIC,Monitors treatment availability permissive only
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,MONITOR-SUPPLY-MAKEUP,Supply Air Monitor,Mechanical Support Area,Critical,SYNTHETIC,Monitors minimum supply or makeup-air availability only
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,SENSOR-PRESSURE-PROCESS-LAB,Zone Pressure Instrument,Process Laboratory,Critical,SYNTHETIC,Measures process-laboratory zone pressure
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,SENSOR-DP-CORRIDOR-TRANSITION,Differential Pressure Instrument,Corridor Transition Boundary,Critical,SYNTHETIC,Measures corridor-to-transition differential pressure
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,SENSOR-DP-TRANSITION-LAB,Differential Pressure Instrument,Transition Laboratory Boundary,Critical,SYNTHETIC,Measures transition-to-laboratory differential pressure

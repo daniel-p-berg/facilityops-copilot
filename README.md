@@ -10,7 +10,7 @@ The approved product direction is defined by the change-controlled [`docs/PRODUC
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) separates verified implemented behavior from partial, planned, and unverified behavior.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) defines the approved milestone order and acceptance evidence.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describes the implemented architecture separately from planned direction.
-- [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) describes the planned fictional flagship facility and golden scenario; neither is currently implemented.
+- [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) describes the fictional flagship facility. Its minimum Milestone 2 catalog and topology are implemented; the golden scenario and broader facility remain planned.
 - [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process and lists unresolved architectural decisions.
 
 Authoritative alarm, point-condition, equipment, system, facility, consequence, and functional-test determinations belong to deterministic, testable code. Any future AI capability is advisory only: it must cite authoritative evidence, express uncertainty, and remain unable to change authoritative state or acceptance results. AI-assisted development is part of the project history, not the product mission.
@@ -27,13 +27,32 @@ python3 analysis/load_alarm_db.py
 
 The loader reads the catalog and current value CSV files in `data/`, creates `db/facilityops.sqlite3`, and prints a verification summary. Generated alarms start empty after each loader reset.
 
+This command remains the default Northstar Data Hall loader. It records the stable facility identity `FACILITY-NORTHSTAR-DATA-HALL` and fixture version `1.0.0` without changing existing Northstar catalog identifiers or seeded behavior.
+
+Load the minimum flagship fixture only into an explicitly selected isolated database:
+
+```bash
+python3 -m analysis.facility_fixture_loader load \
+  --manifest data/facilities/flagship/1.0.0/manifest.json \
+  --db /tmp/facilityops-flagship.sqlite3
+```
+
+The flagship loader rejects `db/facilityops.sqlite3` as a target, validates the complete manifest and every CSV before database mutation, and then replaces catalog and topology state in one transaction. It does not fall back to Northstar after an invalid selection.
+
+Query the stored facility identity and complete typed flagship topology:
+
+```bash
+python3 -m analysis.facility_fixture_loader query \
+  --db /tmp/facilityops-flagship.sqlite3
+```
+
 Generated database files are local development artifacts and are ignored by git.
 
 ## Facility And Equipment Context
 
 The implemented environment is **Northstar Data Hall**, a fictional mission-critical data hall documented in [`docs/facility_model.md`](docs/facility_model.md). Northstar is the preserved legacy fixture, regression environment, and secondary data-center demonstration.
 
-The planned flagship is the fictional **Advanced Materials Research and Precision-Environment Facility**. Its planned first golden scenario is a **process-exhaust failure causing pressure-cascade degradation**. The flagship catalog, topology, scenario, higher-level state layers, and deterministic consequence engine are not implemented; their scope and sequencing are governed by the roadmap and ADR process.
+The fictional **Advanced Materials Research and Precision-Environment Facility** is the flagship environment. Milestone 2 implements its minimum versioned catalog and typed topology: a corridor-to-transition/airlock-to-process-laboratory pressure cascade, process-exhaust duty and standby fans, a shared exhaust path, monitored treatment and supply/makeup-air dependencies, and explicitly bound observation points. The planned **process-exhaust failure causing pressure-cascade degradation** scenario, observations, higher-level state layers, and deterministic consequence engine are not implemented.
 
 Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQLite with the point, current value, and alarm rule data. The inventory adds context such as equipment type, location, criticality, and source system.
 
@@ -57,7 +76,7 @@ Alarm scenarios are deterministic dashboard and API controls that set known curr
 
 The dashboard also includes a deterministic operations overview for an end-to-end facility scenario: utility disturbance, ATS source loss indication, UPS battery support, generator fuel readiness constraint, and CRAC supply temperature drift. This overview is seeded local data, not an AI-generated root cause engine. It demonstrates explainable correlation evidence, event history, shift turnover notes, equipment out-of-service records, corrective actions, MOP/SOP/EOP references, and management-level reliability reporting.
 
-The operational reset endpoint restores the local sandbox to a deterministic runtime baseline without deleting catalog configuration. `POST /scenario/reset-operational-state` clears generated alarms and alarm/audit events, replaces point samples with the seeded baseline samples, and resets current point values from `data/sample_current_point_values.csv`. Equipment, points, alarm rules, imported Modbus point catalog records, and point protocol/address metadata are preserved.
+The operational reset endpoint restores the local sandbox to the baseline registered for the database's exact facility ID and fixture version without deleting catalog or topology configuration. `POST /scenario/reset-operational-state` clears generated alarms, alarm/audit events, point samples, and current values before loading that selected baseline. Northstar restores its 17 seeded values. The Milestone 2 flagship declares no observation baseline, so flagship reset loads zero values and cannot inject Northstar values. Reset fails without mutation when the database has no exact registered facility context.
 
 Rule evaluations are read-only, stateless checks of the alarm rule catalog against current point values. Process alarm rules only evaluate against eligible samples: `GOOD` quality, not stale, not overridden, and not out of service. `UNKNOWN` quality is normalized to `UNCERTAIN`.
 
@@ -90,6 +109,8 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
+The API includes `/facility-topology`, which identifies the selected facility and fixture version and returns the deterministic typed topology. The dashboard does not yet provide facility selection or a topology presentation; those remain outside Milestone 2.
+
 The dashboard calls `/summary`, `/operations/overview`, `/scenarios`, `/scenario/reset-operational-state`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, operations scenario context, explainable alarm correlation, incident timeline, shift turnover, equipment OOS records, corrective actions, procedure references, reliability reporting, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, operational state can be reset, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
 
 To create generated alarms for a demo, apply an alarm scenario or manually update a current point value, review `/rule-evaluations`, then run generated alarm evaluation. Applying scenarios or manual point updates does not automatically create generated alarms.
@@ -104,6 +125,12 @@ Call the equipment inventory endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/equipment
+```
+
+Call the selected facility topology endpoint:
+
+```bash
+curl http://127.0.0.1:8000/facility-topology
 ```
 
 Call the point dictionary endpoint:
@@ -267,4 +294,4 @@ All mutating test cases use isolated temporary SQLite databases. The verificatio
 
 ## Planned Direction
 
-The approved roadmap incrementally adds the minimum flagship topology, explicit deterministic point/equipment/system/facility state, operational consequences, durable provenance, bounded operator and commissioning workflows, a vendor-neutral read-only adapter proof, and an optional advisory AI layer. These capabilities remain planned until [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records verified implementation.
+The approved roadmap next adds point-condition and temporal semantics, golden-scenario observations, explicit deterministic equipment/system/facility state, operational consequences, durable provenance, bounded operator and commissioning workflows, a vendor-neutral read-only adapter proof, and an optional advisory AI layer. These capabilities remain planned until [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records verified implementation.

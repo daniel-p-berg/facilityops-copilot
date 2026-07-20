@@ -1,0 +1,24 @@
+{
+  "manifest_schema_version": 1,
+  "package_type": "legacy_northstar",
+  "facility": {
+    "facility_id": "FACILITY-NORTHSTAR-DATA-HALL",
+    "facility_name": "Northstar Data Hall",
+    "fixture_version": "1.0.0"
+  },
+  "files": {
+    "equipment": "../../../sample_equipment.csv",
+    "points": "../../../sample_points.csv",
+    "alarm_rules": "../../../sample_alarm_rules.csv",
+    "current_point_values": "../../../sample_current_point_values.csv",
+    "facility_scenarios": "../../../sample_facility_scenarios.csv",
+    "alarm_correlations": "../../../sample_alarm_correlations.csv",
+    "alarm_correlation_members": "../../../sample_alarm_correlation_members.csv",
+    "incident_timeline": "../../../sample_incident_timeline.csv",
+    "shift_turnover": "../../../sample_shift_turnover.csv",
+    "equipment_out_of_service": "../../../sample_equipment_out_of_service.csv",
+    "corrective_actions": "../../../sample_corrective_actions.csv",
+    "procedure_references": "../../../sample_procedure_references.csv",
+    "reliability_reports": "../../../sample_reliability_reports.csv"
+  }
+}

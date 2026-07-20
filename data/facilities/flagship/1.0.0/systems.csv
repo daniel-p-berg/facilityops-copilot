@@ -1,0 +1,2 @@
+facility_id,fixture_version,id,name,system_type,description
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,SYSTEM-PROCESS-EXHAUST,Process Exhaust,process_exhaust,Minimum process-exhaust system serving the process laboratory

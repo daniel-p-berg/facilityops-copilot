@@ -1,9 +1,11 @@
 import sqlite3
+from pathlib import Path
 
-from analysis.load_alarm_db import CURRENT_POINT_VALUE_FILE
 from analysis.load_alarm_db import DEFAULT_STALE_AFTER_SECONDS
 from analysis.load_alarm_db import point_sample_id
 from analysis.load_alarm_db import read_current_point_value_rows
+from backend.services.facility_package_registry import resolve_registered_fixture
+from backend.services.facility_topology_service import get_facility_identity
 from backend.summary import begin_transaction
 from backend.summary import current_timestamp
 from backend.summary import DATABASE_FILE
@@ -119,13 +121,48 @@ def reload_seed_current_values(connection, rows, received_timestamp):
 
 def reset_operational_state(
     db_path=DATABASE_FILE,
-    current_point_value_csv_path=CURRENT_POINT_VALUE_FILE,
+    current_point_value_csv_path=None,
 ):
-    """Reset volatile local runtime state while preserving catalog configuration."""
-    seed_rows = read_current_point_value_rows(current_point_value_csv_path)
+    """Reset volatile state using only the database's exact facility context."""
+    target_path = Path(db_path)
+    if not target_path.is_file():
+        raise LookupError(f"Database not found: {target_path}")
+
+    identity = get_facility_identity(target_path)
+    fixture_context = resolve_registered_fixture(
+        identity["facility_id"],
+        identity["fixture_version"],
+    )
+    baseline_path = fixture_context["current_point_value_path"]
+
+    if current_point_value_csv_path is not None:
+        requested_baseline_path = Path(current_point_value_csv_path).resolve()
+        if baseline_path is None or requested_baseline_path != baseline_path.resolve():
+            raise ValueError(
+                "Reset baseline override does not match the selected facility fixture"
+            )
+
+    seed_rows = []
+    if baseline_path is not None:
+        seed_rows = read_current_point_value_rows(baseline_path)
+
+    with sqlite3.connect(target_path) as connection:
+        catalog_point_ids = {
+            row[0] for row in connection.execute("SELECT id FROM points")
+        }
+    baseline_point_ids = [row["point_id"] for row in seed_rows]
+    if len(baseline_point_ids) != len(set(baseline_point_ids)):
+        raise ValueError("Selected facility baseline contains duplicate point IDs")
+    missing_point_ids = sorted(set(baseline_point_ids) - catalog_point_ids)
+    if missing_point_ids:
+        raise ValueError(
+            "Selected facility baseline references missing catalog points: "
+            + ", ".join(missing_point_ids)
+        )
+
     received_timestamp = current_timestamp()
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite3.connect(target_path) as connection:
         ensure_point_sample_table(connection)
         ensure_current_point_value_table(connection)
         ensure_generated_alarm_table(connection)
@@ -152,5 +189,7 @@ def reset_operational_state(
         "alarm_events_deleted": alarm_events_deleted,
         "point_samples_deleted": point_samples_deleted,
         "current_values_reset": len(seed_rows),
+        "facility_id": identity["facility_id"],
+        "fixture_version": identity["fixture_version"],
         "message": "Operational state reset",
     }

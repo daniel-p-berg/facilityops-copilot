@@ -41,7 +41,9 @@ Milestones are intentionally small and verifiable. They do not promise delivery 
 
 ## Milestone 2 — Minimum viable flagship catalog and topology
 
-**Status:** Planned
+**Status:** Completed
+
+**Completion evidence:** The version `1.0.0` flagship package loads only by explicit manifest and isolated-database selection after complete pre-validation. All ADR 0001 entities, directions, relationships, roles, dependencies, and typed point bindings are stored and returned by a deterministic query. Invalid and cross-fixture packages leave prior database state unchanged, injected write failure rolls back, facility-aware reset preserves configuration and prevents Northstar baseline contamination, all 211 legacy tests pass unchanged, all 15 focused tests pass, and the normal project database hash remains unchanged.
 
 **Scope**
 

@@ -40,6 +40,7 @@ from backend.summary import update_alarm_rule
 from backend.summary import update_current_point_value
 from backend.services.csv_replay_runner import run_all_csv_replay_steps
 from backend.services.csv_replay_runner import run_csv_replay_step
+from backend.services.facility_topology_service import get_facility_topology
 from backend.services.operational_reset_service import reset_operational_state
 from backend.services.point_ingest_service import ingest_driver_samples
 
@@ -81,6 +82,21 @@ def read_equipment():
         return error_response
 
     return {"equipment": get_equipment_inventory()}
+
+
+@app.get("/facility-topology")
+def read_facility_topology():
+    error_response = database_not_found_response()
+    if error_response:
+        return error_response
+
+    try:
+        return get_facility_topology(DATABASE_FILE)
+    except LookupError as error:
+        return JSONResponse(
+            status_code=404,
+            content={"error": str(error)},
+        )
 
 
 @app.get("/operations/overview")
@@ -495,7 +511,13 @@ def reset_scenario_operational_state():
     if error_response:
         return error_response
 
-    return reset_operational_state(db_path=DATABASE_FILE)
+    try:
+        return reset_operational_state(db_path=DATABASE_FILE)
+    except (LookupError, ValueError) as error:
+        return JSONResponse(
+            status_code=409,
+            content={"error": str(error)},
+        )
 
 
 @app.post("/scenarios/{scenario_id}/apply")

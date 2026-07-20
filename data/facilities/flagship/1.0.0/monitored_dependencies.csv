@@ -1,0 +1,3 @@
+facility_id,fixture_version,id,name,dependency_type,monitoring_only,description
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,PERMISSIVE-TREATMENT,Treatment Permissive,treatment_permissive,1,Monitored treatment availability without command authority
+FACILITY-ADVANCED-MATERIALS-RESEARCH,1.0.0,DEPENDENCY-SUPPLY-MAKEUP,Supply or Makeup Air,supply_makeup_air,1,Minimum monitored supply dependency for both pressure boundaries

@@ -3,13 +3,13 @@
 ## Status basis
 
 - **Status date:** 2026-07-20
-- **Checkpoint commit:** `627d37ef99e9d9b3936317cffbe9c5037537b219`
+- **Milestone 2 base commit:** `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`
 - **Verification base commit:** `5718e5060935ba8b813b7354be094d44f4ee383b`
 - **Implemented legacy environment:** Fictional Northstar Data Hall
-- **Planned flagship:** Fictional Advanced Materials Research and Precision-Environment Facility
+- **Implemented flagship scope:** Minimum fictional Advanced Materials Research and Precision-Environment Facility catalog and topology
 - **Planned golden scenario:** Process-exhaust failure causing pressure-cascade degradation
 
-This document reports verified repository reality separately from the intended product in [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md). “Implemented” means present in the checkpoint and supported by source inspection plus the verification evidence stated below; it does not imply production readiness or domain certification.
+This document reports verified repository reality separately from the intended product in [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md). “Implemented” means present in the described implementation and supported by source inspection plus the verification evidence stated below; it does not imply production readiness or domain certification.
 
 ## Verification record
 
@@ -37,6 +37,10 @@ The earlier targeted checks completed successfully against an isolated temporary
 
 The full-suite result above supersedes the earlier unknown status. It verifies the current 211-test suite in the recorded environment; it does not establish production readiness or validate every possible dependency combination.
 
+Milestone 2 verification uses a fresh Python 3.12.13 environment outside the repository with FastAPI 0.136.3, Starlette 1.3.1, Pydantic 2.13.4, Uvicorn 0.49.0, and AnyIO 4.14.2. The bounded application import completes in 1.496 seconds. The implementation retains all 211 Northstar tests and adds 15 focused tests: the legacy 211-test module passes unchanged, the focused Milestone 2 module passes, and all 226 discovered tests pass together. The full test body completes in 5.725 seconds and the bounded suite process completes in 6.440 seconds. Focused coverage verifies exact flagship counts, stable facility identity and fixture version, every ADR 0001 entity and relationship, point ownership and typed bindings, pressure direction and cascade order, duty/standby roles, manifest and cross-fixture rejection, transaction rollback, deterministic topology query output, facility-aware reset, and Northstar compatibility.
+
+Representative isolated-database smoke checks load and query the flagship through the documented CLI, exercise `GET /facility-topology`, reset a flagship runtime sample to its declared zero-observation baseline, and load/reset Northstar to its unchanged 17-value baseline. The normal `db/facilityops.sqlite3` SHA-256 remains `39a6538b3689703b95cd2ae00a31ebcd1c5c2f978bbe1d49db3d64bbc2451648` before and after implementation verification.
+
 ## Implemented
 
 ### Repository and runtime shape
@@ -53,6 +57,31 @@ The full-suite result above supersedes the earlier unknown status. It verifies t
 - Normal point ingestion appends point-sample history and updates the latest-value `current_point_values` projection.
 - Point metadata for value, unit, quality, timestamps, source, protocol, address, stale window, override, and out-of-service status.
 - Manual local point updates, deterministic scenario samples, simulated-driver samples, and CSV replay samples.
+
+### Minimum flagship catalog and topology
+
+- One versioned JSON/CSV fixture package for facility ID `FACILITY-ADVANCED-MATERIALS-RESEARCH`, fixture version `1.0.0`.
+- Ten real equipment records and sixteen equipment-owned point records covering fan availability, run, fault, and speed evidence; airflow; duct static; damper position; treatment permissive; supply/makeup-air status; process-laboratory zone pressure; and both boundary differential pressures.
+- Three zones forming the explicit corridor → transition/airlock → process-laboratory chain.
+- One process-exhaust system, two directed pressure boundaries, one shared exhaust path, and two monitored dependencies.
+- Ten typed topology relationship rows: two duty/standby memberships, one system-zone service, two fan/shared-path memberships, one path/treatment dependency, one boundary/system dependency, two boundary/supply dependencies, and one cascade-order link.
+- Eight typed point bindings: one zone, one system, two pressure-boundary, two shared-path, and two monitored-dependency bindings.
+- No current-value baseline, numerical pressure limit, point-condition semantics, temporal rules, equipment/system/facility state, consequence logic, scenario observation, or executable control behavior.
+
+### Facility fixture loading and topology persistence
+
+- Explicit standard-library JSON manifest selection with standard-library CSV package data.
+- Complete in-memory validation before the target database is opened or mutated.
+- One explicitly selected facility per SQLite database and rejection of the normal project database as a flagship target.
+- Additive typed relational storage with concrete endpoint columns, uniqueness/check constraints, and declared foreign keys; global SQLite foreign-key enforcement remains disabled.
+- One-connection, one-transaction replacement of facility identity, catalog, topology, relationships, and typed bindings, with post-load row comparison and foreign-key consistency inspection.
+- Rejection of duplicate or unstable IDs, missing endpoints, invalid roles, invalid/self-referential directions, duplicate relationships, incomplete or cyclic cascades, cross-fixture rows/references, and invalid or multiple primary point bindings.
+- Rollback preserves the prior database after an injected write failure. Invalid packages fail before the database transaction and leave prior bytes unchanged.
+
+### Facility topology query
+
+- Deterministic service, CLI, and `GET /facility-topology` output identifies the active facility ID and fixture version.
+- The flagship result exposes both directed boundaries and ordered zones, process-exhaust service, duty/standby fan roles, shared-path memberships, treatment and supply/makeup-air dependencies, cascade ordering, and all relevant typed point bindings.
 
 ### Deterministic alarm behavior
 
@@ -73,7 +102,8 @@ The full-suite result above supersedes the earlier unknown status. It verifies t
 - Static Modbus register-map preview and local catalog commit.
 - Northstar point-trigger and normalization scenarios.
 - A five-point Northstar utility, UPS, generator-readiness, and cooling scenario.
-- Operational reset that preserves catalog and rule configuration, deletes point samples, and reseeds the laboratory baseline and current-value projection.
+- Facility-aware operational reset that preserves catalog, rule, facility, topology, relationship, and binding configuration; deletes current runtime samples, values, generated alarms, and audit events; and resolves only the exact selected fixture baseline.
+- Northstar reset restores the unchanged 17-value baseline. Flagship reset restores zero observations and cannot load Northstar point values.
 
 ### Seeded operational context
 
@@ -139,7 +169,7 @@ The local sandbox can demonstrate deterministic behavior, but it does not yet im
 
 ## Planned
 
-- The fictional Advanced Materials Research and Precision-Environment Facility catalog and topology.
+- Broader Advanced Materials Research and Precision-Environment Facility areas, systems, and topology beyond the accepted Milestone 2 minimum.
 - The process-exhaust failure and pressure-cascade-degradation golden scenario.
 - Explicit deterministic point, equipment, system, and facility state layers.
 - Deterministic operational consequences with affected scope, evidence, and uncertainty.
@@ -159,6 +189,6 @@ Planned capabilities are not implemented and must not be presented as current be
 - Backup, restore, database upgrade, and long-term evidence-retention behavior.
 - Authentication, authorization, multi-user identity, and deployment security; these are not implemented.
 - Production deployment, monitoring, availability, and recovery characteristics.
-- Domain correctness of the planned flagship topology, operating modes, pressure relationships, consequence rules, and functional-test criteria.
+- Domain validation of the implemented minimum fictional topology and of all planned operating modes, numerical pressure relationships, consequence rules, and functional-test criteria.
 - Regulatory, industrial-hygiene, process-safety, cleanroom, or commissioning acceptance; no such validation or claim exists.
 - Final vocabulary and relationships for alarm priority, point condition, operational risk, advisory classification, and incident severity.

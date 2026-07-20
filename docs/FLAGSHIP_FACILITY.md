@@ -1,6 +1,6 @@
-# Planned Flagship Facility
+# Flagship Facility
 
-> **Status: planned and not implemented.** This document defines a fictional target environment for product planning. It does not describe a real facility, certify a design, or claim implemented application behavior.
+> **Status: minimum Milestone 2 catalog and topology implemented; broader facility and golden-scenario behavior planned.** This document defines a fictional target environment for product planning. It does not describe a real facility, certify a design, or claim behavior beyond the verified scope in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Facility concept
 
@@ -10,9 +10,9 @@ The facility is intentionally representative rather than vendor-specific. Equipm
 
 ## Initial implementation boundary
 
-The broader facility description in this document is the long-term representative environment. The first implemented flagship slice must include only the minimum fictional areas, systems, equipment, points, pressure boundaries, and dependency relationships required to execute and explain the pressure-cascade golden scenario.
+The broader facility description in this document is the long-term representative environment. Milestone 2 implements only the accepted minimum fictional areas, systems, equipment, points, pressure boundaries, and dependency relationships required to support a future pressure-cascade golden scenario.
 
-The exact minimum topology must be proposed through the approved ADR process and explicitly accepted before implementation. This document does not approve numerical pressure bands, hazard classifications, cleanroom classifications, containment certifications, or a complete campus utility model.
+ADRs 0001 and 0002 define the implemented minimum topology and persistence boundary. The version `1.0.0` fixture contains the three-zone corridor-to-transition/airlock-to-process-laboratory cascade, process-exhaust duty and standby fans, their shared exhaust path, a monitored treatment permissive, a monitored supply/makeup-air dependency, and typed point bindings. This document does not approve numerical pressure bands, hazard classifications, cleanroom classifications, containment certifications, or a complete campus utility model.
 
 Additional laboratories, utilities, electrical systems, and precision spaces remain later extensions unless an accepted ADR establishes that the golden scenario requires a specific dependency.
 

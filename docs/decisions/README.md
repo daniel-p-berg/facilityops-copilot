@@ -90,7 +90,7 @@ The following topics are intentionally unresolved. Listing them does not approve
 1. **Operational vocabularies:** Separate models and mappings for alarm priority, point condition, operational risk, advisory classification, and incident severity.
 2. **Canonical state hierarchy:** State names, precedence, uncertainty, and transition ownership for point, equipment, system, and facility layers.
 3. **Temporal semantics:** Event time versus receive time, ordering, late data, persistence, staleness, hold times, and replay clocks.
-4. **Facility topology:** Representation of zones, pressure boundaries, airflow direction, equipment membership, redundancy, shared capacity, and dependencies.
+4. **Future topology expansion:** ADRs 0001 and 0002 settle the minimum Milestone 2 topology and persistence model. Additional zones, systems, relationship types, multi-facility storage, or broader topology require a later decision.
 5. **Consequence model:** Rule representation, affected scope, uncertainty, escalation, recovery, and the boundary between consequence and advisory text.
 6. **Evidence and provenance:** Durable identifiers, source manifests, hashes, rule versions, retention, export, and tamper-evident metadata.
 7. **Reset semantics:** Which active laboratory records reset may clear and which provenance or incident evidence must survive.

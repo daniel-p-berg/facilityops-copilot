@@ -1,12 +1,22 @@
 import csv
 import sqlite3
+import sys
 import uuid
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from backend.services.facility_package_registry import NORTHSTAR_FACILITY_ID
+from backend.services.facility_package_registry import NORTHSTAR_FIXTURE_VERSION
+from backend.services.facility_package_registry import resolve_registered_fixture
+from backend.services.facility_topology_service import clear_topology_rows
+from backend.services.facility_topology_service import create_facility_topology_tables
+from backend.services.facility_topology_service import record_facility_environment
+
 ALARM_FILE = PROJECT_ROOT / "data" / "sample_alarms.csv"
 EQUIPMENT_FILE = PROJECT_ROOT / "data" / "sample_equipment.csv"
 POINT_FILE = PROJECT_ROOT / "data" / "sample_points.csv"
@@ -1391,7 +1401,11 @@ def load_sample_data_to_sqlite(
     reliability_report_csv_path=RELIABILITY_REPORT_FILE,
     db_path=DATABASE_FILE,
 ):
-    """Load sample facility records into SQLite."""
+    """Load the legacy default Northstar fixture into SQLite."""
+    northstar_context = resolve_registered_fixture(
+        NORTHSTAR_FACILITY_ID,
+        NORTHSTAR_FIXTURE_VERSION,
+    )
     reset_legacy_alarms(db_path)
     equipment_count = load_equipment_to_sqlite(equipment_csv_path, db_path)
     point_count = load_points_to_sqlite(point_csv_path, db_path)
@@ -1414,6 +1428,19 @@ def load_sample_data_to_sqlite(
     )
     reset_generated_alarms(db_path)
 
+    with sqlite3.connect(db_path) as connection:
+        create_facility_topology_tables(connection)
+        begin_transaction(connection)
+        clear_topology_rows(connection)
+        record_facility_environment(
+            connection,
+            facility_id=northstar_context["facility_id"],
+            facility_name=northstar_context["facility_name"],
+            fixture_version=northstar_context["fixture_version"],
+            manifest_path=northstar_context["manifest_path"],
+            loaded_at=current_timestamp(),
+        )
+
     load_counts = {
         "alarm_records": 0,
         "equipment_records": equipment_count,
@@ -1421,6 +1448,7 @@ def load_sample_data_to_sqlite(
         "alarm_rule_records": alarm_rule_count,
         "current_point_value_records": current_point_value_count,
         "point_sample_records": current_point_value_count,
+        "facility_environment_records": 1,
     }
     load_counts.update(operational_context_counts)
     return load_counts
