@@ -65,11 +65,12 @@ Link the charter, roadmap milestone, architecture, status evidence, and related 
 
 ## Decision index
 
-ADR 0001 has been accepted.
+ADRs 0001 and 0002 have been accepted.
 
 | ADR | Title | Status | Date | Supersedes |
 |---|---|---|---|---|
 | [ADR 0001](0001-minimum-flagship-topology.md) | Minimum flagship topology | Accepted | 2026-07-20 | None |
+| [ADR 0002](0002-facility-fixture-identity-and-topology-persistence.md) | Facility fixture identity and minimum topology persistence | Accepted | 2026-07-20 | None |
 
 The index must be updated whenever an ADR is added or changes status.
 
