@@ -32,3 +32,15 @@ Work on one user-approved roadmap slice at a time. If a slice depends on an unre
 ## Reporting
 
 Write operational output for facilities personnel. Explain what happened, affected equipment and systems, operational consequences, supporting evidence, uncertainty, and the follow-up an operator or technician should consider. Highlight urgent conditions without assuming the unresolved severity architecture has been settled.
+
+### Technical language
+
+- For engineering, facilities, controls, maintenance, commissioning, and operational content, use direct technical English, active voice, consistent terminology, and explicit conditions.
+- Preserve accepted technical and equipment terms when they are more precise than simplified alternatives.
+- Use modal verbs consistently: **must** for a requirement, **should** for a recommendation, **may** for permission, and **can** for capability.
+- Use operational verbs precisely. Do not treat verify, ensure, monitor, maintain, align, isolate, secure, trip, shut down, start, stop, reset, and restore as interchangeable.
+- Distinguish an observed indication from the equipment, system, or facility state inferred from it.
+- Distinguish alarms, warnings, permissives, interlocks, trips, simulated command representations, equipment feedback, and operator actions.
+- Explain relevant causal chains, assumptions, dependencies, evidence, uncertainty, and failure modes.
+- When proposing a threshold or acceptance criterion, state its technical basis, expected normal variability, instrument uncertainty, persistence or delay, applicable hysteresis, credible false-positive conditions, and required response.
+- Do not claim formal ADS-STE100 compliance unless the text has been checked against the applicable specification and approved project terminology.
