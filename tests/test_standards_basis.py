@@ -1,9 +1,12 @@
+import asyncio
 import json
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from backend import main as backend_main
 from backend.services.standards_basis_service import APPROVED_QUALITATIVE_REQUIREMENTS
 from backend.services.standards_basis_service import DEFAULT_STANDARDS_BASIS_MANIFEST
 from backend.services.standards_basis_service import FLAGSHIP_FACILITY_ID
@@ -11,6 +14,54 @@ from backend.services.standards_basis_service import StandardsBasisStore
 from backend.services.standards_basis_service import StandardsBasisValidationError
 from backend.services.standards_basis_service import get_standards_traceability
 from backend.services.standards_basis_service import load_standards_basis_package
+
+
+def get_json_from_asgi_app(app, path, method="GET"):
+    async def make_request():
+        messages = []
+        request_sent = False
+
+        async def receive():
+            nonlocal request_sent
+            if request_sent:
+                return {"type": "http.disconnect"}
+            request_sent = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            messages.append(message)
+
+        await app(
+            {
+                "type": "http",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "method": method,
+                "scheme": "http",
+                "path": path,
+                "raw_path": path.encode("utf-8"),
+                "query_string": b"",
+                "headers": [],
+                "client": ("testclient", 50000),
+                "server": ("testserver", 80),
+                "root_path": "",
+            },
+            receive,
+            send,
+        )
+        status = next(
+            item["status"]
+            for item in messages
+            if item["type"] == "http.response.start"
+        )
+        body = b"".join(
+            item.get("body", b"")
+            for item in messages
+            if item["type"] == "http.response.body"
+        )
+        return status, json.loads(body.decode("utf-8"))
+
+    return asyncio.run(make_request())
 
 
 class StandardsBasisPackageTestCase(unittest.TestCase):
@@ -76,6 +127,10 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
         facts = {record["id"]: record for record in package["applicability_profile"]}
 
         self.assertEqual(
+            {record["status"] for record in facts.values()},
+            {"PROJECT_OWNER_DECISION_RECORDED"},
+        )
+        self.assertEqual(
             facts["PROFILE-OPEN-BATCH-BOUND"]["statement"],
             "The maximum open powder batch is 250 g.",
         )
@@ -85,6 +140,16 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
         )
         self.assertIn("not a verified legal classification", facts["PROFILE-GROUP-B-ASSUMPTION"]["limitations"])
         self.assertIn("No numerical differential-pressure criterion", facts["PROFILE-PRESSURE-DIRECTION"]["limitations"])
+
+        owner_source = next(
+            record
+            for record in package["controlled_sources"]
+            if record["id"] == "SRC-OWNER-DIRECTIVE-2026-07-22"
+        )
+        self.assertEqual(
+            owner_source["adoption_status"],
+            "PROJECT_OWNER_DECISION_RECORDED",
+        )
 
     def test_exact_ten_recorded_requirements_are_accepted_and_all_are_inactive(self):
         package = load_standards_basis_package()
@@ -277,6 +342,90 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
             store.load(invalid_manifest)
 
         self.assertEqual(store.get(), original)
+
+
+class StandardsBasisApiTests(StandardsBasisPackageTestCase):
+    def test_consolidated_route_returns_one_complete_flagship_snapshot(self):
+        status, payload = get_json_from_asgi_app(backend_main.app, "/standards-basis")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["facility_id"], FLAGSHIP_FACILITY_ID)
+        self.assertEqual(payload["facility_fixture_version"], "1.0.0")
+        self.assertEqual(payload["status"], "READ_ONLY_NON_EXECUTABLE")
+        self.assertEqual(len(payload["applicability_profile"]), 18)
+        self.assertEqual(len(payload["controlled_sources"]), 27)
+        self.assertEqual(len(payload["applicability_matrix"]), 23)
+        self.assertEqual(len(payload["evidence_categories"]), 17)
+        self.assertEqual(len(payload["requirements"]), 12)
+        self.assertEqual(len(payload["traceability"]), 12)
+        self.assertIn("provisional", payload["notices"]["applicability"])
+        self.assertIn("non-executable", payload["notices"]["execution"])
+
+    def test_leaf_routes_are_read_only_and_repeat_facility_binding(self):
+        routes = {
+            "/standards-basis/profile": "applicability_profile",
+            "/standards-basis/controlled-sources": "controlled_sources",
+            "/standards-basis/applicability-matrix": "applicability_matrix",
+            "/standards-basis/requirements": "requirements",
+            "/standards-basis/evidence-categories": "evidence_categories",
+            "/standards-basis/traceability": "traceability",
+        }
+
+        for path, response_key in routes.items():
+            with self.subTest(path=path):
+                status, payload = get_json_from_asgi_app(backend_main.app, path)
+                self.assertEqual(status, 200)
+                self.assertEqual(payload["facility_id"], FLAGSHIP_FACILITY_ID)
+                self.assertEqual(payload["facility_fixture_version"], "1.0.0")
+                self.assertTrue(payload[response_key])
+
+                method_status, _method_payload = get_json_from_asgi_app(
+                    backend_main.app,
+                    path,
+                    method="POST",
+                )
+                self.assertEqual(method_status, 405)
+
+    def test_routes_do_not_depend_on_or_mutate_active_sqlite_database(self):
+        database_path = self.temp_root / "northstar-sentinel.sqlite3"
+        original = b"northstar database sentinel"
+        database_path.write_bytes(original)
+
+        with mock.patch.object(backend_main, "DATABASE_FILE", database_path):
+            status, payload = get_json_from_asgi_app(
+                backend_main.app,
+                "/standards-basis",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["facility_id"], FLAGSHIP_FACILITY_ID)
+        self.assertEqual(database_path.read_bytes(), original)
+
+    def test_consolidated_route_is_deterministic(self):
+        first_status, first_payload = get_json_from_asgi_app(
+            backend_main.app,
+            "/standards-basis",
+        )
+        second_status, second_payload = get_json_from_asgi_app(
+            backend_main.app,
+            "/standards-basis",
+        )
+
+        self.assertEqual(first_status, 200)
+        self.assertEqual(second_status, 200)
+        self.assertEqual(first_payload, second_payload)
+
+    def test_workbench_presents_flagship_basis_as_separate_read_only_review(self):
+        html = backend_main.FRONTEND_FILE.read_text(encoding="utf-8")
+
+        self.assertIn("Flagship Applicability and Requirement Basis", html)
+        self.assertIn("Provisional applicability matrix", html)
+        self.assertIn("Project-authored synthetic requirements — INACTIVE / NON-EXECUTABLE", html)
+        self.assertIn("Visible source-to-evidence traceability", html)
+        self.assertIn('fetch("/standards-basis")', html)
+        self.assertIn("loadStandardsBasis();", html)
+        self.assertIn("loadWorkbench();", html)
+        self.assertIn("This package is\n        separate from the active SQLite facility", html)
 
 
 if __name__ == "__main__":

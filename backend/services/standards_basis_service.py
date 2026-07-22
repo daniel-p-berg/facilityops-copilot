@@ -48,7 +48,7 @@ SOURCE_ADOPTION_STATUSES = {
     "LOCAL_ADMINISTRATIVE_SOURCE",
     "NOT_ESTABLISHED_FOR_FLAGSHIP",
     "NOT_A_LEGAL_SOURCE",
-    "PROJECT_OWNER_APPROVED",
+    "PROJECT_OWNER_DECISION_RECORDED",
 }
 SOURCE_ENFORCEMENT_STATUSES = {
     "GENERALLY_IN_FORCE_SUBJECT_TO_SCOPE",
@@ -375,7 +375,7 @@ def _validate_profile(records, facility_id):
         _validate_record_facility(record, facility_id, context)
         _require(record["category"] in PROFILE_FACT_CATEGORIES, f"{context}.category is invalid")
         _require(
-            record["status"] == "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+            record["status"] == "PROJECT_OWNER_DECISION_RECORDED",
             f"{context}.status is invalid",
         )
         _require_nonblank(record["statement"], f"{context}.statement")
@@ -784,8 +784,7 @@ def get_synthetic_requirements(store=DEFAULT_STANDARDS_BASIS_STORE):
     return _section_response("requirements", store)
 
 
-def get_standards_traceability(store=DEFAULT_STANDARDS_BASIS_STORE):
-    package = store.get()
+def _build_traceability(package):
     sources = {record["id"]: record for record in package["controlled_sources"]}
     applicability = {
         record["id"]: record for record in package["applicability_matrix"]
@@ -811,6 +810,27 @@ def get_standards_traceability(store=DEFAULT_STANDARDS_BASIS_STORE):
                 ],
             }
         )
+    return chains
+
+
+def get_standards_basis(store=DEFAULT_STANDARDS_BASIS_STORE):
+    package = store.get()
+    result = _package_metadata(package)
+    for section in (
+        "applicability_profile",
+        "controlled_sources",
+        "applicability_matrix",
+        "evidence_categories",
+        "requirements",
+    ):
+        result[section] = package[section]
+    result["traceability"] = _build_traceability(package)
+    return result
+
+
+def get_standards_traceability(store=DEFAULT_STANDARDS_BASIS_STORE):
+    package = store.get()
+    chains = _build_traceability(package)
 
     result = _package_metadata(package)
     result["traceability"] = chains

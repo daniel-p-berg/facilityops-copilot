@@ -472,6 +472,38 @@
       grid-column: span 2;
     }
 
+    .standards-basis {
+      border-left: 5px solid var(--accent);
+      margin-bottom: 18px;
+    }
+
+    .standards-basis details {
+      border-top: 1px solid var(--line);
+      margin-top: 14px;
+      padding-top: 10px;
+    }
+
+    .standards-basis summary {
+      cursor: pointer;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .standards-basis td {
+      white-space: pre-line;
+    }
+
+    .standards-notices {
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      margin: 14px 0;
+      padding: 10px 14px;
+    }
+
+    .standards-notices li + li {
+      margin-top: 6px;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -502,6 +534,132 @@
     </header>
 
     <div id="error" class="error" hidden></div>
+
+    <section class="panel standards-basis" aria-labelledby="standardsBasisHeading">
+      <div class="section-heading">
+        <h2 id="standardsBasisHeading">Flagship Applicability and Requirement Basis</h2>
+        <span id="standardsBasisStatus" class="note">Loading read-only package...</span>
+      </div>
+      <div class="note">
+        Repository-versioned reviewer material for the flagship facility. This package is
+        separate from the active SQLite facility and contains no executable evaluation.
+      </div>
+      <div id="standardsBasisMetadata" class="summary-fields"></div>
+      <ul id="standardsBasisNotices" class="standards-notices"></ul>
+      <div id="standardsBasisError" class="error" hidden></div>
+
+      <details open>
+        <summary>Fictional applicability profile</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fact</th>
+                <th>Category</th>
+                <th>Recorded assumption</th>
+                <th>Limitation</th>
+              </tr>
+            </thead>
+            <tbody id="standardsProfileRows"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Controlled sources</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Issuer and title</th>
+                <th>Category</th>
+                <th>Adoption / enforcement</th>
+                <th>Direct support</th>
+                <th>Uncertainty</th>
+                <th>Official source</th>
+              </tr>
+            </thead>
+            <tbody id="controlledSourceRows"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Provisional applicability matrix</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Basis</th>
+                <th>Source</th>
+                <th>Status</th>
+                <th>Category</th>
+                <th>Trigger</th>
+                <th>Conclusion</th>
+                <th>Uncertainty / future verification</th>
+              </tr>
+            </thead>
+            <tbody id="applicabilityBasisRows"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <details open>
+        <summary>Project-authored synthetic requirements — INACTIVE / NON-EXECUTABLE</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Requirement</th>
+                <th>Status</th>
+                <th>Statement</th>
+                <th>Applicability bases</th>
+                <th>Required evidence categories</th>
+                <th>Limitations</th>
+              </tr>
+            </thead>
+            <tbody id="syntheticRequirementRows"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Required evidence categories</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Evidence category</th>
+                <th>Implementation status</th>
+                <th>Current point context</th>
+                <th>Description</th>
+                <th>Provenance boundary</th>
+                <th>Limitations</th>
+              </tr>
+            </thead>
+            <tbody id="evidenceCategoryRows"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Visible source-to-evidence traceability</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Controlled source</th>
+                <th>Applicability basis</th>
+                <th>Synthetic requirement</th>
+                <th>Required evidence category</th>
+              </tr>
+            </thead>
+            <tbody id="standardsTraceabilityRows"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
 
     <section class="overview">
       <div class="panel total">
@@ -889,6 +1047,16 @@
   <script>
     const statusEl = document.getElementById("status");
     const errorEl = document.getElementById("error");
+    const standardsBasisStatusEl = document.getElementById("standardsBasisStatus");
+    const standardsBasisMetadataEl = document.getElementById("standardsBasisMetadata");
+    const standardsBasisNoticesEl = document.getElementById("standardsBasisNotices");
+    const standardsBasisErrorEl = document.getElementById("standardsBasisError");
+    const standardsProfileRowsEl = document.getElementById("standardsProfileRows");
+    const controlledSourceRowsEl = document.getElementById("controlledSourceRows");
+    const applicabilityBasisRowsEl = document.getElementById("applicabilityBasisRows");
+    const syntheticRequirementRowsEl = document.getElementById("syntheticRequirementRows");
+    const evidenceCategoryRowsEl = document.getElementById("evidenceCategoryRows");
+    const standardsTraceabilityRowsEl = document.getElementById("standardsTraceabilityRows");
     const activeGeneratedAlarmCountEl = document.getElementById("activeGeneratedAlarmCount");
     const pendingGeneratedAlarmCountEl = document.getElementById("pendingGeneratedAlarmCount");
     const activeCriticalGeneratedAlarmCountEl = document.getElementById("activeCriticalGeneratedAlarmCount");
@@ -975,6 +1143,21 @@
       row.appendChild(cell);
     }
 
+    function appendLinkCell(row, url, fallback) {
+      const cell = document.createElement("td");
+      if (hasValue(url)) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = "Official source";
+        cell.appendChild(link);
+      } else {
+        cell.textContent = displayValue(fallback);
+      }
+      row.appendChild(cell);
+    }
+
     function appendNodeCell(row, node) {
       const cell = document.createElement("td");
       cell.appendChild(node);
@@ -989,6 +1172,127 @@
       cell.textContent = message;
       row.appendChild(cell);
       container.appendChild(row);
+    }
+
+    function renderStandardsBasis(data) {
+      standardsBasisMetadataEl.innerHTML = "";
+      standardsBasisNoticesEl.innerHTML = "";
+      standardsBasisErrorEl.hidden = true;
+
+      appendSummaryField(standardsBasisMetadataEl, "Package", `${data.package_id} v${data.package_version}`);
+      appendSummaryField(standardsBasisMetadataEl, "Facility", data.facility_name);
+      appendSummaryField(standardsBasisMetadataEl, "Facility ID", data.facility_id);
+      appendSummaryField(standardsBasisMetadataEl, "Fixture Version", data.facility_fixture_version);
+      appendSummaryField(standardsBasisMetadataEl, "Package Status", data.status);
+
+      Object.values(data.notices || {}).forEach((notice) => {
+        const item = document.createElement("li");
+        item.textContent = notice;
+        standardsBasisNoticesEl.appendChild(item);
+      });
+
+      standardsProfileRowsEl.innerHTML = "";
+      (data.applicability_profile || []).forEach((fact) => {
+        const row = document.createElement("tr");
+        appendCell(row, fact.id);
+        appendCell(row, fact.category);
+        appendCell(row, fact.statement);
+        appendCell(row, fact.limitations);
+        standardsProfileRowsEl.appendChild(row);
+      });
+      if ((data.applicability_profile || []).length === 0) {
+        renderEmptyRow(standardsProfileRowsEl, 4, "No profile facts found.");
+      }
+
+      controlledSourceRowsEl.innerHTML = "";
+      (data.controlled_sources || []).forEach((source) => {
+        const row = document.createElement("tr");
+        appendCell(row, `${source.id}\n${source.identifier}\n${source.edition_or_effective_date}`);
+        appendCell(row, `${source.issuer}\n${source.title}`);
+        appendCell(row, source.source_category);
+        appendCell(row, `${source.adoption_status}\n${source.enforcement_status}\n${source.access_status}`);
+        appendCell(row, source.direct_support);
+        appendCell(row, source.uncertainty);
+        appendLinkCell(row, source.official_url, source.repository_reference);
+        controlledSourceRowsEl.appendChild(row);
+      });
+      if ((data.controlled_sources || []).length === 0) {
+        renderEmptyRow(controlledSourceRowsEl, 7, "No controlled sources found.");
+      }
+
+      applicabilityBasisRowsEl.innerHTML = "";
+      (data.applicability_matrix || []).forEach((basis) => {
+        const row = document.createElement("tr");
+        appendCell(row, basis.id);
+        appendCell(row, basis.source_id);
+        appendCell(row, basis.status);
+        appendCell(row, basis.basis_category);
+        appendCell(row, basis.trigger);
+        appendCell(row, basis.conclusion);
+        appendCell(row, `${basis.uncertainty}\nFuture verification: ${basis.future_verification}`);
+        applicabilityBasisRowsEl.appendChild(row);
+      });
+      if ((data.applicability_matrix || []).length === 0) {
+        renderEmptyRow(applicabilityBasisRowsEl, 7, "No applicability bases found.");
+      }
+
+      syntheticRequirementRowsEl.innerHTML = "";
+      (data.requirements || []).forEach((requirement) => {
+        const row = document.createElement("tr");
+        appendCell(row, `${requirement.id}\n${requirement.title}\nv${requirement.version}`);
+        appendCell(
+          row,
+          `${requirement.lifecycle_status}\n${requirement.approval_status}\n${requirement.activation_status}\nNON-EXECUTABLE`,
+        );
+        appendCell(row, requirement.statement);
+        appendCell(row, requirement.applicability_basis_ids.join("\n"));
+        appendCell(row, requirement.evidence_category_ids.join("\n"));
+        appendCell(row, requirement.limitations.join("\n"));
+        syntheticRequirementRowsEl.appendChild(row);
+      });
+      if ((data.requirements || []).length === 0) {
+        renderEmptyRow(syntheticRequirementRowsEl, 6, "No synthetic requirements found.");
+      }
+
+      evidenceCategoryRowsEl.innerHTML = "";
+      (data.evidence_categories || []).forEach((category) => {
+        const row = document.createElement("tr");
+        appendCell(row, `${category.id}\n${category.label}`);
+        appendCell(row, category.implementation_status);
+        appendCell(row, category.current_point_ids.join("\n"), "mono");
+        appendCell(row, category.description);
+        appendCell(row, category.provenance_consideration);
+        appendCell(row, category.limitations);
+        evidenceCategoryRowsEl.appendChild(row);
+      });
+      if ((data.evidence_categories || []).length === 0) {
+        renderEmptyRow(evidenceCategoryRowsEl, 6, "No evidence categories found.");
+      }
+
+      standardsTraceabilityRowsEl.innerHTML = "";
+      (data.traceability || []).forEach((chain) => {
+        const row = document.createElement("tr");
+        appendCell(row, chain.controlled_sources.map((source) => source.id).join("\n"));
+        appendCell(
+          row,
+          chain.applicability_bases
+            .map((basis) => `${basis.id} [${basis.status}]`)
+            .join("\n"),
+        );
+        appendCell(row, `${chain.requirement.id}\n${chain.requirement.activation_status}`);
+        appendCell(
+          row,
+          chain.required_evidence_categories
+            .map((category) => category.id)
+            .join("\n"),
+        );
+        standardsTraceabilityRowsEl.appendChild(row);
+      });
+      if ((data.traceability || []).length === 0) {
+        renderEmptyRow(standardsTraceabilityRowsEl, 4, "No traceability chains found.");
+      }
+
+      standardsBasisStatusEl.textContent = "Validated read-only package loaded";
     }
 
     function renderCounts(container, counts) {
@@ -1888,6 +2192,21 @@
       return data;
     }
 
+    async function loadStandardsBasis() {
+      standardsBasisStatusEl.textContent = "Loading read-only package...";
+      standardsBasisErrorEl.hidden = true;
+
+      try {
+        const response = await fetch("/standards-basis");
+        const data = await readJsonResponse(response, "flagship standards basis");
+        renderStandardsBasis(data);
+      } catch (error) {
+        standardsBasisStatusEl.textContent = "Standards basis unavailable";
+        standardsBasisErrorEl.textContent = error.message;
+        standardsBasisErrorEl.hidden = false;
+      }
+    }
+
     async function loadSummary() {
       const response = await fetch("/summary");
       const data = await readJsonResponse(response, "alarm summary");
@@ -2420,6 +2739,7 @@
       populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
     });
     populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
+    loadStandardsBasis();
     loadWorkbench();
   </script>
 </body>

@@ -43,6 +43,13 @@ from backend.services.csv_replay_runner import run_csv_replay_step
 from backend.services.facility_topology_service import get_facility_topology
 from backend.services.operational_reset_service import reset_operational_state
 from backend.services.point_ingest_service import ingest_driver_samples
+from backend.services.standards_basis_service import get_applicability_matrix
+from backend.services.standards_basis_service import get_applicability_profile
+from backend.services.standards_basis_service import get_controlled_sources
+from backend.services.standards_basis_service import get_evidence_categories
+from backend.services.standards_basis_service import get_standards_basis
+from backend.services.standards_basis_service import get_standards_traceability
+from backend.services.standards_basis_service import get_synthetic_requirements
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -97,6 +104,41 @@ def read_facility_topology():
             status_code=404,
             content={"error": str(error)},
         )
+
+
+@app.get("/standards-basis")
+def read_standards_basis():
+    return get_standards_basis()
+
+
+@app.get("/standards-basis/profile")
+def read_standards_basis_profile():
+    return get_applicability_profile()
+
+
+@app.get("/standards-basis/controlled-sources")
+def read_standards_basis_controlled_sources():
+    return get_controlled_sources()
+
+
+@app.get("/standards-basis/applicability-matrix")
+def read_standards_basis_applicability_matrix():
+    return get_applicability_matrix()
+
+
+@app.get("/standards-basis/requirements")
+def read_standards_basis_requirements():
+    return get_synthetic_requirements()
+
+
+@app.get("/standards-basis/evidence-categories")
+def read_standards_basis_evidence_categories():
+    return get_evidence_categories()
+
+
+@app.get("/standards-basis/traceability")
+def read_standards_basis_traceability():
+    return get_standards_traceability()
 
 
 @app.get("/operations/overview")
