@@ -65,13 +65,14 @@ Link the charter, roadmap milestone, architecture, status evidence, and related 
 
 ## Decision index
 
-ADRs 0001, 0002, and 0003 have been accepted.
+ADRs 0001 through 0004 have been accepted.
 
 | ADR | Title | Status | Date | Supersedes |
 |---|---|---|---|---|
 | [ADR 0001](0001-minimum-flagship-topology.md) | Minimum flagship topology | Accepted | 2026-07-20 | None |
 | [ADR 0002](0002-facility-fixture-identity-and-topology-persistence.md) | Facility fixture identity and minimum topology persistence | Accepted | 2026-07-20 | None |
 | [ADR 0003](0003-epistemic-and-human-authority-boundaries.md) | Epistemic and human-authority boundaries | Accepted | 2026-07-22 | None |
+| [ADR 0004](0004-flagship-fictional-applicability-profile.md) | Flagship fictional applicability profile and qualitative design intent | Accepted | 2026-07-22 | None |
 
 The index must be updated whenever an ADR is added or changes status.
 
@@ -89,7 +90,7 @@ The index must be updated whenever an ADR is added or changes status.
 The following topics are intentionally unresolved. Listing them does not approve a design, schema, requirement, parameter, workflow, or implementation:
 
 1. **Controlled sources, applicability, and requirements:** Representation of reference categories; editions; adoption and enforcement status; applicability decisions; project-effective requirements; parameter basis; requirement status history; licensed-source access; and traceability without copying protected clauses.
-2. **Fictional applicability profile and flagship evidence expansion:** Exact AHJ, local amendments, enforcement status, new/existing/altered status, use, hazards, quantities, control areas, process-exhaust applicability, and the read-only command/request plus VFD or motor electrical evidence needed beyond the accepted Milestone 2 topology.
+2. **Flagship applicability verification and evidence expansion:** ADR 0004 records the fictional location, construction status, research use, occupancy assumption, material and quantity bounds, exclusions, qualitative exhaust intent, and assumed local AHJ. Actual agency jurisdiction, local amendments, enforcement status, control and fire areas, material classification, process-exhaust applicability, and the exact command/request, VFD, motor, and electrical evidence beyond the accepted Milestone 2 topology remain unresolved.
 3. **Canonical observation and temporal semantics:** Source-native preservation, versioned mapping and normalization, units, provenance, observation identity, event/receive/evaluation time, ordering, lateness, staleness, clock limitations, quality, suspect data, override, OOS, persistence, and recovery holds.
 4. **Inference and operational vocabularies:** State names, precedence, uncertainty, transition ownership, and mappings among point condition, equipment/system/facility inference, alarm priority, operational risk, consequence, advisory classification, and incident severity.
 5. **Evidence sufficiency and outcome structure:** Required-evidence rules, contradiction handling, bounded finding vocabulary, and the internal separation of applicability from evaluation while preserving the working `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE` presentation.
@@ -101,4 +102,4 @@ The following topics are intentionally unresolved. Listing them does not approve
 11. **Advisory AI boundary implementation:** Evidence citation, uncertainty, prompt and data boundaries, audit, failure behavior, self-approval prevention, and prevention of mutation or exercise of human authority.
 12. **Domain validation:** Review scopes and qualified disciplines for fictional facility assumptions, synthetic requirements, evidence needs, pressure relationships, consequences, test content, and recovery criteria.
 
-[ADR 0003](0003-epistemic-and-human-authority-boundaries.md) settles only the cross-cutting epistemic and human-authority boundaries. It does not resolve the detailed decisions above.
+[ADR 0003](0003-epistemic-and-human-authority-boundaries.md) settles the cross-cutting epistemic and human-authority boundaries. [ADR 0004](0004-flagship-fictional-applicability-profile.md) records the bounded fictional profile and qualitative inactive design intent. Neither resolves the remaining detailed decisions above.

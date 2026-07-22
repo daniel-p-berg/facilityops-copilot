@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "package_id": "STANDARDS-BASIS-FLAGSHIP-1.0.0",
+  "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+  "facility_fixture_version": "1.0.0",
+  "records": [
+    {
+      "id": "PROFILE-FACILITY-CONSTRUCTION",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "FACILITY_CONTEXT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The fictional facility is new, privately operated, one story, and sprinklered.",
+      "limitations": "This is a fictional profile fact and does not establish a construction, fire-protection, permit, or occupancy determination.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-FACILITY-LOCATION",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "FACILITY_CONTEXT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The fictional facility is in the Town of Horseheads, Chemung County, New York, outside every incorporated village and outside New York City.",
+      "limitations": "No real address or parcel is represented; actual territorial and agency jurisdiction would require verification.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-AHJ-ASSUMPTION",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "JURISDICTION_ASSUMPTION",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "For this laboratory exercise, the Town code-enforcement authority is the assumed local authority having jurisdiction.",
+      "limitations": "Actual agency jurisdiction, adopted editions, amendments, enforcement authority, agreements, and permit responsibility remain subject to controlled-source verification.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-RESEARCH-USE",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "USE_AND_OCCUPANCY_ASSUMPTION",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The flagship space is a research laboratory and is not healthcare, pharmaceutical compounding, semiconductor production, pilot manufacturing, or full production.",
+      "limitations": "The assumed use does not determine legal occupancy, hazardous-material, process, or permit classification.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-GROUP-B-ASSUMPTION",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "USE_AND_OCCUPANCY_ASSUMPTION",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The intended fictional occupancy assumption is Group B research-laboratory use.",
+      "limitations": "This is not a verified legal classification; use, hazards, quantities, control areas, fire areas, and building configuration require qualified review.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-MATERIAL-AND-ACTIVITIES",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "MATERIAL_PROFILE",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The process uses bench-scale alumina-based ceramic powder and sintered ceramic specimens for weighing, wet mixing, preparation, and characterization.",
+      "limitations": "No product formulation, safety data sheet, CAS identity, additive content, particle-size distribution, or exposure assessment has been selected.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-OPEN-BATCH-BOUND",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "SIMULATION_INVENTORY_BOUND",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The maximum open powder batch is 250 g.",
+      "limitations": "This is a simulation inventory bound and does not establish compliance with a hazardous-material, exposure, fire, or permit threshold.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-INVENTORY-BOUND",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "SIMULATION_INVENTORY_BOUND",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The maximum powder inventory in the laboratory is 5 kg in closed containers.",
+      "limitations": "This is a simulation inventory bound and does not establish compliance with a hazardous-material, exposure, fire, or permit threshold.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-MATERIAL-HAZARD-BOUNDARY",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "MATERIAL_PROFILE",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The scoped material is noncombustible and nonreactive but presents a particulate inhalation and contamination concern.",
+      "limitations": "This project assumption does not replace a supplier safety data sheet, hazard classification, exposure assessment, or industrial-hygiene review.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-EXCLUDED-HAZARDS",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "SCOPE_EXCLUSION",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The proof excludes combustible dust, flammable-gas processes, flammable-liquid processes, explosives, pyrophoric materials, water-reactive materials, oxidizers, highly toxic gases, radioactive materials, biological agents, classified electrical locations, and quantities intended to produce a high-hazard occupancy.",
+      "limitations": "The exclusions bound the fictional proof; they do not establish that a real product or process lacks these hazards.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-ZONES",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The scoped zones are the corridor, transition or airlock, and process laboratory already represented by the flagship topology.",
+      "limitations": "This restates the accepted fictional topology and does not establish a physical design or code-required separation.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004 and ADR 0001", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-PRESSURE-DIRECTION",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The intended pressure direction is corridor to transition or airlock to process laboratory.",
+      "limitations": "No numerical differential-pressure criterion, tolerance, persistence interval, or recovery interval is approved.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004 and ADR 0001", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-PROCESS-EXHAUST",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "A dedicated process-exhaust system serves the process enclosure and laboratory.",
+      "limitations": "The arrangement is synthetic project intent and is not represented as a legally applicable requirement or approved physical design.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-TREATMENT",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "Exhaust passes through monitored particulate treatment before outdoor discharge.",
+      "limitations": "Treatment is an owner or project dependency; no specific code requirement, technology, efficiency, or test criterion is established.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-FAN-PAIR",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "Two VFD-driven fans form a duty and standby pair, and either fan can provide the intended normal duty.",
+      "limitations": "This is qualitative synthetic design intent; no capacity, response-time, transfer, or availability criterion is approved.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-COMMON-DEPENDENCIES",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "The shared exhaust path and treatment unit are common dependencies that a standby fan cannot replace.",
+      "limitations": "This describes the fictional dependency model and does not establish a physical failure analysis or code-required redundancy architecture.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-SUPPLY-MAKEUP",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "OWNER_PROJECT_DESIGN_INTENT",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "A supply or makeup-air subsystem supports the intended pressure cascade.",
+      "limitations": "No airflow balance, control sequence, capacity, pressure, or response criterion is approved.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "PROFILE-READ-ONLY-BOUNDARY",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "category": "EXTERNAL_CONTROL_BOUNDARY",
+      "status": "OWNER_APPROVED_FICTIONAL_ASSUMPTION",
+      "statement": "FacilityOps remains read-only toward external systems and must never issue a command or configure a controller.",
+      "limitations": "Observed or synthetic command and request indications remain evidence only and do not establish execution or physical response.",
+      "provenance": {"basis_type": "PROJECT_OWNER_DIRECTIVE", "reference": "ADR 0004 and ADR 0003", "recorded_on": "2026-07-22"}
+    }
+  ]
+}
