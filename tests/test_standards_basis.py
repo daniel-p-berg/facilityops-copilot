@@ -121,7 +121,7 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
                 "applicability_profile": 18,
                 "controlled_sources": 27,
                 "applicability_matrix": 23,
-                "evidence_categories": 17,
+                "evidence_categories": 18,
                 "requirements": 12,
             },
         )
@@ -177,6 +177,10 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
         self.assertEqual(len(proposed), 2)
         self.assertTrue(all(record["lifecycle_status"] == "DRAFT" for record in proposed))
         self.assertTrue(all(record["activation_status"] == "INACTIVE" for record in proposed))
+        self.assertIn(
+            "EVIDENCE-PROCESS-ENABLED-CONTEXT",
+            requirements["REQ-SOO-002"]["evidence_category_ids"],
+        )
 
     def test_traceability_resolves_source_to_basis_to_requirement_to_evidence(self):
         store = StandardsBasisStore(DEFAULT_STANDARDS_BASIS_MANIFEST)
@@ -403,7 +407,7 @@ class StandardsBasisApiTests(StandardsBasisPackageTestCase):
         self.assertEqual(len(payload["applicability_profile"]), 18)
         self.assertEqual(len(payload["controlled_sources"]), 27)
         self.assertEqual(len(payload["applicability_matrix"]), 23)
-        self.assertEqual(len(payload["evidence_categories"]), 17)
+        self.assertEqual(len(payload["evidence_categories"]), 18)
         self.assertEqual(len(payload["requirements"]), 12)
         self.assertEqual(len(payload["traceability"]), 12)
         self.assertIn("provisional", payload["notices"]["applicability"])

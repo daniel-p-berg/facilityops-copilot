@@ -18,6 +18,19 @@
       "provenance": {"basis_type": "PROJECT_OWNER_DECISION_EVIDENCE_CATEGORY", "reference": "ADR 0004 qualitative intent", "recorded_on": "2026-07-22"}
     },
     {
+      "id": "EVIDENCE-PROCESS-ENABLED-CONTEXT",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "label": "Process-enabled operating-context indication",
+      "evidence_kind": "CONTROLLER_REPORTED_OPERATING_CONTEXT",
+      "status": "DEFINED_FOR_NON_EXECUTABLE_TRACEABILITY",
+      "implementation_status": "MISSING_REQUIRES_FUTURE_DECISION",
+      "current_point_ids": [],
+      "description": "A proposed read-only or synthetic indication that the external controller reports the scoped process as enabled, represented separately from permission to enable it.",
+      "provenance_consideration": "The source must be identified as a controller-reported operating context; it may share a controller origin with request evidence and does not independently prove process operation.",
+      "limitations": "This is a project-authored traceability category. No flagship point, mapping, state vocabulary, or executable interpretation is approved in this package.",
+      "provenance": {"basis_type": "PROJECT_AUTHORED_PROPOSED_EVIDENCE_CATEGORY", "reference": "REQ-SOO-002 traceability gap", "recorded_on": "2026-07-22"}
+    },
+    {
       "id": "EVIDENCE-TREATMENT-AVAILABILITY",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
       "label": "Particulate treatment availability",

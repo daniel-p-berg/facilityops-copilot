@@ -38,7 +38,7 @@
       "parameter_status": "NO_NUMERICAL_CRITERIA_APPROVED",
       "executable": false,
       "applicability_basis_ids": ["BASIS-OWNER-QUALITATIVE-SOO", "BASIS-GUIDELINE-36-REPRESENTATION", "BASIS-CDL-REPRESENTATION"],
-      "evidence_category_ids": ["EVIDENCE-PROCESS-PERMISSIVE", "EVIDENCE-DUTY-FAN-REQUEST", "EVIDENCE-HEALTH-AND-TIMING"],
+      "evidence_category_ids": ["EVIDENCE-PROCESS-PERMISSIVE", "EVIDENCE-PROCESS-ENABLED-CONTEXT", "EVIDENCE-DUTY-FAN-REQUEST", "EVIDENCE-HEALTH-AND-TIMING"],
       "rationale": "The request must be represented as external controller evidence without creating a FacilityOps command path.",
       "assumptions": ["The external control system selects the duty fan."],
       "limitations": ["No controller mapping, command semantics, or request timing is approved."],
