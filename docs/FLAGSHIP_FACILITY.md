@@ -1,6 +1,6 @@
 # Flagship Facility and Golden Proof
 
-> **Status: minimum Milestone 2 catalog and topology implemented; applicability profile, requirements, observations, inference, evaluation, human review, and recovery behavior planned.** This document defines a fictional technical-laboratory environment. It does not describe a real facility, certify a design, establish code applicability, approve control intent, determine safety, or claim behavior beyond [PROJECT_STATUS.md](PROJECT_STATUS.md).
+> **Status: minimum Milestone 2 topology and Milestone 3 fictional profile, controlled-source catalog, provisional applicability matrix, inactive requirements, evidence categories, and traceability implemented; observations, inference, evaluation, human review, recovery behavior, and the golden scenario remain planned.** This document defines a fictional technical-laboratory environment. It does not describe a real facility, certify a design, establish code applicability, approve physical control intent, determine safety, or claim behavior beyond [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Flagship purpose
 
@@ -8,22 +8,24 @@ The **Advanced Materials Research and Precision-Environment Facility** is the fi
 
 The broader fictional facility may eventually include precision environments, utilities, and electrical support. Those areas are not the present scope. The first coherent proof remains the process-exhaust and pressure-cascade scenario.
 
-## Provisional reference jurisdiction and unresolved applicability
+## Recorded fictional profile and provisional legal applicability
 
-New York State outside New York City is a provisional reference-jurisdiction assumption only. It permits controlled research against a concrete code environment but does not establish the law, code, or clause applicable to this fictional system.
+[ADR 0004](decisions/0004-flagship-fictional-applicability-profile.md) records the following project-owner decisions for the fictional proof:
 
-The following remain unresolved and must be decided before a code-linked applicable requirement is approved:
+- A new, privately operated, one-story, sprinklered research facility in the Town of Horseheads, Chemung County, New York, outside incorporated villages and New York City.
+- The Town code-enforcement authority as the assumed local AHJ for the exercise.
+- A Group B research-laboratory occupancy assumption, excluding healthcare, pharmaceutical compounding, semiconductor production, pilot manufacturing, and full production.
+- Bench-scale alumina-based ceramic powder and sintered ceramic specimens used for weighing, wet mixing, preparation, and characterization.
+- A 250 g maximum open powder batch and 5 kg maximum laboratory inventory in closed containers.
+- A noncombustible, nonreactive material assumption with particulate inhalation and contamination concern.
+- Exclusion of combustible dust, flammable-gas and flammable-liquid processes, explosives, pyrophoric and water-reactive materials, oxidizers, highly toxic gases, radioactive materials, biological agents, classified electrical locations, and quantities intended to create a high-hazard occupancy.
+- Corridor, transition/airlock, and process-laboratory zones with intended pressure direction from corridor to airlock to laboratory, without a numerical pressure criterion.
+- A dedicated process-exhaust system, monitored particulate treatment, duty/standby VFD fan pair, common shared exhaust and treatment dependencies, and supporting supply/makeup air.
+- A read-only FacilityOps boundary with no external command or controller-configuration path.
 
-- Exact authority having jurisdiction.
-- Local amendments and current enforcement status.
-- New, existing, or altered facility status.
-- Laboratory, production, or other use.
-- High-level fictional material hazards and quantities.
-- Occupancy, construction, fire-area, and control-area assumptions.
-- Whether hazardous or laboratory process-exhaust provisions apply.
-- Permit, Chemical Hygiene Plan, owner, manufacturer, OPR, BOD, SOO, procedure, or other project-specific bases.
+These are simulation and project assumptions. They do not establish actual territorial or agency jurisdiction, adopted editions or amendments, enforcement or permit responsibility, legal occupancy, construction or sprinkler classification, fire/control areas, hazardous-material thresholds, SDS or composition, exposure limits, process-exhaust applicability, or physical design approval.
 
-The first golden-proof requirements must therefore be project-authored synthetic sequence-of-operation requirements informed by controlled references. They may be `ACCEPTED_FOR_SIMULATION` only at the individual-requirement level. They must not be described as directly code-required, owner-approved, commissioning-accepted, or authorized for physical operation.
+The first ten golden-proof requirements are project-authored qualitative synthetic sequence-of-operation requirements informed by controlled references. They have the project-owner decision recorded at the individual-requirement level and use `ACCEPTED_FOR_SIMULATION`; all remain `INACTIVE` and non-executable. Two additional drafts remain `DRAFT`, `PROPOSED`, and `INACTIVE`. FacilityOps does not represent any of them as directly code-required, commissioning-accepted, or authorized for physical operation.
 
 ## Implemented Milestone 2 boundary
 
@@ -38,9 +40,19 @@ ADRs 0001 and 0002 define the implemented minimum topology and persistence bound
 - A monitored supply or makeup-air dependency.
 - Equipment-owned points and typed bindings for availability, run, fault, speed, airflow, duct static, damper position, treatment, supply/makeup-air, zone pressure, and boundary differential pressure indications.
 
-The topology represents synthetic project intent. It does not establish a physical design, approved sequence of operation, applicable redundancy requirement, pressure criterion, capacity threshold, controller behavior, or evidence-sufficiency rule.
+The topology represents synthetic project intent. It does not establish a physical design, approved sequence of operation, applicable redundancy requirement, pressure criterion, capacity threshold, controller behavior, or evidence-sufficiency rule. ADR 0004 separately records qualitative inactive design intent; topology alone does not establish it.
 
-The implemented fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no controller command/request observation and no dedicated VFD or motor electrical corroboration point. Those evidence categories are required by the rebaselined proof, but exact points, relationships, and topology changes require a later ADR and approved roadmap slice.
+The implemented fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no process-enabled operating-context or controller command/request observation and no dedicated VFD or motor electrical corroboration point. Those evidence categories are required by the rebaselined proof, but exact points, relationships, and topology changes require a later ADR and approved roadmap slice.
+
+## Implemented Milestone 3 boundary
+
+The separate version `1.0.0` standards-basis package contains 18 profile facts, 27 controlled sources, 23 provisional, informative, owner/project, or simulation applicability bases, 18 evidence categories, and 12 project-authored synthetic requirements.
+
+Whole-package validation enforces exact flagship and fixture binding, global identifier uniqueness, permitted statuses, provenance, reference resolution, current-point references to the unchanged flagship catalog, the exact ten recorded qualitative requirements, and inactive/non-executable state. A malformed candidate cannot partially replace the prior in-memory snapshot.
+
+Seven read-only routes and a separate reviewer workbench display the package and the visible chain `controlled source → applicability basis → synthetic requirement → required evidence category`. The package is independent of active SQLite state and adds no database schema or topology change.
+
+The Milestone 3 feature does not evaluate a requirement; compute `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, or `NOT_APPLICABLE`; infer equipment, system, or facility state; approve a legal applicability determination; or authorize physical operation.
 
 ## Observation and inference chain
 

@@ -3,17 +3,17 @@
 ## Status basis
 
 - **Status date:** 2026-07-22
-- **Current branch:** `codex/m2-flagship-topology` (no configured upstream; one commit ahead of `origin/main` by ancestry before this documentation edit)
-- **Current implementation commit:** `6c52f8c6b46ecd49f816f04cbd6ba2c5b881f5fc`
+- **Current branch:** `codex/m2-flagship-topology` (no configured upstream; local and unpushed)
+- **Current implementation commit:** `bf46e3f`
 - **Milestone 2 base commit:** `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`
 - **Verification base commit:** `5718e5060935ba8b813b7354be094d44f4ee383b`
 - **Implemented legacy environment:** Fictional Northstar Data Hall
-- **Implemented flagship scope:** Minimum fictional Advanced Materials Research and Precision-Environment Facility catalog and topology
+- **Implemented flagship scope:** Minimum fictional Advanced Materials Research and Precision-Environment Facility topology plus a read-only applicability, source, inactive requirement, evidence-category, and traceability basis
 - **Planned golden scenario:** Process-exhaust failure causing pressure-cascade degradation
 
 This document reports verified repository reality separately from the intended product in [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md). “Implemented” means present in the described implementation and supported by source inspection plus the verification evidence stated below; it does not imply production readiness or domain certification.
 
-The 2026-07-22 documentation rebaseline changes project identity, standards policy, authority boundaries, and planned milestone order. It does not change application behavior, database schemas, fixture version `1.0.0`, numerical criteria, or the completed Milestone 1 and Milestone 2 evidence.
+The 2026-07-22 documentation rebaseline changes project identity, standards policy, authority boundaries, and planned milestone order. Milestone 3 then adds a repository-versioned, read-only standards-basis package, validation service, API, and reviewer view without changing database schemas, fixture version `1.0.0`, numerical criteria, alarm behavior, or completed Milestone 1 and Milestone 2 evidence.
 
 ## Verification record
 
@@ -46,6 +46,8 @@ Milestone 2 verification uses a fresh Python 3.12.13 environment outside the rep
 Representative isolated-database smoke checks load and query the flagship through the documented CLI, exercise `GET /facility-topology`, reset a flagship runtime sample to its declared zero-observation baseline, and load/reset Northstar to its unchanged 17-value baseline. The normal `db/facilityops.sqlite3` SHA-256 remains `39a6538b3689703b95cd2ae00a31ebcd1c5c2f978bbe1d49db3d64bbc2451648` before and after implementation verification.
 
 The 2026-07-22 documentation review independently reproduced the current baseline from a fresh temporary Python 3.12.13 environment before editing. Application import completed in 0.660 seconds, and all 226 discovered tests passed in 5.006 seconds of bounded process time. After the documentation-only edits, the same bounded environment completed application import in 0.407 seconds and all 226 tests in 4.500 seconds. The normal SQLite database retained the SHA-256 above before and after both runs.
+
+Milestone 3 verification used Python 3.12.13, FastAPI 0.136.3, Starlette 1.2.1, Pydantic 2.13.4, Uvicorn 0.49.0, and AnyIO 4.13.0. Application import completed in 0.308 seconds. All 254 discovered tests passed with 0 failures, errors, or skips; the test body completed in 4.770 seconds and the bounded process in 5.027 seconds. The 28 Milestone 3 tests passed separately in 0.133 seconds, all 226 pre-Milestone 3 tests passed separately in 4.321 seconds, and the targeted malformed-reload atomicity test passed in 0.011 seconds. Local Uvicorn and browser inspection confirmed the separate standards workbench loaded all package sections without console errors or horizontal overflow. The normal SQLite database remained `39a6538b3689703b95cd2ae00a31ebcd1c5c2f978bbe1d49db3d64bbc2451648`.
 
 ## Implemented
 
@@ -89,6 +91,18 @@ The 2026-07-22 documentation review independently reproduced the current baselin
 
 - Deterministic service, CLI, and `GET /facility-topology` output identifies the active facility ID and fixture version.
 - The flagship result exposes both directed boundaries and ordered zones, process-exhaust service, duty/standby fan roles, shared-path memberships, treatment and supply/makeup-air dependencies, cascade ordering, and all relevant typed point bindings.
+
+### Controlled applicability and requirement basis
+
+- Accepted ADR 0004 records the exact fictional profile and qualitative inactive design intent while separating those project decisions from legal applicability.
+- Versioned package `STANDARDS-BASIS-FLAGSHIP-1.0.0` is bound to facility `FACILITY-ADVANCED-MATERIALS-RESEARCH` and unchanged fixture version `1.0.0`.
+- The package contains 18 profile facts, 27 controlled sources, 23 applicability bases, 18 evidence categories, and 12 project-authored synthetic requirements.
+- Ten requirements use `ACCEPTED_FOR_SIMULATION` with the project-owner decision recorded. Two additional AI drafts remain `DRAFT`, `PROPOSED`, and `INACTIVE`. All 12 are `INACTIVE`, non-executable, and have no numerical criteria.
+- Strict whole-package validation rejects duplicate identifiers across documents, invalid statuses, missing provenance, unresolved references, invalid facility or fixture bindings, point references outside the bound flagship catalog, path traversal, malformed JSON, numerical requirement criteria, and attempts to make an unapproved requirement executable.
+- The in-memory loader validates a complete candidate before swap, preserves the prior snapshot after a malformed reload, and returns defensive copies.
+- `GET /standards-basis` exposes one atomic snapshot. Six leaf routes expose the profile, controlled sources, provisional applicability matrix, requirements, evidence categories, and compact traceability.
+- A separate workbench section displays the reviewer material independently of active SQLite state. It clearly labels applicability as provisional and all requirements as project-authored, inactive, and non-executable.
+- Milestone 3 adds no database table, fixture observation, inference, evaluation outcome, finding, human-disposition workflow, external connector, or equipment-control path.
 
 ### Deterministic alarm behavior
 
@@ -152,11 +166,13 @@ Alarm trigger snapshots and audit events provide useful evidence. Provenance is 
 
 ### Standards, applicability, requirements, and findings
 
-The repository contains no implemented Standards Reference Registry, Applicable Requirements Baseline, executable synthetic SOO requirement pack, evidence-sufficiency evaluation, bounded-finding record, evidence manifest, or human review/disposition model.
+The bounded flagship controlled-source catalog, provisional applicability matrix, inactive synthetic requirement set, evidence-category catalog, and source-to-evidence traceability are implemented as repository-versioned review data. This is not a generalized standards database, approved legal applicability baseline, executable requirement pack, or status-transition workflow.
+
+Evidence-sufficiency evaluation, the working outcome presentation, bounded-finding records, evidence manifests, and human review or disposition remain unimplemented.
 
 Existing alarm rules are deterministic local laboratory rules. They are not controlled standards requirements, code-compliance tests, owner-approved criteria, commissioning criteria, or evidence that the flagship topology conforms to an applicable requirement.
 
-The dated standards baseline and [STANDARDS_POSITION.md](STANDARDS_POSITION.md) are documentation references only. They do not retrofit standards, conformance, or evidence-sufficiency claims into Milestones 1 or 2.
+The dated broad standards baseline remains a historical research reference. The bounded Milestone 3 package supplies project-authored metadata, summaries, links, and provisional traceability; it does not retrofit standards, conformance, or evidence-sufficiency claims into Milestones 1 or 2.
 
 ### Operator response
 
@@ -185,10 +201,9 @@ The local sandbox can demonstrate deterministic behavior, but it does not yet im
 ## Planned
 
 - Only the bounded flagship topology and evidence expansions required by an approved technical question beyond the accepted Milestone 2 minimum.
-- A controlled applicability profile and project-authored synthetic SOO requirement pack informed by controlled references.
 - The process-exhaust failure and pressure-cascade-degradation golden scenario.
 - Source-native observation preservation, versioned mapping and normalization, canonical observations, computed point conditions, and explicit equipment/system/facility inference layers.
-- A read-only or synthetic controller command/request observation and VFD or motor electrical corroboration evidence.
+- Process-enabled operating context, controller request, controller-reported execution, dedicated VFD-state, independently sourced motor/electrical-response, treatment-availability, makeup-air-response, and post-action evidence where later approved.
 - Deterministic operational consequences with affected scope, evidence, and uncertainty.
 - Bounded findings with explicit insufficient-evidence behavior and the working four-outcome presentation.
 - Durable provenance, evidence manifests, and evidence that survives clearing active laboratory state.
@@ -200,7 +215,7 @@ Planned capabilities are not implemented and must not be presented as current be
 
 ## Unknown/Not Verified
 
-- Live Uvicorn startup and network HTTP behavior of every route. Application import and in-process ASGI route behavior are covered by the verified suite.
+- Network HTTP behavior of every route. Live Uvicorn startup and the workbench plus consolidated standards-basis route were inspected locally; all standards-basis routes also have in-process ASGI coverage.
 - Cross-browser behavior and accessibility of the workbench.
 - Concurrency, performance, locking, and data-volume limits.
 - Behavior with SQLite foreign-key enforcement enabled.

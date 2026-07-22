@@ -80,7 +80,7 @@ The 2026-07-22 rebaseline preserves completed Milestones 1 and 2 and restructure
 
 ## Milestone 3 — Controlled applicability and requirement basis
 
-**Status:** Planned
+**Status:** Completed
 
 **Purpose**
 
@@ -90,29 +90,33 @@ Establish the minimum controlled basis for one honest synthetic requirement pack
 
 - Maintain a controlled source-reference set covering formal standards and other applicable source categories.
 - Record the provisional New York State outside New York City reference-jurisdiction assumption without resolving the AHJ or applicability profile by implication.
-- Resolve the minimum fictional facility status, use, hazard, quantity, control-area, exhaust, and enforcement assumptions needed for the golden proof.
+- Resolve the minimum fictional facility status, use, hazard, quantity, control-area, exhaust, and enforcement assumptions through an explicit fictional decision or an explicit unresolved field; do not infer a real legal determination.
 - Define project-authored synthetic sequence-of-operation requirements informed by controlled references.
-- State the source, rationale, applicability, assumptions, limitations, parameter basis, required evidence, and intended evaluation for each controlled requirement.
+- State the source, rationale, applicability, assumptions, limitations, parameter basis or explicit unapproved-parameter status, required evidence, and intended evaluation boundary for each controlled requirement.
 - Use requirement statuses only at the individual-requirement level and preserve their bounded meanings.
-- Define how the working outcomes `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE` will be presented while deferring their internal separation to a later ADR.
+- Define the policy for presenting the working outcomes `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE` while deferring their internal separation and any executable evaluation to later ADRs and milestones.
 
 **Completion evidence**
 
-- The source registry distinguishes publisher-current, jurisdiction-adopted, and project-effective editions plus adoption and enforcement status.
-- The minimum fictional applicability profile contains explicit decisions or explicit unresolved fields; no applicability is inferred from facility labels.
-- Every first-pack requirement is identified as project-authored and synthetic unless a later approved basis says otherwise.
-- `ACCEPTED_FOR_SIMULATION` and `DOMAIN_REVIEWED` are documented without implying code compliance, commissioning acceptance, or physical authorization.
-- No protected standards clause text is copied into project data.
+- ADR 0004 records the project-owner fictional profile and qualitative design intent separately from legal applicability.
+- Package `STANDARDS-BASIS-FLAGSHIP-1.0.0` contains 18 profile facts, 27 controlled sources, 23 provisional, informative, owner/project, or simulation applicability bases, 18 evidence categories, and 12 project-authored synthetic requirements.
+- Ten exact qualitative requirements record the project-owner decision and use `ACCEPTED_FOR_SIMULATION`; two additional drafts remain `DRAFT` and `PROPOSED`.
+- All 12 requirements are `INACTIVE`, `executable=false`, and contain no numerical criteria.
+- Whole-package validation rejects duplicate identifiers, invalid statuses, missing provenance, unresolved references, invalid facility or fixture binding, references outside the bound flagship point catalog, and any attempt to make an unapproved requirement executable.
+- Candidate-before-swap loading is atomic; a malformed reload leaves the prior validated snapshot exposed.
+- Seven read-only API routes and a separate workbench section expose the profile, sources, provisional applicability, requirements, evidence categories, and `controlled source → applicability basis → synthetic requirement → required evidence category` traceability.
+- No protected standards clause text, numerical scenario criterion, evaluation outcome, database migration, topology change, alarm-rule change, external control path, or AI runtime behavior was added.
 
 **Verification**
 
-- Documentation and traceability review against the charter and dated standards baseline.
-- Negative checks for unqualified code-required, owner-approved, safe, certified, and commissioning-accepted claims.
+- Deterministic package, malformed-package atomicity, API, workbench, facility-isolation, terminology, and Northstar regression tests.
+- Documentation, link, terminology, protected-text, database-hash, accepted-ADR, and fixture-integrity audits.
+- Final focused and full-suite counts are recorded in [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 **Non-goals**
 
 - A standards database or generalized compliance platform.
-- A requirement persistence schema or status-transition engine.
+- A generalized or database-backed requirement persistence schema or status-transition engine.
 - Numerical scenario criteria.
 - Executable evaluation logic.
 

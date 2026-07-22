@@ -12,9 +12,9 @@ The approved direction is defined by the change-controlled [`docs/PRODUCT_CHARTE
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) separates verified implemented behavior from partial, planned, and unverified behavior.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) defines the approved milestone order and completion evidence.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describes the implemented architecture separately from planned direction.
-- [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) describes the fictional flagship facility. Its minimum Milestone 2 catalog and topology are implemented; the golden scenario and broader facility remain planned.
+- [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) describes the fictional flagship facility. Its minimum Milestone 2 topology and Milestone 3 applicability and inactive requirement basis are implemented; observations, inference, evaluation, and the golden scenario remain planned.
 - [`docs/STANDARDS_POSITION.md`](docs/STANDARDS_POSITION.md) defines how controlled references, applicability, synthetic requirements, bounded findings, and human disposition remain distinct.
-- [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process, accepted decisions including ADR 0003, and the consolidated unresolved-decision backlog.
+- [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process, indexes accepted ADRs 0001–0004, and maintains the consolidated unresolved-decision backlog.
 
 Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
 
@@ -57,9 +57,21 @@ Generated database files are local development artifacts and are ignored by git.
 
 The implemented environment is **Northstar Data Hall**, a fictional mission-critical data hall documented in [`docs/facility_model.md`](docs/facility_model.md). Northstar is the preserved legacy fixture, regression environment, and secondary data-center demonstration.
 
-The fictional **Advanced Materials Research and Precision-Environment Facility** is the flagship environment. Milestone 2 implements its minimum versioned catalog and typed topology: a corridor-to-transition/airlock-to-process-laboratory pressure cascade, process-exhaust duty and standby fans, a shared exhaust path, monitored treatment and supply/makeup-air dependencies, and explicitly bound observation points. The planned **process-exhaust failure causing pressure-cascade degradation** scenario, controlled synthetic requirements, source-native and canonical observations, higher-level inference, evidence-sufficiency evaluation, bounded findings, human disposition, and deterministic consequence computation are not implemented.
+The fictional **Advanced Materials Research and Precision-Environment Facility** is the flagship environment. Milestone 2 implements its minimum versioned catalog and typed topology: a corridor-to-transition/airlock-to-process-laboratory pressure cascade, process-exhaust duty and standby fans, a shared exhaust path, monitored treatment and supply/makeup-air dependencies, and explicitly bound observation points.
 
-The implemented topology is not a code-applicability or conformance claim. It currently has no controller command/request observation and no dedicated VFD or motor electrical corroboration point. Exact additions require a later ADR and approved roadmap slice. New York State outside New York City is only a provisional reference-jurisdiction assumption; the AHJ, local amendments, enforcement status, facility status, use, hazards, quantities, control areas, and process-exhaust applicability remain unresolved.
+[ADR 0004](docs/decisions/0004-flagship-fictional-applicability-profile.md) records the bounded fictional profile: a new, privately operated, one-story, sprinklered research facility in the Town of Horseheads, Chemung County, outside incorporated villages and New York City; an assumed Town code-enforcement AHJ and Group B research-laboratory use; bench-scale alumina-based ceramic powder and sintered specimens; a 250 g maximum open batch and 5 kg maximum closed-container laboratory inventory; the stated excluded hazards; and qualitative exhaust, treatment, duty/standby, shared-path, makeup-air, and pressure-direction intent. These are simulation and project assumptions, not verified legal classifications, applicability conclusions, physical design approval, or hazardous-material threshold determinations.
+
+Milestone 3 implements a separate repository-versioned, read-only standards-basis package for that profile. The planned **process-exhaust failure causing pressure-cascade degradation** scenario, source-native and canonical observations, point conditions, higher-level inference, evidence-sufficiency evaluation, bounded findings, human disposition, and deterministic consequence computation remain unimplemented. The topology still has no process-enabled context, controller request, controller-reported execution, dedicated VFD-state, or motor/electrical-response points. Exact additions require a later accepted ADR.
+
+### How codes, standards, and regulations are used
+
+Codes, regulations, standards, owner/project decisions, informative guidance, and simulation assumptions are controlled references, not executable truth. The catalog records issuer, exact title and identifier, edition or effective date when verified, source category, official URL or repository record, access date, adoption and enforcement status, potential trigger, direct support, and uncertainty. Catalog inclusion does not establish legal or project applicability.
+
+The provisional applicability matrix relates each source to explicit fictional profile facts and preserves the distinction among legal/regulatory source candidates and provisional applicability bases, adopted codes and amendments, owner/project requirements, project-authored synthetic requirements, informative guidance, and simulation assumptions. It records no direct legal applicability determination. Qualified personnel retain applicability and approval authority.
+
+The package contains 18 profile facts, 27 controlled sources, 23 applicability bases, 18 evidence categories, and 12 project-authored synthetic requirements. Ten qualitative requirements have the project-owner decision recorded and are `ACCEPTED_FOR_SIMULATION`; two additional drafts are `PROPOSED`. All 12 are `INACTIVE`, non-executable, and contain no numerical criteria. Reviewers can inspect `controlled source → applicability basis → synthetic requirement → required evidence category` in the workbench or read-only API.
+
+FacilityOps does not establish code compliance, commissioning acceptance, physical safety, operability, or authorization for operation.
 
 Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQLite with the point, current value, and alarm rule data. The inventory adds context such as equipment type, location, criticality, and source system.
 
@@ -116,7 +128,9 @@ Open the dashboard:
 http://127.0.0.1:8000/dashboard
 ```
 
-The API includes `/facility-topology`, which identifies the selected facility and fixture version and returns the deterministic typed topology. The dashboard does not yet provide facility selection or a topology presentation; those remain outside Milestone 2.
+The API includes `/facility-topology`, which identifies the selected SQLite facility and fixture version and returns the deterministic typed topology. The dashboard does not provide facility selection or a topology presentation.
+
+The repository-versioned standards basis is independent of active SQLite state. `GET /standards-basis` returns one atomic reviewer snapshot. Read-only leaf routes expose `/standards-basis/profile`, `/standards-basis/controlled-sources`, `/standards-basis/applicability-matrix`, `/standards-basis/requirements`, `/standards-basis/evidence-categories`, and `/standards-basis/traceability`. The workbench presents the same material in a separate flagship review section and does not evaluate it.
 
 The dashboard calls `/summary`, `/operations/overview`, `/scenarios`, `/scenario/reset-operational-state`, `/drivers/simulated/read`, `/drivers/csv-replay/read`, `/replay/csv/step`, `/replay/csv/run-all`, `/imports/modbus/preview`, `/imports/modbus/commit`, `/generated-alarms`, `/alarm-events`, `/current-point-values`, `/rule-evaluations`, `/points`, and `/alarm-rules` and displays generated alarm totals, operations scenario context, explainable alarm correlation, incident timeline, shift turnover, equipment OOS records, corrective actions, procedure references, reliability reporting, alarm scenarios, generated alarms, alarm/audit events, current point values, alarm rule evaluations, the point dictionary, and the alarm rule catalog. Current values can be updated, operational state can be reset, simulated driver samples can be read, CSV replay samples can be read, CSV replay steps can be run with explicit alarm evaluation, the sample Modbus register map can be previewed and committed, point health can be evaluated, and alarm rules can be created or edited from the dashboard.
 
@@ -138,6 +152,12 @@ Call the selected facility topology endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/facility-topology
+```
+
+Call the complete read-only flagship standards-basis endpoint:
+
+```bash
+curl http://127.0.0.1:8000/standards-basis
 ```
 
 Call the point dictionary endpoint:
@@ -301,14 +321,13 @@ All mutating test cases use isolated temporary SQLite databases. The verificatio
 
 ## Planned Direction
 
-The approved roadmap now develops one standards-grounded flagship proof in this order:
+Milestones 1–3 are complete. The remaining approved roadmap develops the flagship proof in this order:
 
-1. Controlled references, a fictional applicability profile, and project-authored synthetic SOO requirements.
-2. Source-native observations, versioned mapping and normalization, canonical observations, computed point conditions, and temporal semantics.
-3. A deterministic golden-scenario evidence and replay package, including a read-only or synthetic controller command/request indication and VFD or motor electrical corroboration.
-4. Traceable equipment, system, facility, consequence, and uncertainty inference.
-5. Evidence-sufficiency evaluation, bounded findings, and a reproducible evidence manifest.
-6. Separate human verification, recovery evidence, review, and disposition.
-7. A coherent technical and portfolio demonstration that remains usable with AI disabled.
+1. Source-native observations, versioned mapping and normalization, canonical observations, computed point conditions, and temporal semantics.
+2. A deterministic golden-scenario evidence and replay package, including controller-request, controller-reported execution, VFD, motor/electrical, airflow, dependency, pressure, and post-action evidence.
+3. Traceable equipment, system, facility, consequence, and uncertainty inference.
+4. Evidence-sufficiency evaluation, bounded findings, and a reproducible evidence manifest.
+5. Separate human verification, recovery evidence, review, and disposition.
+6. A coherent technical and portfolio demonstration that remains usable with AI disabled.
 
-Broad adapter coverage, controller-language comparison, and advisory AI are optional later research. All planned capabilities remain unimplemented until [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records verified behavior.
+The consolidated next-review artifact is [PROPOSED—INACTIVE: Flagship Observation, Evidence, and Golden-Scenario Decision Packet](docs/decision-packets/0001-flagship-observation-and-scenario.md). It is documentation only and is not loaded by the application. Broad adapter coverage, controller-language comparison, and advisory AI are optional later research. Remaining planned capabilities are unimplemented until [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records verified behavior.

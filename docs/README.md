@@ -9,15 +9,16 @@ This directory contains the change-controlled project direction, verified status
 3. [PROJECT_STATUS.md](PROJECT_STATUS.md) reports verified repository behavior and known gaps. It must not describe planned behavior as implemented.
 4. [ARCHITECTURE.md](ARCHITECTURE.md) describes implemented architecture separately from planned direction.
 5. [STANDARDS_POSITION.md](STANDARDS_POSITION.md) defines project policy for controlled references, applicability, synthetic requirements, evaluation outcomes, and human disposition.
-6. [FLAGSHIP_FACILITY.md](FLAGSHIP_FACILITY.md) defines the fictional flagship scope and its unresolved applicability assumptions.
-7. [decisions/README.md](decisions/README.md) defines ADR governance and indexes accepted and proposed decisions.
+6. [FLAGSHIP_FACILITY.md](FLAGSHIP_FACILITY.md) defines the recorded fictional flagship profile, implemented boundary, and provisional legal applicability.
+7. [decisions/README.md](decisions/README.md) defines ADR governance and indexes accepted ADRs 0001–0004.
 
-The complete non-authoritative, date-bounded research register reviewed for the 2026-07-22 rebaseline is preserved under [references](references/FacilityOps_Standards_Baseline_2026-07-22.md).
+The current bounded machine-readable review basis starts at the [flagship standards-basis manifest](../data/standards/flagship/1.0.0/manifest.json). The complete non-authoritative, date-bounded broad research register reviewed for the 2026-07-22 rebaseline remains preserved under [references](references/FacilityOps_Standards_Baseline_2026-07-22.md); the bounded package does not silently rewrite that historical record.
 
 ## Historical and supporting documents
 
 - [facility_model.md](facility_model.md) describes Northstar Data Hall, the preserved legacy regression fixture and secondary data-center demonstration.
 - Accepted ADRs remain historical decision records. Later implementation or project reorientation does not authorize rewriting their original context or decision.
+- [PROPOSED—INACTIVE: Flagship Observation, Evidence, and Golden-Scenario Decision Packet](decision-packets/0001-flagship-observation-and-scenario.md) consolidates the next review questions. It is non-authoritative, inactive, and not loaded by the application.
 
 ## Interpretation rules
 

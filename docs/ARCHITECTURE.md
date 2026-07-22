@@ -2,11 +2,11 @@
 
 ## Document basis
 
-This document describes the verified implementation at commit `6c52f8c6b46ecd49f816f04cbd6ba2c5b881f5fc`, built on the Milestone 2 base commit `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`, and separately identifies planned direction. The implemented section is descriptive, not aspirational. Product identity and authority are governed by [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md), standards policy is summarized in [`STANDARDS_POSITION.md`](STANDARDS_POSITION.md), and verification status is tracked in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+This document describes the verified implementation through commit `bf46e3f`, built on the Milestone 2 base commit `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`, and separately identifies planned direction. The implemented section is descriptive, not aspirational. Product identity and authority are governed by [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md), standards policy is summarized in [`STANDARDS_POSITION.md`](STANDARDS_POSITION.md), and verification status is tracked in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Target conceptual architecture
 
-The following lifecycles govern planned architecture but are not implemented merely because they appear here.
+The following lifecycles govern the architecture. Only the layers explicitly described under implemented architecture exist today.
 
 ### Observation, inference, and consequence
 
@@ -37,7 +37,7 @@ reference source
 → human review and disposition
 ```
 
-Reference sources, applicable requirements, executable evaluations, computed findings, and human dispositions remain distinct. The first golden-proof requirements will be project-authored synthetic SOO requirements informed by controlled references. The current implementation contains none of these assurance-layer records.
+Reference sources, applicability bases, synthetic requirements, executable evaluations, computed findings, and human dispositions remain distinct. The bounded Milestone 3 implementation represents controlled sources, provisional applicability bases, inactive project-authored synthetic requirements, and required evidence categories for one flagship. It does not implement applicability approval, requirement execution, evidence-sufficiency evaluation, findings, evidence manifests, or disposition.
 
 ### Computation and human authority
 
@@ -74,6 +74,16 @@ Fictional CSV fixtures / local simulated driver / local CSV replay
              plain HTML/JavaScript workbench
 ```
 
+The separate Milestone 3 review path is repository-versioned and does not use SQLite:
+
+```text
+versioned flagship standards-basis JSON package
+→ complete deterministic validation
+→ atomic read-only in-memory store
+→ read-only FastAPI routes
+→ separate reviewer workbench section
+```
+
 ### Data and loading
 
 `analysis/load_alarm_db.py` remains the default Northstar compatibility loader. It loads the existing Northstar equipment catalog, point catalog, seeded current values, alarm rules, and operational-context fixtures. After a successful load it records the stable Northstar facility identity and fixture version through additive facility metadata; it does not rewrite existing Northstar identifiers or values.
@@ -81,6 +91,8 @@ Fictional CSV fixtures / local simulated driver / local CSV replay
 `analysis/facility_fixture_loader.py` is the explicit manifest-driven loader for the minimum flagship fixture. The caller must provide both the versioned JSON manifest and an isolated target database. The loader rejects the normal project database, reads and validates every declared CSV before opening the target, and replaces catalog, facility identity, topology, typed relationships, and typed point bindings through one connection and one explicit transaction. A write or post-load validation failure rolls back the complete replacement.
 
 The flagship validator checks manifest/file facility and version agreement, stable and unique identifiers, mandatory point-to-equipment ownership, typed endpoint existence, relationship uniqueness, constrained duty/standby roles, explicit pressure direction, a connected acyclic two-boundary cascade, one primary topology binding per point, and the complete ADR 0001 inventory. Post-load validation re-queries stored rows and bindings and runs `PRAGMA foreign_key_check` without globally enabling SQLite foreign keys.
+
+`backend/services/standards_basis_service.py` loads `data/standards/flagship/1.0.0/manifest.json` independently of the active database. It reads every declared document into a candidate snapshot, validates exact facility and fixture identity, whole-package identifier uniqueness, statuses, provenance, references, the exact recorded qualitative requirements, inactive/non-executable state, absence of numerical criteria, and evidence-point references against the unchanged flagship `1.0.0` catalog. Only a fully valid candidate replaces the in-memory snapshot. Failed reload leaves the previous snapshot exposed, and every read returns a defensive copy.
 
 Seeded current values create point-sample history and a `current_point_values` latest-value projection. Generated alarms and alarm events begin empty after a full sample-data load. The legacy `alarms` table is created and cleared; the current dashboard uses generated alarms rather than the legacy alarm CSV.
 
@@ -105,6 +117,8 @@ Milestone 2 adds these tables without changing existing Northstar keys:
 One facility is stored per SQLite database. Relationship endpoints use concrete columns and declared foreign keys to typed tables; there is no generic graph, EAV structure, polymorphic entity reference, or facility-scoped composite key. SQLite foreign-key enforcement remains disabled by default, consistent with ADR 0002.
 
 SQLite schema creation and compatibility migrations are embedded in loader and backend functions rather than managed by a dedicated migration framework. Foreign-key clauses exist in table definitions, but repository behavior has not been verified with SQLite foreign-key enforcement enabled.
+
+Milestone 3 adds no SQLite table or migration and does not alter the flagship topology package or fixture version `1.0.0`.
 
 ### Point ingestion and health
 
@@ -158,9 +172,11 @@ These records are curated CSV assertions. They are returned and displayed, not c
 
 ### API and frontend
 
-`backend/main.py` exposes local JSON routes for summaries, catalogs, values, rule evaluations, alarm state, audit events, point health, simulated reads, replay, Modbus import, scenarios, operational reset, seeded operations context, and deterministic facility topology. `GET /facility-topology` identifies the active facility and fixture version and returns the complete ordered pressure cascade, process-exhaust relationships, dependencies, and typed point bindings. Mutating routes write only to the local laboratory database.
+`backend/main.py` exposes local JSON routes for summaries, catalogs, values, rule evaluations, alarm state, audit events, point health, simulated reads, replay, Modbus import, scenarios, operational reset, seeded operations context, deterministic facility topology, and the standards basis. `GET /facility-topology` identifies the active SQLite facility and fixture version and returns the complete ordered pressure cascade, process-exhaust relationships, dependencies, and typed point bindings. Mutating routes write only to the local laboratory database.
 
-`frontend/index.html` is a single plain HTML, CSS, and JavaScript workbench served at `/` and `/dashboard`. It loads data with `fetch`, renders tables and panels, and provides local buttons or forms for scenario application, reset, sample reads, replay, Modbus import, alarm evaluation and acknowledgement, point updates, point-health evaluation, and alarm-rule creation or editing.
+`GET /standards-basis` returns one complete atomic reviewer snapshot. The read-only leaf routes are `/standards-basis/profile`, `/standards-basis/controlled-sources`, `/standards-basis/applicability-matrix`, `/standards-basis/requirements`, `/standards-basis/evidence-categories`, and `/standards-basis/traceability`. They remain bound to the repository-versioned flagship package, do not depend on the active SQLite database, and expose no mutation method.
+
+`frontend/index.html` is a single plain HTML, CSS, and JavaScript workbench served at `/` and `/dashboard`. It loads data with `fetch`, renders tables and panels, and provides local buttons or forms for scenario application, reset, sample reads, replay, Modbus import, alarm evaluation and acknowledgement, point updates, point-health evaluation, and alarm-rule creation or editing. A separate read-only section displays the flagship profile, source catalog, provisional applicability matrix, inactive requirements, evidence categories, and compact source-to-evidence traceability. A standards-package load error does not blank the preserved operational panels.
 
 There is no client-side framework, package build, generated asset bundle, or separate web server in the repository.
 
@@ -172,13 +188,13 @@ The product boundary prohibits any future external command, configuration change
 
 ### Verification architecture
 
-The repository retains the 211-test Northstar module and adds 15 focused Milestone 2 tests for fixture counts and identity, ownership, typed foreign keys, deterministic reload/query, normal-database protection, complete ADR 0001 traversal, API output, invalid and cross-fixture rejection, transaction rollback, and facility-aware reset. `scripts/run_verification.py` bounds application import to 30 seconds and the complete discovered suite to 300 seconds.
+The repository retains the 211-test Northstar module and 15 focused Milestone 2 tests. Milestone 3 adds deterministic package, validation, atomicity, API, workbench, facility-isolation, terminology, and Northstar-preservation tests. `scripts/run_verification.py` bounds application import to 30 seconds and the complete discovered suite to 300 seconds. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the final counts and timings.
 
 Milestone 1 reproduced the reported import stall in a reused project-local virtual environment and traced it to a mixed Python 3.12/3.14 environment containing macOS cloud-offloaded package files. No application-code or test change was required. With the recorded Python 3.12 dependency set, the application import completed within its bound and all 211 tests passed against isolated test state. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for exact versions, timings, counts, and remaining limits.
 
 ## Implemented limitations
 
-The Milestone 2 implementation does not include:
+The current implementation does not include:
 
 - Polling, subscription, background scheduling, or continuous evaluation.
 - Live external connectivity or an external read-only adapter.
@@ -187,9 +203,9 @@ The Milestone 2 implementation does not include:
 - A canonical hierarchy from computed point condition to equipment, system, and facility inference.
 - Deterministic consequence computation from that hierarchy.
 - Numerical or state-determining process-exhaust and pressure-cascade behavior.
-- A read-only or synthetic controller command/request observation or dedicated VFD/motor electrical corroboration point.
+- A process-enabled operating-context point, read-only or synthetic controller command/request observation, or dedicated VFD/motor electrical corroboration point.
 - The flagship golden scenario or any broader flagship topology beyond the accepted minimum.
-- A Standards Reference Registry, Applicable Requirements Baseline, or executable synthetic SOO requirement pack.
+- A generalized standards database, persistent applicability workflow, executable requirement pack, requirement status-transition engine, or licensed standards text.
 - Evidence-sufficiency rules, bounded findings, the working four-outcome presentation, or qualified human disposition records.
 - Durable evidence packaging, provenance manifests, import hashes, or evidence retention across reset.
 - Executable alarm-response, impairment, commissioning, functional-test, recovery, or incident-review workflows.
@@ -202,7 +218,6 @@ The Milestone 2 implementation does not include:
 
 The following is intended direction, not implemented architecture:
 
-- A controlled reference and applicability foundation for project-authored synthetic SOO requirements.
 - Explicit source-native observations, versioned mappings and normalization, canonical observations, computed point conditions, and temporal semantics.
 - A versioned golden-scenario evidence and replay package, including a read-only or synthetic controller command/request indication and VFD or motor electrical corroboration.
 - Traceable equipment, system, pressure-cascade, facility, consequence, and uncertainty inference.
