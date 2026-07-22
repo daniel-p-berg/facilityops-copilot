@@ -14,7 +14,7 @@ The approved direction is defined by the change-controlled [`docs/PRODUCT_CHARTE
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describes the implemented architecture separately from planned direction.
 - [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) describes the fictional flagship facility. Its minimum Milestone 2 catalog and topology are implemented; the golden scenario and broader facility remain planned.
 - [`docs/STANDARDS_POSITION.md`](docs/STANDARDS_POSITION.md) defines how controlled references, applicability, synthetic requirements, bounded findings, and human disposition remain distinct.
-- [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process, accepted decisions, proposed ADR 0003, and the consolidated unresolved-decision backlog.
+- [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process, accepted decisions including ADR 0003, and the consolidated unresolved-decision backlog.
 
 Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
 
