@@ -36,7 +36,7 @@
   },
   "provenance": {
     "recorded_on": "2026-07-22",
-    "owner_approval_reference": "ADR 0004 and the project-owner directive dated 2026-07-22",
+    "project_owner_decision_reference": "ADR 0004 and the project-owner directive dated 2026-07-22",
     "research_access_date": "2026-07-22"
   }
 }

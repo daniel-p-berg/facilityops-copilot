@@ -103,6 +103,10 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
         self.assertEqual(package["manifest"]["facility"]["fixture_version"], "1.0.0")
         self.assertEqual(package["manifest"]["status"], "READ_ONLY_NON_EXECUTABLE")
         self.assertEqual(
+            package["manifest"]["provenance"]["project_owner_decision_reference"],
+            "ADR 0004 and the project-owner directive dated 2026-07-22",
+        )
+        self.assertEqual(
             {
                 role: len(package[role])
                 for role in (

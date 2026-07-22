@@ -363,13 +363,17 @@ def _validate_manifest(manifest):
 
     _require_exact_keys(
         manifest["provenance"],
-        {"recorded_on", "owner_approval_reference", "research_access_date"},
+        {
+            "recorded_on",
+            "project_owner_decision_reference",
+            "research_access_date",
+        },
         "manifest.provenance",
     )
     _require_date(manifest["provenance"]["recorded_on"], "manifest.provenance.recorded_on")
     _require_nonblank(
-        manifest["provenance"]["owner_approval_reference"],
-        "manifest.provenance.owner_approval_reference",
+        manifest["provenance"]["project_owner_decision_reference"],
+        "manifest.provenance.project_owner_decision_reference",
     )
     _require_date(
         manifest["provenance"]["research_access_date"],
