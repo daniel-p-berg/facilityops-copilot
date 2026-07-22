@@ -1,139 +1,171 @@
-# Flagship Facility
+# Flagship Facility and Golden Proof
 
-> **Status: minimum Milestone 2 catalog and topology implemented; broader facility and golden-scenario behavior planned.** This document defines a fictional target environment for product planning. It does not describe a real facility, certify a design, or claim behavior beyond the verified scope in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+> **Status: minimum Milestone 2 catalog and topology implemented; applicability profile, requirements, observations, inference, evaluation, human review, and recovery behavior planned.** This document defines a fictional technical-laboratory environment. It does not describe a real facility, certify a design, establish code applicability, approve control intent, determine safety, or claim behavior beyond [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
-## Facility concept
+## Flagship purpose
 
-The Advanced Materials Research and Precision-Environment Facility is a fictional multidisciplinary research site used to exercise critical-environment operations and commissioning workflows. It combines process areas that require controlled exhaust and directional airflow with precision spaces that require stable temperature, humidity, cleanliness, vibration, power, and utility support.
+The **Advanced Materials Research and Precision-Environment Facility** is the fictional flagship for FacilityOps Copilot. Its primary purpose is to support a standards-grounded technical proof involving process exhaust, pressure relationships, control indications, independent equipment evidence, degraded operation, human verification, recovery, and incident reconstruction.
 
-The facility is intentionally representative rather than vendor-specific. Equipment names, operating assumptions, setpoints, sequences, and events will be synthetic and must receive future domain validation before they are treated as realistic training content.
+The broader fictional facility may eventually include precision environments, utilities, and electrical support. Those areas are not the present scope. The first coherent proof remains the process-exhaust and pressure-cascade scenario.
 
-## Initial implementation boundary
+## Provisional reference jurisdiction and unresolved applicability
 
-The broader facility description in this document is the long-term representative environment. Milestone 2 implements only the accepted minimum fictional areas, systems, equipment, points, pressure boundaries, and dependency relationships required to support a future pressure-cascade golden scenario.
+New York State outside New York City is a provisional reference-jurisdiction assumption only. It permits controlled research against a concrete code environment but does not establish the law, code, or clause applicable to this fictional system.
 
-ADRs 0001 and 0002 define the implemented minimum topology and persistence boundary. The version `1.0.0` fixture contains the three-zone corridor-to-transition/airlock-to-process-laboratory cascade, process-exhaust duty and standby fans, their shared exhaust path, a monitored treatment permissive, a monitored supply/makeup-air dependency, and typed point bindings. This document does not approve numerical pressure bands, hazard classifications, cleanroom classifications, containment certifications, or a complete campus utility model.
+The following remain unresolved and must be decided before a code-linked applicable requirement is approved:
 
-Additional laboratories, utilities, electrical systems, and precision spaces remain later extensions unless an accepted ADR establishes that the golden scenario requires a specific dependency.
+- Exact authority having jurisdiction.
+- Local amendments and current enforcement status.
+- New, existing, or altered facility status.
+- Laboratory, production, or other use.
+- High-level fictional material hazards and quantities.
+- Occupancy, construction, fire-area, and control-area assumptions.
+- Whether hazardous or laboratory process-exhaust provisions apply.
+- Permit, Chemical Hygiene Plan, owner, manufacturer, OPR, BOD, SOO, procedure, or other project-specific bases.
 
-## Representative areas
+The first golden-proof requirements must therefore be project-authored synthetic sequence-of-operation requirements informed by controlled references. They may be `ACCEPTED_FOR_SIMULATION` only at the individual-requirement level. They must not be described as directly code-required, owner-approved, commissioning-accepted, or authorized for physical operation.
 
-- **Materials Process Laboratory:** Enclosed process tools and wet-chemistry activities served by local and general process exhaust.
-- **Sample Preparation Laboratory:** Preparation benches, ventilated enclosures, and transitional work between process and measurement areas.
-- **Precision Metrology Suite:** Temperature- and humidity-stable rooms for sensitive measurement equipment.
-- **Controlled Assembly Suite:** A cleaner precision environment separated from process hazards and dirty support functions.
-- **Airlocks and transition zones:** Personnel and material transitions used to preserve pressure and cleanliness relationships.
-- **Laboratory support corridor:** A reference zone linking laboratories, airlocks, and egress paths.
-- **Exhaust treatment area:** Fictional fans, headers, scrubbers or treatment devices, isolation devices, and discharge monitoring.
-- **Mechanical and utility plant:** Air-handling, chilled-water, heating-water, compressed-air, vacuum, process-cooling-water, and other representative support systems.
-- **Electrical rooms and standby-power areas:** Utility service, switchgear, ATS, UPS, generator, PDU, and metering support for critical loads.
-- **Operations and incident-review area:** A logical workspace for monitoring, response, impairment, functional testing, turnover, and evidence review.
+## Implemented Milestone 2 boundary
 
-## Pressure zones and relationships
+ADRs 0001 and 0002 define the implemented minimum topology and persistence boundary. The version `1.0.0` flagship fixture contains:
 
-The target model will represent pressure relationships as an explicit directed topology rather than a list of unrelated room-pressure points.
+- The reference corridor, transition/airlock, and process laboratory.
+- Two explicitly directed pressure boundaries forming the corridor-to-transition-to-laboratory cascade.
+- One process-exhaust system.
+- Duty and standby process-exhaust fans.
+- One shared exhaust path.
+- A monitored treatment permissive dependency.
+- A monitored supply or makeup-air dependency.
+- Equipment-owned points and typed bindings for availability, run, fault, speed, airflow, duct static, damper position, treatment, supply/makeup-air, zone pressure, and boundary differential pressure indications.
 
-Two distinct control intents are expected:
+The topology represents synthetic project intent. It does not establish a physical design, approved sequence of operation, applicable redundancy requirement, pressure criterion, capacity threshold, controller behavior, or evidence-sufficiency rule.
 
-- **Containment-oriented process zones** should draw air from lower-hazard reference areas toward spaces with greater process-exhaust demand.
-- **Cleanliness-oriented precision zones** may maintain a protective relationship relative to adjacent support areas while remaining isolated from containment exhaust regimes.
+The implemented fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no controller command/request observation and no dedicated VFD or motor electrical corroboration point. Those evidence categories are required by the rebaselined proof, but exact points, relationships, and topology changes require a later ADR and approved roadmap slice.
 
-Airlocks and transition zones separate incompatible pressure intents. The model must identify the reference zone, expected direction of airflow, boundary being protected, applicable operating mode, and evidence used to determine whether a relationship is normal, degraded, lost, uncertain, overridden, or out of service.
+## Observation and inference chain
 
-No numerical pressure bands are approved by this document. Synthetic values, tolerances, persistence delays, and acceptance criteria require future facility, controls, commissioning, and industrial-hygiene review.
+The flagship proof must follow this conceptual chain:
 
-## Air supply
+```text
+source artifact or stream
+→ source-native observation as received by FacilityOps
+→ versioned mapping and normalization
+→ canonical observation
+→ point condition
+→ equipment, system, and facility inference
+→ consequence and uncertainty
+```
 
-Representative supply-air systems may include:
+A canonical observation remains a reported indication. Examples include a controller command/request indication, run-status indication, fault bit, speed feedback, motor current, VFD state, measured airflow, or differential pressure. No single indication independently proves physical equipment response or facility condition.
 
-- Outdoor-air and recirculating air-handling units.
-- Supply fans with variable-speed control and status feedback.
-- Terminal airflow devices or dampers serving laboratories and airlocks.
-- Temperature, humidity, airflow, filter, and fan-health observations.
-- Operating-mode commands represented only as local laboratory state, never as external write-back.
+The future proof must identify which evidence is:
 
-Supply behavior must be evaluated in relation to exhaust demand. A supply response may protect a pressure cascade, worsen it, or create a separate environmental consequence depending on topology and operating mode.
+- Directly reported by a source.
+- Normalized or derived through a versioned mapping.
+- Used to compute a point condition.
+- Used to infer equipment, system, pressure-cascade, or facility state.
+- Contradictory, missing, stale, suspect, overridden, late, or otherwise insufficient.
 
-## Process exhaust
+## Golden-proof evidence categories
 
-Representative process-exhaust systems may include:
+The first coherent proof must cover:
 
-- Duty and standby exhaust fans.
-- Common and branch exhaust headers.
-- Local capture devices, ventilated enclosures, or tool connections.
-- Isolation and balancing devices.
-- Exhaust treatment or scrubber status.
-- Fan run, speed, differential pressure, airflow, vibration, current, and fault observations.
-- Discharge or treatment permissives represented as monitored state.
+### Duty-fan initiating event
 
-The planned model must distinguish a point observation from equipment state, redundancy state, system capacity, pressure-cascade performance, and facility consequence.
+- Duty-fan availability, run, and fault indications.
+- A read-only or synthetic observation of a controller command/request indication. FacilityOps does not issue the command.
+- Speed feedback and VFD or motor electrical corroboration.
+- Independent delivered-airflow or relevant pressure evidence.
 
-## Utilities and environmental support
+### Standby response
 
-Representative dependencies include chilled water, process cooling water, heating water, compressed air, vacuum, specialty exhaust support, drainage or neutralization status, and precision temperature and humidity control. These are laboratory abstractions, not complete process designs.
+- Standby availability.
+- Read-only or synthetic command/request indication.
+- Run and fault status.
+- Speed and VFD or motor electrical corroboration.
+- Independent airflow or pressure response.
+- Successful response and failed-start cases.
 
-Loss or impairment of a utility may reduce exhaust capacity, prevent recovery, invalidate a functional test, or affect research equipment even when no immediate room-pressure alarm is active.
+### Shared-path and dependency evidence
 
-## Controls and monitoring
+- Shared-path airflow or duct-static indication.
+- Relevant damper-position indication.
+- Treatment availability or permissive indication.
+- Supply or makeup-air response.
+- Common-path limitation or conflicting evidence where applicable.
 
-The target facility model may receive synthetic or authorized read-only observations from generic BAS, EPMS, PLC, SCADA, DCIM, or file-based sources. FacilityOps Copilot must translate them into a vendor-neutral point and equipment model.
+### Pressure-cascade consequence
 
-External systems remain read-only. Scenario controls, test actions, acknowledgements, and operating modes are local laboratory records and must never be sent to physical systems.
+- Process-laboratory zone pressure.
+- Corridor-to-transition differential pressure.
+- Transition-to-laboratory differential pressure.
+- Direction, persistence, and uncertainty evaluated under later controlled synthetic requirements.
+- Bounded consequence and affected-scope inference without contaminant-exposure or safety claims.
 
-## Electrical support
+### Evidence health and sufficiency
 
-Electrical dependencies may include utility service, switchgear, ATS equipment, standby generators, UPS systems, PDUs, motor control, variable-frequency drives, and meters. Electrical state matters where it affects exhaust availability, control power, monitoring confidence, environmental recovery, or safe functional testing.
+- Missing evidence.
+- Stale evidence.
+- Suspect or uncertain evidence.
+- Overridden or out-of-service evidence.
+- Late or out-of-order evidence.
+- Conflicting command, status, airflow, pressure, VFD, motor, or electrical evidence.
 
-The model must avoid assuming that the presence of standby power proves exhaust availability. Transfer state, control power, drive state, permissives, capacity, and actual airflow evidence may all be relevant.
+The working external outcomes are `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE`. Missing or contradictory required evidence must be capable of producing `INDETERMINATE`; the internal separation of applicability from evaluation remains a later ADR decision.
 
-## Dependency model
+## Planned deterministic scenario phases
 
-The planned facility will require explicit relationships among:
+1. **Declared baseline:** The applicable synthetic requirement versions, facility assumptions, mappings, observations, evidence-health conditions, and operating context are identified.
+2. **Duty-fan failure:** Duty-fan indications and independent evidence show a bounded initiating discrepancy or loss.
+3. **Standby request and response:** A read-only or synthetic command/request indication is compared with status, VFD or motor electrical evidence, and independent delivered-airflow or pressure evidence.
+4. **Failed or insufficient standby response:** Missing response, contradictory indications, insufficient capacity evidence, or failed start is evaluated without treating controller execution as physical proof.
+5. **Dependency response:** Treatment, shared-path, damper, and supply/makeup-air evidence are evaluated.
+6. **Pressure-cascade degradation:** Boundary and zone observations support a bounded inference of degradation, loss, or uncertainty.
+7. **Facility consequence and uncertainty:** Deterministic rules compute affected scope, consequence, uncertainty, and required verification without determining safety or authorizing action.
+8. **Human verification and response:** Qualified personnel review evidence and record decisions or actions separately from computed findings.
+9. **Recovery observations:** Human action leads to new source observations. The record of action alone does not prove physical effect.
+10. **Recovery evaluation:** New evidence is evaluated against the controlled synthetic recovery requirements.
+11. **Human disposition:** Qualified personnel review the recovery finding, unresolved evidence, and any incomplete remainder.
+12. **Incident reconstruction:** Retained versions, observations, mappings, inferences, findings, human records, and recovery evidence reproduce the event.
 
-- Points and the equipment they describe.
-- Equipment and the systems they serve.
-- Duty, standby, shared-header, and common-cause relationships.
-- Supply air, exhaust air, rooms, airlocks, and reference zones.
-- Utilities and the equipment functions that depend on them.
-- Electrical sources and critical mechanical loads.
-- Operating modes, impairments, functional tests, and applicable rules.
-- State determinations, operational consequences, procedures, actions, and evidence.
+## Parameter and source basis
 
-These relationships must be inspectable and deterministic. They must not be inferred solely from naming conventions or generated by AI at runtime.
+No universal numerical pressure band, standby-start time, airflow threshold, delay, hysteresis, recovery interval, or hold time is approved by this document.
 
-## Planned operating modes
+Each future parameter must identify:
 
-- **Normal operation:** Required equipment, redundancy, pressure relationships, and environmental conditions are available.
-- **Reduced-capacity operation:** The facility remains within approved laboratory criteria with reduced redundancy or capacity.
-- **Degraded containment:** One or more required pressure relationships or exhaust capabilities are degraded, uncertain, or lost.
-- **Planned impairment:** Equipment or a function is deliberately unavailable under an approved local laboratory impairment record with mitigations.
-- **Functional test:** Synthetic observations and local test actions exercise defined acceptance criteria without controlling external equipment.
-- **Recovery and verification:** Equipment and relationships are restored and held long enough to satisfy deterministic recovery checks.
-- **Incident review:** Timeline, state transitions, actions, evidence, and unresolved questions are preserved for review.
+- Whether its basis is synthetic simulation intent, project or owner requirement, OPR/BOD/SOO, manufacturer instruction, procedure, permit, regulation, adopted code, or formal standard.
+- The exact source and effective version.
+- Applicability and approval status.
+- Units, tolerance, expected normal variability, and measurement uncertainty.
+- Persistence, delay, hysteresis, recovery behavior, and credible false-positive conditions.
+- Required evidence and insufficient-evidence behavior.
+- Assumptions, exclusions, limitations, and review scope.
 
-Exact mode names, entry criteria, exit criteria, and precedence remain future architectural decisions.
+Until a later qualified decision establishes another basis, duty/standby redundancy, pressure relationships, timers, airflow criteria, and recovery intervals remain synthetic project intent.
 
-## Planned golden scenario
+## Human and safety boundaries
 
-The first golden scenario is a process-exhaust failure causing pressure-cascade degradation. Its planned phases are:
+Deterministic code may compute point conditions, inferred states, timing results, evaluations, and bounded findings reproducibly. Determinism does not make the requirement, mapping, evidence, inference, or finding automatically valid.
 
-1. **Known baseline:** Required fans, treatment, utilities, electrical support, point health, and pressure relationships are verified in a defined operating mode.
-2. **Initiating failure:** A synthetic process-exhaust failure or loss of effective exhaust capacity occurs with timestamped point evidence.
-3. **Equipment-state determination:** Deterministic logic distinguishes stopped, failed, unavailable, uncertain, or reduced-capacity equipment from a single raw alarm.
-4. **System response:** Duty/standby behavior, shared capacity, supply response, and treatment permissives determine the process-exhaust system state.
-5. **Cascade degradation:** One or more pressure boundaries degrade or are lost, with persistence and data-quality rules applied.
-6. **Operational consequences:** Deterministic rules identify affected zones, containment concern, research-operability concern, response priority, and uncertainty without claiming physical exposure calculations.
-7. **Operator response and impairment:** The laboratory records acknowledgement, verification steps, local mitigations, impairment scope, procedure references, and decisions.
-8. **Recovery and functional verification:** Synthetic recovery observations are checked against deterministic equipment, system, pressure, and hold-time acceptance criteria.
-9. **Incident review:** The system presents a reproducible timeline, authoritative state transitions, actions, evidence provenance, and advisory explanation.
+Qualified personnel retain authority for applicability, requirement approval, test authorization, operational action, commissioning acceptance, waivers, safety decisions, and final disposition. FacilityOps must not command equipment, certify commissioning, authorize physical testing, independently determine safety, or treat a recorded action as proof of restoration.
 
-The exact initiating equipment, redundancy behavior, synthetic point values, delays, consequences, and acceptance criteria are not yet approved or implemented.
+## Broader facility context
 
-## Assumptions and required validation
+Later research may add only those facility areas and dependencies that materially deepen a defined technical question. Candidate contexts include:
 
-- The facility, equipment, zones, identifiers, and data will be fictional.
+- Additional process laboratories and transition zones.
+- Exhaust treatment and discharge evidence.
+- Supply and makeup-air systems.
+- Electrical service, switchgear, motor control, VFDs, UPS, ATS, and standby power where they support the flagship evidence chain.
+- Utilities and precision environments where they create a specific dependency or recovery question.
+
+Expansion requires an approved roadmap slice and, where it changes accepted topology or relationships, a new ADR. FacilityOps is not intended to become a comprehensive campus model or universal facilities platform.
+
+## Use limitations
+
+- All facility, equipment, observations, requirements, and scenarios are fictional.
 - Pressure and airflow behavior will be a deterministic operational abstraction, not high-fidelity physics.
-- The scenario will not calculate contaminant transport, exposure, or regulatory compliance.
-- Training content must be reviewed by appropriate facility operations, controls, commissioning, mechanical, electrical, process-safety, and industrial-hygiene domain experts.
-- Any future use of authorized real observations requires data governance, sanitization, and read-only controls outside the scope of this conceptual facility description.
-- No statement in this document establishes cleanroom classification, containment certification, code compliance, commissioning acceptance, or safe operating authorization.
+- The scenario will not calculate contaminant transport, exposure, regulatory compliance, or physical safety.
+- Technical content requires review by the relevant facility operations, controls, commissioning, mechanical, electrical, process-safety, and industrial-hygiene disciplines before it may be described as representative practice.
+- No statement in this document establishes cleanroom classification, containment certification, code compliance, commissioning acceptance, or authorization for operation.

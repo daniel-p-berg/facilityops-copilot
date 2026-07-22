@@ -1,6 +1,6 @@
 # Northstar Data Hall Facility Model
 
-Northstar Data Hall is a fictional mission-critical data hall used for FacilityOps Copilot sample data. It represents a small but realistic environment where BMS and EPMS events must be reviewed together to understand cooling, power, and operational risk.
+Northstar Data Hall is the fictional legacy regression fixture and secondary data-center demonstration used for FacilityOps Copilot sample data. It represents a small environment where BMS and EPMS indications can be reviewed together to study cooling, power, and operational risk. It is not the standards-grounded flagship environment.
 
 ## Facility Purpose
 
@@ -45,6 +45,7 @@ The EPMS monitors and reports alarms for electrical infrastructure, including:
 ## Operating Assumptions
 
 - All data is simulated and does not represent a live customer system.
+- Northstar alarm rules and seeded operational context are local demonstration records, not controlled standards requirements, code-compliance evaluations, or qualified human dispositions.
 - Alarm records may include both Active and Cleared states.
 - Operators should review active Critical alarms first.
 - Cooling and power alarms occurring near the same time should be reviewed together.

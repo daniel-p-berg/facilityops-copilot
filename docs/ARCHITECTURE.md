@@ -2,7 +2,50 @@
 
 ## Document basis
 
-This document describes the verified Milestone 2 implementation based on synchronized main commit `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab` and separately identifies planned direction. The implemented section is descriptive, not aspirational. Product intent is governed by [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md), and verification status is tracked in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+This document describes the verified implementation at commit `6c52f8c6b46ecd49f816f04cbd6ba2c5b881f5fc`, built on the Milestone 2 base commit `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`, and separately identifies planned direction. The implemented section is descriptive, not aspirational. Product identity and authority are governed by [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md), standards policy is summarized in [`STANDARDS_POSITION.md`](STANDARDS_POSITION.md), and verification status is tracked in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+
+## Target conceptual architecture
+
+The following lifecycles govern planned architecture but are not implemented merely because they appear here.
+
+### Observation, inference, and consequence
+
+```text
+source artifact or stream
+→ source-native observation as received by FacilityOps
+→ versioned mapping and normalization
+→ canonical observation
+→ point condition
+→ equipment, system, and facility inference
+→ consequence and uncertainty
+```
+
+A canonical observation remains a reported indication. It does not independently prove physical state. Mapping, normalization, point condition, higher-level inference, and consequence are separate transformations or computations that must retain inputs, versions, assumptions, limitations, contradictions, and uncertainty.
+
+A read-only or synthetic controller command/request indication is evidence of what a source reports. FacilityOps does not issue that command, and the indication does not prove controller execution or physical response. Independent airflow, pressure, VFD, motor, or electrical evidence may be required by a controlled synthetic requirement.
+
+### Standards and assurance
+
+```text
+reference source
+→ applicability decision
+→ versioned requirement
+→ required evidence
+→ deterministic evaluation
+→ bounded finding
+→ evidence manifest
+→ human review and disposition
+```
+
+Reference sources, applicable requirements, executable evaluations, computed findings, and human dispositions remain distinct. The first golden-proof requirements will be project-authored synthetic SOO requirements informed by controlled references. The current implementation contains none of these assurance-layer records.
+
+### Computation and human authority
+
+Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
+
+Human response must lead to new source observations and a separate recovery evaluation. A recorded acknowledgement, decision, action, or work record does not prove its physical effect.
+
+Missing, stale, suspect, overridden, late, or conflicting required evidence must be capable of producing an `INDETERMINATE` result. The working external presentation also includes `CONFORMING`, `NONCONFORMING`, and `NOT_APPLICABLE`; internal applicability/result structure remains unresolved.
 
 ## Implemented architecture
 
@@ -22,7 +65,7 @@ Fictional CSV fixtures / local simulated driver / local CSV replay
               SQLite point and operations records
                               |
                               v
-       deterministic rule evaluation and local state changes
+       deterministic rule evaluation and local record changes
                               |
                               v
                   FastAPI JSON routes
@@ -41,14 +84,14 @@ The flagship validator checks manifest/file facility and version agreement, stab
 
 Seeded current values create point-sample history and a `current_point_values` latest-value projection. Generated alarms and alarm events begin empty after a full sample-data load. The legacy `alarms` table is created and cleared; the current dashboard uses generated alarms rather than the legacy alarm CSV.
 
-`analysis/analyze_alarms.py` and `analysis/generate_db_briefing.py` remain legacy reporting scripts. Their reports are not the authoritative source for the current generated-alarm dashboard.
+`analysis/analyze_alarms.py` and `analysis/generate_db_briefing.py` remain legacy reporting scripts. Their reports are not the current generated-alarm data source for the dashboard.
 
 ### SQLite model
 
 The implementation retains these pre-Milestone 2 tables:
 
 - Core catalog and observation: `equipment`, `points`, `point_samples`, and `current_point_values`.
-- Alarm configuration and state: `alarm_rules`, `generated_alarms`, and `alarm_events`.
+- Alarm configuration and lifecycle records: `alarm_rules`, `generated_alarms`, and `alarm_events`.
 - Legacy data: `alarms`.
 - Seeded operations context: `facility_scenarios`, `alarm_correlations`, `alarm_correlation_members`, `incident_timeline`, `shift_turnover`, `equipment_out_of_service`, `corrective_actions`, `procedure_references`, and `reliability_reports`.
 
@@ -69,7 +112,7 @@ SQLite schema creation and compatibility migrations are embedded in loader and b
 
 Implemented point metadata includes value, unit, quality, source and receive timestamps, stale window, source, protocol, address, override flag, out-of-service flag, and creator. Quality is normalized to `GOOD`, `UNCERTAIN`, `BAD`, or `STALE`; `UNKNOWN` becomes `UNCERTAIN`.
 
-Changes in quality, override, and point out-of-service state append `alarm_events` audit rows. Staleness is evaluated only when the explicit point-health endpoint is called. There is no background stale-data scheduler.
+Changes in quality, override, and the point out-of-service flag append `alarm_events` audit rows. Staleness is evaluated only when the explicit point-health endpoint is called. There is no background stale-data scheduler.
 
 ### Deterministic alarm evaluation
 
@@ -111,7 +154,7 @@ Because reset deletes `point_samples` and `alarm_events`, it destroys current po
 
 The checkpoint loads and exposes a fictional Northstar utility-disturbance story: a facility scenario, one alarm correlation with evidence members, an incident timeline, shift turnover, equipment OOS records, corrective actions, procedure references, and a reliability report.
 
-These records are curated CSV assertions. They are returned and displayed, not computed from a point-to-equipment-to-system-to-facility state engine. Correlation confidence, root-cause hypothesis, availability, MTTR, alarm counts, OOS hours, and executive summary are seeded values rather than derived results.
+These records are curated CSV assertions. They are returned and displayed, not computed through the planned point-condition and equipment/system/facility inference chain. Correlation confidence, root-cause hypothesis, availability, MTTR, alarm counts, OOS hours, and executive summary are seeded values rather than derived results.
 
 ### API and frontend
 
@@ -131,7 +174,7 @@ The product boundary prohibits any future external command, configuration change
 
 The repository retains the 211-test Northstar module and adds 15 focused Milestone 2 tests for fixture counts and identity, ownership, typed foreign keys, deterministic reload/query, normal-database protection, complete ADR 0001 traversal, API output, invalid and cross-fixture rejection, transaction rollback, and facility-aware reset. `scripts/run_verification.py` bounds application import to 30 seconds and the complete discovered suite to 300 seconds.
 
-Milestone 1.1 reproduced the reported import stall in a reused project-local virtual environment and traced it to a mixed Python 3.12/3.14 environment containing macOS cloud-offloaded package files. No application-code or test change was required. With the recorded Python 3.12 dependency set, the application import completed within its bound and all 211 tests passed against isolated test state. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for exact versions, timings, counts, and remaining limits.
+Milestone 1 reproduced the reported import stall in a reused project-local virtual environment and traced it to a mixed Python 3.12/3.14 environment containing macOS cloud-offloaded package files. No application-code or test change was required. With the recorded Python 3.12 dependency set, the application import completed within its bound and all 211 tests passed against isolated test state. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for exact versions, timings, counts, and remaining limits.
 
 ## Implemented limitations
 
@@ -140,10 +183,14 @@ The Milestone 2 implementation does not include:
 - Polling, subscription, background scheduling, or continuous evaluation.
 - Live external connectivity or an external read-only adapter.
 - Any physical command or external write-back path.
-- A canonical hierarchy from point condition to equipment, system, and facility state.
+- Separate source-native observation, mapping/normalization, and canonical-observation records.
+- A canonical hierarchy from computed point condition to equipment, system, and facility inference.
 - Deterministic consequence computation from that hierarchy.
 - Numerical or state-determining process-exhaust and pressure-cascade behavior.
+- A read-only or synthetic controller command/request observation or dedicated VFD/motor electrical corroboration point.
 - The flagship golden scenario or any broader flagship topology beyond the accepted minimum.
+- A Standards Reference Registry, Applicable Requirements Baseline, or executable synthetic SOO requirement pack.
+- Evidence-sufficiency rules, bounded findings, the working four-outcome presentation, or qualified human disposition records.
 - Durable evidence packaging, provenance manifests, import hashes, or evidence retention across reset.
 - Executable alarm-response, impairment, commissioning, functional-test, recovery, or incident-review workflows.
 - Runtime AI or an advisory AI boundary.
@@ -155,12 +202,15 @@ The Milestone 2 implementation does not include:
 
 The following is intended direction, not implemented architecture:
 
-- Expansion of the minimum vendor-neutral facility topology to additional systems, zones, operating modes, and evidence relationships through future approved slices.
-- Deterministic layers for point condition, equipment state, system state, facility state, and operational consequences.
-- Scenario and replay packages with explicit preconditions, expected transitions, acceptance criteria, and provenance.
-- Durable evidence records that survive active-state reset and support incident reconstruction.
-- Local workflows for operator response, impairment, functional testing, recovery, and review.
-- Adapter contracts for synthetic, sanitized, non-sensitive, or explicitly authorized read-only sources.
-- An advisory AI layer that cites deterministic state and evidence and never owns authoritative determinations.
+- A controlled reference and applicability foundation for project-authored synthetic SOO requirements.
+- Explicit source-native observations, versioned mappings and normalization, canonical observations, computed point conditions, and temporal semantics.
+- A versioned golden-scenario evidence and replay package, including a read-only or synthetic controller command/request indication and VFD or motor electrical corroboration.
+- Traceable equipment, system, pressure-cascade, facility, consequence, and uncertainty inference.
+- Required-evidence rules that preserve an indeterminate result when evidence is insufficient or contradictory.
+- Bounded findings and reproducible evidence manifests that survive approved active-state reset.
+- Separate qualified human verification, authorization, action, waiver, commissioning acceptance, recovery review, and final-disposition records.
+- New recovery observations and a separate recovery evaluation.
+- A guided technical and portfolio demonstration that remains usable with AI disabled.
+- Optional bounded controls-assurance comparisons, read-only adapters, and advisory AI only after the flagship proof.
 
-Exact schemas, state vocabularies, temporal semantics, workflow models, evidence retention, and adapter contracts require approved architecture decisions and roadmap slices. This section must not be used to claim those capabilities exist.
+Exact schemas, fields, state vocabularies, temporal semantics, outcome structure, persistence, human-record models, evidence retention, topology expansion, and adapter contracts require approved ADRs and roadmap slices. This section must not be used to claim those capabilities exist.

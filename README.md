@@ -1,19 +1,24 @@
 # FacilityOps Copilot
 
-FacilityOps Copilot is a vendor-neutral, externally read-only critical-environment operations, commissioning, training, and decision-support laboratory. It uses fictional local data to make facility behavior, operational consequences, response decisions, and supporting evidence understandable and reproducible without creating a control path to a physical facility.
+FacilityOps Copilot is a standards-grounded technical laboratory for critical-environment facilities operations, reliability, controls, and OT assurance. It uses a fictional facility and deterministic scenarios to study how heterogeneous source indications can be normalized, interpreted, compared with versioned synthetic control intent, and reconstructed after an event without creating a control path to a physical facility.
 
-The approved product direction is defined by the change-controlled [`docs/PRODUCT_CHARTER.md`](docs/PRODUCT_CHARTER.md). This README is the practical entry point for the repository; it does not replace the governance documents or imply that planned capabilities are implemented.
+The project prioritizes transferable facilities knowledge, disciplined engineering reasoning, a coherent flagship proof, and technical portfolio value. A possible read-only controls-assurance capability remains a research hypothesis; FacilityOps is not a commercially validated product, universal compliance engine, general facilities integration platform, BAS or SCADA replacement, or AI safety authority.
+
+The approved direction is defined by the change-controlled [`docs/PRODUCT_CHARTER.md`](docs/PRODUCT_CHARTER.md). This README preserves practical setup, API, verification, and implemented-behavior instructions; it does not replace the governance documents or imply that planned capabilities are implemented.
 
 ## Governance And Current Status
 
 - [`docs/PRODUCT_CHARTER.md`](docs/PRODUCT_CHARTER.md) defines the approved product purpose, boundaries, principles, and non-goals.
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) separates verified implemented behavior from partial, planned, and unverified behavior.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) defines the approved milestone order and acceptance evidence.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) defines the approved milestone order and completion evidence.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describes the implemented architecture separately from planned direction.
 - [`docs/FLAGSHIP_FACILITY.md`](docs/FLAGSHIP_FACILITY.md) describes the fictional flagship facility. Its minimum Milestone 2 catalog and topology are implemented; the golden scenario and broader facility remain planned.
-- [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process and lists unresolved architectural decisions.
+- [`docs/STANDARDS_POSITION.md`](docs/STANDARDS_POSITION.md) defines how controlled references, applicability, synthetic requirements, bounded findings, and human disposition remain distinct.
+- [`docs/decisions/README.md`](docs/decisions/README.md) defines the ADR process, accepted decisions, proposed ADR 0003, and the consolidated unresolved-decision backlog.
 
-Authoritative alarm, point-condition, equipment, system, facility, consequence, and functional-test determinations belong to deterministic, testable code. Any future AI capability is advisory only: it must cite authoritative evidence, express uncertainty, and remain unable to change authoritative state or acceptance results. AI-assisted development is part of the project history, not the product mission.
+Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
+
+A canonical observation remains a reported indication and does not independently prove physical state. A human action must lead to new observations and a separate recovery evaluation; recording an action does not prove its physical effect. Any future AI capability is advisory only and cannot approve its own output, mutate controlled computation, exercise qualified human authority, or command a physical system.
 
 The repository currently uses fictional local data and does not connect to a live BAS, EPMS, PLC, SCADA, DCIM, Modbus device, or customer system. External commands, configuration changes, and write-back are outside the product boundary. Local laboratory writes for simulation, replay, scenarios, alarm evaluation, acknowledgements, audit, testing, and local configuration are allowed.
 
@@ -37,7 +42,7 @@ python3 -m analysis.facility_fixture_loader load \
   --db /tmp/facilityops-flagship.sqlite3
 ```
 
-The flagship loader rejects `db/facilityops.sqlite3` as a target, validates the complete manifest and every CSV before database mutation, and then replaces catalog and topology state in one transaction. It does not fall back to Northstar after an invalid selection.
+The flagship loader rejects `db/facilityops.sqlite3` as a target, validates the complete manifest and every CSV before database mutation, and then replaces catalog and topology configuration in one transaction. It does not fall back to Northstar after an invalid selection.
 
 Query the stored facility identity and complete typed flagship topology:
 
@@ -52,7 +57,9 @@ Generated database files are local development artifacts and are ignored by git.
 
 The implemented environment is **Northstar Data Hall**, a fictional mission-critical data hall documented in [`docs/facility_model.md`](docs/facility_model.md). Northstar is the preserved legacy fixture, regression environment, and secondary data-center demonstration.
 
-The fictional **Advanced Materials Research and Precision-Environment Facility** is the flagship environment. Milestone 2 implements its minimum versioned catalog and typed topology: a corridor-to-transition/airlock-to-process-laboratory pressure cascade, process-exhaust duty and standby fans, a shared exhaust path, monitored treatment and supply/makeup-air dependencies, and explicitly bound observation points. The planned **process-exhaust failure causing pressure-cascade degradation** scenario, observations, higher-level state layers, and deterministic consequence engine are not implemented.
+The fictional **Advanced Materials Research and Precision-Environment Facility** is the flagship environment. Milestone 2 implements its minimum versioned catalog and typed topology: a corridor-to-transition/airlock-to-process-laboratory pressure cascade, process-exhaust duty and standby fans, a shared exhaust path, monitored treatment and supply/makeup-air dependencies, and explicitly bound observation points. The planned **process-exhaust failure causing pressure-cascade degradation** scenario, controlled synthetic requirements, source-native and canonical observations, higher-level inference, evidence-sufficiency evaluation, bounded findings, human disposition, and deterministic consequence computation are not implemented.
+
+The implemented topology is not a code-applicability or conformance claim. It currently has no controller command/request observation and no dedicated VFD or motor electrical corroboration point. Exact additions require a later ADR and approved roadmap slice. New York State outside New York City is only a provisional reference-jurisdiction assumption; the AHJ, local amendments, enforcement status, facility status, use, hazards, quantities, control areas, and process-exhaust applicability remain unresolved.
 
 Equipment inventory is stored in `data/sample_equipment.csv` and loaded into SQLite with the point, current value, and alarm rule data. The inventory adds context such as equipment type, location, criticality, and source system.
 
@@ -294,4 +301,14 @@ All mutating test cases use isolated temporary SQLite databases. The verificatio
 
 ## Planned Direction
 
-The approved roadmap next adds point-condition and temporal semantics, golden-scenario observations, explicit deterministic equipment/system/facility state, operational consequences, durable provenance, bounded operator and commissioning workflows, a vendor-neutral read-only adapter proof, and an optional advisory AI layer. These capabilities remain planned until [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records verified implementation.
+The approved roadmap now develops one standards-grounded flagship proof in this order:
+
+1. Controlled references, a fictional applicability profile, and project-authored synthetic SOO requirements.
+2. Source-native observations, versioned mapping and normalization, canonical observations, computed point conditions, and temporal semantics.
+3. A deterministic golden-scenario evidence and replay package, including a read-only or synthetic controller command/request indication and VFD or motor electrical corroboration.
+4. Traceable equipment, system, facility, consequence, and uncertainty inference.
+5. Evidence-sufficiency evaluation, bounded findings, and a reproducible evidence manifest.
+6. Separate human verification, recovery evidence, review, and disposition.
+7. A coherent technical and portfolio demonstration that remains usable with AI disabled.
+
+Broad adapter coverage, controller-language comparison, and advisory AI are optional later research. All planned capabilities remain unimplemented until [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records verified behavior.

@@ -2,7 +2,9 @@
 
 ## Status basis
 
-- **Status date:** 2026-07-20
+- **Status date:** 2026-07-22
+- **Current branch:** `codex/m2-flagship-topology` (no configured upstream; one commit ahead of `origin/main` by ancestry before this documentation edit)
+- **Current implementation commit:** `6c52f8c6b46ecd49f816f04cbd6ba2c5b881f5fc`
 - **Milestone 2 base commit:** `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`
 - **Verification base commit:** `5718e5060935ba8b813b7354be094d44f4ee383b`
 - **Implemented legacy environment:** Fictional Northstar Data Hall
@@ -11,9 +13,11 @@
 
 This document reports verified repository reality separately from the intended product in [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md). “Implemented” means present in the described implementation and supported by source inspection plus the verification evidence stated below; it does not imply production readiness or domain certification.
 
+The 2026-07-22 documentation rebaseline changes project identity, standards policy, authority boundaries, and planned milestone order. It does not change application behavior, database schemas, fixture version `1.0.0`, numerical criteria, or the completed Milestone 1 and Milestone 2 evidence.
+
 ## Verification record
 
-Milestone 1.1 verification reproduced the previously reported import stall and identified an environmental cause rather than an application-code or test defect. The reused project-local `.venv` contained both Python 3.12 and 3.14 interpreter/package artifacts, while its default `python` executable selected Python 3.12. On macOS, 1,993 files in that environment were cloud-offloaded `dataless` placeholders. Bounded diagnostics showed Python blocked in `importlib` while reading an offloaded Uvicorn module. Imports completed after the required files were hydrated.
+Milestone 1 verification reproduced the previously reported import stall and identified an environmental cause rather than an application-code or test defect. The reused project-local `.venv` contained both Python 3.12 and 3.14 interpreter/package artifacts, while its default `python` executable selected Python 3.12. On macOS, 1,993 files in that environment were cloud-offloaded `dataless` placeholders. Bounded diagnostics showed Python blocked in `importlib` while reading an offloaded Uvicorn module. Imports completed after the required files were hydrated.
 
 The repeatable baseline uses a fresh Python 3.12 environment outside the cloud-synchronized repository, pinned direct dependencies from `requirements.txt`, and `python scripts/run_verification.py`. The runner records resolved versions, limits the application import to 30 seconds, and limits `python -m unittest discover -s tests` to 300 seconds.
 
@@ -41,6 +45,8 @@ Milestone 2 verification uses a fresh Python 3.12.13 environment outside the rep
 
 Representative isolated-database smoke checks load and query the flagship through the documented CLI, exercise `GET /facility-topology`, reset a flagship runtime sample to its declared zero-observation baseline, and load/reset Northstar to its unchanged 17-value baseline. The normal `db/facilityops.sqlite3` SHA-256 remains `39a6538b3689703b95cd2ae00a31ebcd1c5c2f978bbe1d49db3d64bbc2451648` before and after implementation verification.
 
+The 2026-07-22 documentation review independently reproduced the current baseline from a fresh temporary Python 3.12.13 environment before editing. Application import completed in 0.660 seconds, and all 226 discovered tests passed in 5.006 seconds of bounded process time. After the documentation-only edits, the same bounded environment completed application import in 0.407 seconds and all 226 tests in 4.500 seconds. The normal SQLite database retained the SHA-256 above before and after both runs.
+
 ## Implemented
 
 ### Repository and runtime shape
@@ -67,6 +73,7 @@ Representative isolated-database smoke checks load and query the flagship throug
 - Ten typed topology relationship rows: two duty/standby memberships, one system-zone service, two fan/shared-path memberships, one path/treatment dependency, one boundary/system dependency, two boundary/supply dependencies, and one cascade-order link.
 - Eight typed point bindings: one zone, one system, two pressure-boundary, two shared-path, and two monitored-dependency bindings.
 - No current-value baseline, numerical pressure limit, point-condition semantics, temporal rules, equipment/system/facility state, consequence logic, scenario observation, or executable control behavior.
+- No read-only or synthetic controller command/request observation and no dedicated VFD or motor electrical corroboration point. Exact evidence and topology expansion are deferred.
 
 ### Facility fixture loading and topology persistence
 
@@ -117,7 +124,7 @@ Representative isolated-database smoke checks load and query the flagship throug
 - One fictional reliability report.
 - API and frontend display for the records above.
 
-The correlation, root-cause hypothesis, confidence, reliability metrics, and executive summary are curated fictional seeded assertions. They are not calculated from an implemented equipment/system/facility state engine and are not AI-generated at runtime.
+The correlation, root-cause hypothesis, confidence, reliability metrics, and executive summary are curated fictional seeded assertions. They are not calculated from implemented equipment, system, or facility inference and are not AI-generated at runtime.
 
 ### External-system boundary
 
@@ -141,7 +148,15 @@ Quality, staleness, override, out-of-service, and rule eligibility are implement
 
 ### Auditable evidence
 
-Alarm trigger snapshots and audit events provide useful evidence. Provenance is incomplete: imports and replay runs lack durable manifests and source hashes, computed determinations do not exist, and operational reset deletes point-sample history, generated alarms, and all audit events before reseeding the baseline. Durable observation and incident retention is planned but not implemented.
+Alarm trigger snapshots and audit events provide useful evidence. Provenance is incomplete: imports and replay runs lack durable manifests and source hashes, higher-layer inferences and bounded findings do not exist, and operational reset deletes point-sample history, generated alarms, and all audit events before reseeding the baseline. Durable observation and incident retention is planned but not implemented.
+
+### Standards, applicability, requirements, and findings
+
+The repository contains no implemented Standards Reference Registry, Applicable Requirements Baseline, executable synthetic SOO requirement pack, evidence-sufficiency evaluation, bounded-finding record, evidence manifest, or human review/disposition model.
+
+Existing alarm rules are deterministic local laboratory rules. They are not controlled standards requirements, code-compliance tests, owner-approved criteria, commissioning criteria, or evidence that the flagship topology conforms to an applicable requirement.
+
+The dated standards baseline and [STANDARDS_POSITION.md](STANDARDS_POSITION.md) are documentation references only. They do not retrofit standards, conformance, or evidence-sufficiency claims into Milestones 1 or 2.
 
 ### Operator response
 
@@ -149,19 +164,19 @@ Acknowledgement, procedure references, corrective actions, timelines, and turnov
 
 ### Impairment management
 
-Equipment OOS records and point OOS gating exist. There is no complete impairment lifecycle, authorization model, compensatory monitoring, extension, restoration evidence, or deterministic integration with system and facility state.
+Equipment OOS records and point OOS gating exist. There is no complete impairment lifecycle, authorization model, compensatory monitoring, extension, restoration evidence, or deterministic integration with system and facility inference.
 
 ### Functional testing and commissioning
 
-Scenarios, replay, deterministic rules, and reset are useful test primitives. There is no implemented test-plan, prerequisite, step, observation, acceptance, exception, abort, or signed recovery workflow.
+Scenarios, replay, deterministic rules, and reset are useful test primitives. There is no implemented test plan, prerequisite, step, controlled test observation, deterministic evaluation record, exception, abort, qualified human acceptance, or signed recovery workflow.
 
 ### Recovery and incident review
 
-Alarm clearing, normalization scenarios, reset, a seeded timeline, and recovery-oriented sample text exist. There is no derived recovery state, retained incident evidence across reset, or reproducible incident reconstruction workflow.
+Alarm clearing, normalization scenarios, reset, a seeded timeline, and recovery-oriented sample text exist. There is no computed recovery inference, retained incident evidence across reset, or reproducible incident reconstruction workflow.
 
 ### Consequence and reliability presentation
 
-The dashboard presents curated operational impact, mitigation, correlation, and reliability text. These are not authoritative deterministic consequences or calculated reliability results.
+The dashboard presents curated operational impact, mitigation, correlation, and reliability text. These are not computed consequences from implemented inference rules or calculated reliability results.
 
 ### Training and decision support
 
@@ -169,14 +184,17 @@ The local sandbox can demonstrate deterministic behavior, but it does not yet im
 
 ## Planned
 
-- Broader Advanced Materials Research and Precision-Environment Facility areas, systems, and topology beyond the accepted Milestone 2 minimum.
+- Only the bounded flagship topology and evidence expansions required by an approved technical question beyond the accepted Milestone 2 minimum.
+- A controlled applicability profile and project-authored synthetic SOO requirement pack informed by controlled references.
 - The process-exhaust failure and pressure-cascade-degradation golden scenario.
-- Explicit deterministic point, equipment, system, and facility state layers.
+- Source-native observation preservation, versioned mapping and normalization, canonical observations, computed point conditions, and explicit equipment/system/facility inference layers.
+- A read-only or synthetic controller command/request observation and VFD or motor electrical corroboration evidence.
 - Deterministic operational consequences with affected scope, evidence, and uncertainty.
-- Durable provenance and evidence that survives clearing active laboratory state.
-- Bounded operator-response, impairment, functional-testing, recovery, and incident-review workflows.
-- A vendor-neutral read-only adapter contract proven by more than one source profile.
-- An optional advisory AI layer that cites authoritative evidence and cannot mutate authoritative state.
+- Bounded findings with explicit insufficient-evidence behavior and the working four-outcome presentation.
+- Durable provenance, evidence manifests, and evidence that survives clearing active laboratory state.
+- Separate human verification, test authorization, operational action, commissioning acceptance, waiver, recovery review, and final-disposition records.
+- An optional bounded read-only adapter or controls-assurance comparison after the flagship proof.
+- An optional advisory AI layer that cites controlled evidence and cannot mutate computed records or exercise human authority.
 
 Planned capabilities are not implemented and must not be presented as current behavior.
 
@@ -190,5 +208,5 @@ Planned capabilities are not implemented and must not be presented as current be
 - Authentication, authorization, multi-user identity, and deployment security; these are not implemented.
 - Production deployment, monitoring, availability, and recovery characteristics.
 - Domain validation of the implemented minimum fictional topology and of all planned operating modes, numerical pressure relationships, consequence rules, and functional-test criteria.
-- Regulatory, industrial-hygiene, process-safety, cleanroom, or commissioning acceptance; no such validation or claim exists.
+- Regulatory, industrial-hygiene, process-safety, cleanroom, code-compliance, or commissioning acceptance status; no such validation or qualified human disposition exists.
 - Final vocabulary and relationships for alarm priority, point condition, operational risk, advisory classification, and incident severity.

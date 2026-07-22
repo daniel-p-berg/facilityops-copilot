@@ -2,13 +2,17 @@
 
 ## Governance
 
-This roadmap implements the direction in [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md). Work proceeds one user-approved slice at a time. Progress markers and acceptance evidence may be updated as work is verified, but major milestones may not be reordered, removed, or materially expanded without explicit user approval.
+This roadmap implements the direction in [PRODUCT_CHARTER.md](PRODUCT_CHARTER.md). Work proceeds one user-approved slice at a time. Progress markers and completion evidence may be updated as work is verified, but milestones may not be reordered, removed, or materially expanded without explicit approval.
 
-Milestones are intentionally small and verifiable. They do not promise delivery dates. Every milestone preserves the Northstar Data Hall fixture and existing deterministic behavior unless an explicitly approved change says otherwise.
+Milestones are intentionally bounded and do not promise delivery dates. Every milestone preserves Northstar Data Hall, fixture version `1.0.0`, and existing deterministic behavior unless an explicitly approved change states otherwise.
 
-- When a milestone depends on an unresolved architectural decision, its first slice must produce a proposed ADR.
-- Implementation that depends on the decision cannot begin until the ADR is explicitly accepted.
-- An accepted ADR authorizes the decision, not every possible implementation or expansion of scope.
+- When a milestone depends on an unresolved architecture or domain decision, its first slice must produce a proposed ADR.
+- Implementation that depends on a proposed decision cannot begin until that ADR is explicitly accepted.
+- An accepted ADR authorizes only the stated decision and does not prove implementation.
+- Roadmap completion evidence is project verification evidence. It is not commissioning acceptance, code compliance, authorization for physical operation, or a final human disposition.
+- Deterministic code owns reproducible computation and bounded findings. Qualified personnel retain the authority described in the charter.
+
+The 2026-07-22 rebaseline preserves completed Milestones 1 and 2 and restructures planned work after them around one standards-grounded flagship proof.
 
 ## Milestone 1 — Repeatable verification baseline
 
@@ -22,9 +26,9 @@ Milestones are intentionally small and verifiable. They do not promise delivery 
 - Establish one repeatable command for the complete test suite and one bounded API/dashboard smoke check.
 - Record runtime versions and verification results.
 
-**Acceptance evidence**
+**Completion criteria**
 
-- The complete discovered suite runs to completion with a recorded pass/fail count.
+- The complete discovered suite runs to completion with a recorded result count.
 - A smoke check loads the application and exercises representative read and local-write routes against an isolated database.
 - No test or smoke check uses a customer system or external facility endpoint.
 
@@ -52,7 +56,7 @@ Milestones are intentionally small and verifiable. They do not promise delivery 
 - Represent only the pressure boundaries and dependencies needed to execute and explain that scenario, without high-fidelity physics.
 - Keep Northstar as a separate legacy fixture.
 
-**Acceptance evidence**
+**Completion criteria**
 
 - A loader produces the minimum deterministic flagship catalog from versioned fictional fixtures.
 - The golden-scenario topology has explicit point-to-equipment, equipment-to-system, system-to-zone, and dependency relationships.
@@ -67,352 +71,386 @@ Milestones are intentionally small and verifiable. They do not promise delivery 
 
 **Non-goals**
 
-- The complete representative research facility described in `FLAGSHIP_FACILITY.md`.
+- The complete representative research facility described in [FLAGSHIP_FACILITY.md](FLAGSHIP_FACILITY.md).
 - Broader facility areas, utilities, electrical systems, or precision spaces unless an accepted ADR establishes that the golden scenario requires them.
 - Golden-scenario observations or behavior.
+- Standards applicability, executable requirements, conformance findings, or evidence-sufficiency claims.
 - Regulatory or cleanroom certification.
 - Live facility ingestion.
 
-## Milestone 3 — Point condition and temporal semantics
+## Milestone 3 — Controlled applicability and requirement basis
 
 **Status:** Planned
 
+**Purpose**
+
+Establish the minimum controlled basis for one honest synthetic requirement pack before any flagship rule is described as executable.
+
 **Scope**
 
-- Settle point-condition vocabulary through accepted ADRs where necessary, separately from alarm priority.
-- Define event time versus receive time, evaluation time, ordering, late observations, staleness, quality, override, and out-of-service behavior.
-- Define the minimum stable observation identity and source reference needed by later replay and state layers.
+- Maintain a controlled source-reference set covering formal standards and other applicable source categories.
+- Record the provisional New York State outside New York City reference-jurisdiction assumption without resolving the AHJ or applicability profile by implication.
+- Resolve the minimum fictional facility status, use, hazard, quantity, control-area, exhaust, and enforcement assumptions needed for the golden proof.
+- Define project-authored synthetic sequence-of-operation requirements informed by controlled references.
+- State the source, rationale, applicability, assumptions, limitations, parameter basis, required evidence, and intended evaluation for each controlled requirement.
+- Use requirement statuses only at the individual-requirement level and preserve their bounded meanings.
+- Define how the working outcomes `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE` will be presented while deferring their internal separation to a later ADR.
+
+**Completion evidence**
+
+- The source registry distinguishes publisher-current, jurisdiction-adopted, and project-effective editions plus adoption and enforcement status.
+- The minimum fictional applicability profile contains explicit decisions or explicit unresolved fields; no applicability is inferred from facility labels.
+- Every first-pack requirement is identified as project-authored and synthetic unless a later approved basis says otherwise.
+- `ACCEPTED_FOR_SIMULATION` and `DOMAIN_REVIEWED` are documented without implying code compliance, commissioning acceptance, or physical authorization.
+- No protected standards clause text is copied into project data.
+
+**Verification**
+
+- Documentation and traceability review against the charter and dated standards baseline.
+- Negative checks for unqualified code-required, owner-approved, safe, certified, and commissioning-accepted claims.
+
+**Non-goals**
+
+- A standards database or generalized compliance platform.
+- A requirement persistence schema or status-transition engine.
+- Numerical scenario criteria.
+- Executable evaluation logic.
+
+## Milestone 4 — Canonical observations, point condition, and temporal semantics
+
+**Status:** Planned
+
+**Purpose**
+
+Create the evidence semantics needed to distinguish what a source reported from what FacilityOps later computes or infers.
+
+**Scope**
+
+- Define and test the conceptual chain from source artifact or stream through source-native observation, versioned mapping and normalization, canonical observation, and point condition.
+- Preserve raw source representation alongside normalized value, quantity, unit, transformation identity, and mapping version where required.
+- Define stable observation identity and source reference.
+- Define event time, receive time, evaluation time, ordering, late observations, staleness, clock limitations, quality, suspect evidence, override, and out-of-service behavior.
 - Preserve existing Northstar alarm behavior unless a separately approved compatibility change is required.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- Each observation produces a deterministic point condition with reason, stable identity, source reference, and evaluation time.
-- Out-of-order, late, stale, uncertain, bad, overridden, and OOS cases have explicit outcomes.
-- Event-time, receive-time, and evaluation-time behavior is documented and testable.
+- Each canonical observation remains explicitly a reported indication and does not claim physical proof.
+- Each computed point condition identifies its observation, reason, evaluation time, applicable temporal semantics, and uncertainty.
+- Out-of-order, late, stale, suspect, bad, uncertain, overridden, and OOS cases have deterministic, documented outcomes.
+- Versioned mapping and normalization steps are inspectable and reproducible.
 
 **Tests**
 
-- Boundary, identity, timestamp, ordering, late-observation, quality, override, OOS, staleness, and compatibility tests.
+- Identity, timestamp, ordering, lateness, staleness, quality, override, OOS, unit, transformation, mapping-version, and Northstar compatibility cases.
 
 **Non-goals**
 
-- Equipment aggregation or higher-level state.
-- Replay fixtures or durable incident packaging.
-- A final cross-product severity model unless approved by ADR.
+- Equipment or higher-level inference.
+- A universal semantic ontology.
+- Live source connectivity.
+- Durable incident packaging.
 
-## Milestone 4 — Golden-scenario observations and replay
+## Milestone 5 — Golden-proof requirements, evidence, and replay
 
 **Status:** Planned
 
+**Purpose**
+
+Package the first project-authored synthetic SOO requirements and the complete deterministic evidence sequences needed to evaluate them later.
+
 **Scope**
 
-- Define the process-exhaust failure scenario phases, synthetic observations, point health, and recovery sequence using the accepted Milestone 3 semantics.
-- Package the scenario for deterministic step and run-all replay.
-- Define expected observations without yet deriving higher-level state.
+- Define the process-exhaust failure, standby response, degradation, verification, recovery, and incomplete-recovery phases.
+- Add a read-only or synthetic observation of a controller command/request indication; FacilityOps does not issue the command.
+- Treat VFD or motor electrical corroboration as a required evidence category.
+- Include independent airflow or pressure evidence, makeup-air response, treatment dependency, and both pressure boundaries.
+- Cover missing, stale, suspect, overridden, late, and conflicting evidence.
+- Package successful standby response, failed standby start, command-versus-status discrepancy, status-versus-independent-evidence discrepancy, degraded facility evidence, recovery, and incomplete-recovery sequences.
+- Record stable replay-run and replay-step identity, source fixture version, deterministic timestamps, mappings, normalization configuration, and requirement versions.
+- Use an accepted ADR before changing the Milestone 2 point or topology inventory.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- Replay starts from a known flagship baseline and produces the same ordered observations on every run.
-- Replay-run and replay-step identities are stable and inspectable.
-- Source-fixture version and deterministic timestamps are recorded.
-- Initiation, degradation, response, and recovery phases are explicit and repeatable.
+- Replay begins from a known flagship baseline and produces the same ordered canonical observations on every run.
+- The evidence package covers every required flagship evidence category without assigning unapproved numerical criteria.
+- Command/request evidence is explicitly received or synthetic and cannot create a command path.
+- Missing or conflicting evidence can support a later `INDETERMINATE` outcome.
+- Northstar replay remains unchanged.
 
 **Tests**
 
-- Ordering, identity, source-version, filtering, reset, repeatability, point-quality, and invalid-fixture tests.
-- Regression tests proving Northstar replay remains unchanged.
+- Ordering, identity, version, filtering, reset, repeatability, mapping, quality, invalid-fixture, command-boundary, evidence-gap, and Northstar regression cases.
 
 **Non-goals**
 
-- Equipment, system, or facility-state conclusions.
-- Durable incident packaging, which remains in the later provenance milestone.
-- Operator workflow or AI explanation.
+- Equipment, system, facility, or consequence inference.
+- Controller programming or automatic duty/standby transfer.
+- Direct code-compliance claims.
+- Durable evidence manifests, which remain in Milestone 8.
 
-## Milestone 5 — Process-exhaust equipment state
+## Milestone 6 — Equipment inference
 
 **Status:** Planned
 
+**Purpose**
+
+Infer bounded equipment conditions from multiple canonical observations without equating a command, status, or alarm with physical response.
+
 **Scope**
 
-- Determine state for the golden scenario's fans, drives, treatment equipment, dampers, and relevant sensors.
-- Represent availability, running condition, failure, reduced capability, uncertainty, override, and impairment through approved deterministic rules.
+- Infer relevant duty fan, standby fan, drive or motor, damper, treatment, makeup-air, and instrument conditions.
+- Represent availability, requested operation, reported running, failure, reduced capability, uncertainty, override, and impairment through approved deterministic rules.
+- Require independent airflow, pressure, or electrical corroboration where the controlled requirement calls for it.
+- Preserve the distinction between source indication, computed point condition, and inferred equipment state.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- Equipment state identifies contributing points, rule version, timestamp, and uncertainty.
-- A single raw alarm is not treated as sufficient evidence when required observations disagree or are unhealthy.
+- Each inference identifies contributing observations, point conditions, rule and requirement versions, evaluation time, assumptions, contradictory evidence, and uncertainty.
+- A command/request or run indication alone cannot prove fan operation or delivered airflow.
+- Insufficient or contradictory evidence can produce an indeterminate bounded finding.
 
 **Tests**
 
-- Normal, failed, stopped, unavailable, conflicting, stale, uncertain, overridden, and OOS cases.
+- Normal, requested-not-running, running-without-flow, stopped, failed, unavailable, conflicting, stale, suspect, overridden, OOS, and electrical-corroboration cases.
 
 **Non-goals**
 
-- Full exhaust-system capacity or facility consequence.
+- Whole-system capacity, pressure-cascade inference, or facility consequence.
 - Predictive maintenance.
+- Physical safety determination.
 
-## Milestone 6 — Exhaust-system and pressure-cascade state
+## Milestone 7 — System and facility inference, consequence, and uncertainty
 
 **Status:** Planned
 
+**Purpose**
+
+Reconstruct the process-exhaust transition through system, pressure-cascade, and facility layers while preserving bounded evidence claims.
+
 **Scope**
 
-- Combine equipment, redundancy, shared-header, supply-response, zone, and pressure-boundary state.
-- Determine process-exhaust system state and pressure-cascade state for the golden scenario.
+- Combine equipment inferences, redundancy, shared-path, treatment, makeup-air, zone, and pressure-boundary evidence.
+- Infer process-exhaust system condition, pressure-cascade condition, and bounded facility condition.
+- Compute consequence and uncertainty for the fictional scenario under versioned project requirements.
+- Identify affected zones or functions and the evidence needed for human verification.
+- Keep consequence classification separate from alarm priority and from operational authorization.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- System and cascade determinations cite their equipment and boundary evidence.
-- Normal, reduced capacity, degraded, lost, uncertain, test, and impairment cases follow approved transition rules.
+- Every system and facility inference cites its contributing evidence and lower-layer inferences.
+- Consequences identify affected scope, assumptions, limitations, contradictory evidence, and uncertainty.
+- Normal, reduced-capacity, degraded, lost, uncertain, test, impairment, recovery, and incomplete-recovery cases follow approved rules.
+- The result does not claim contaminant exposure, code compliance, safety, or authorization for operation.
 
 **Tests**
 
-- Duty/standby, common-cause, missing-evidence, boundary persistence, incompatible-zone, and recovery cases.
+- Duty/standby, common-path, treatment, makeup-air, missing-evidence, boundary-persistence, conflicting-pressure, degraded-facility, and recovery cases.
 
 **Non-goals**
 
 - Contaminant dispersion or airflow simulation.
-- Facility-wide consequence classification.
+- Universal facility-state vocabulary.
+- AI-authored findings.
 
-## Milestone 7 — Facility state and operational consequences
-
-**Status:** Planned
-
-**Scope**
-
-- Determine facility operating state from affected systems, zones, modes, and impairments.
-- Produce deterministic operational consequences, uncertainty, affected scope, and required verification.
-- Keep consequence classification separate from alarm priority until approved otherwise.
-- Expose facility state, consequences, affected scope, supporting evidence, and uncertainty through the API and a minimal workbench presentation.
-
-**Acceptance evidence**
-
-- Each consequence cites state inputs, applicable rule, affected zones or functions, and uncertainty.
-- Golden-scenario output explains what happened, what is affected, why it matters, and the next verification focus.
-- An operator can inspect the authoritative facility state and consequence evidence without direct database access.
-
-**Tests**
-
-- Consequence-rule tables, conflicting evidence, partial degradation, recovery, and no-consequence controls.
-
-**Non-goals**
-
-- Regulatory exposure calculation.
-- AI-authored authoritative consequences.
-
-## Milestone 8 — Durable provenance and evidence
+## Milestone 8 — Bounded evaluation and reproducible evidence manifest
 
 **Status:** Planned
 
+**Purpose**
+
+Evaluate the controlled synthetic requirements reproducibly and retain enough linked evidence to reconstruct each bounded finding.
+
 **Scope**
 
-- Define durable identifiers and provenance for imports, samples, rules, state determinations, consequences, scenarios, and user actions.
-- Separate active laboratory reset from evidence retention.
-- Produce an inspectable incident evidence package or manifest.
+- Evaluate versioned project requirements against required evidence and explicit sufficiency rules.
+- Present the working four outcomes without forcing a binary result.
+- Define durable identities and provenance for source artifacts, observations, mappings, requirements, rules, inferences, findings, replay runs, and user records.
+- Separate active laboratory reset from retained incident evidence.
+- Produce an inspectable evidence manifest containing inputs, versions, mappings, parameters, evaluation code identity, findings, contradictions, and limitations.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- Reset clears approved active state while retained evidence remains queryable and internally linked.
-- An evidence package reproduces the golden scenario's authoritative timeline and inputs.
-- Source fixture and rule versions are identifiable.
+- Missing, stale, suspect, overridden, late, or conflicting required evidence can produce `INDETERMINATE`.
+- A `CONFORMING` computed finding is not represented as commissioning acceptance or proof of safety.
+- Reset clears only approved active state while retained evidence remains queryable and internally linked.
+- Re-evaluation with the same controlled inputs, configuration, and code identity reproduces the same computed result.
 
 **Tests**
 
-- Retention, referential integrity, repeat export, missing provenance, reset, and tamper-evident metadata tests.
+- All four presented outcomes, evidence sufficiency, conflicting evidence, repeat evaluation, retention, referential integrity, reset, missing provenance, and tamper-evident metadata cases.
 
 **Non-goals**
 
 - Enterprise records management.
-- A guarantee of legal admissibility.
+- Legal-admissibility claims.
+- Human acceptance or waiver automation.
 
-## Milestone 9 — Operator response workflow
-
-**Status:** Planned
-
-**Scope**
-
-- Add local response records for acknowledgement, verification, procedure reference, decision, mitigation, escalation, and handoff.
-- Tie response actions to authoritative state and evidence.
-- Make the bounded response workflow usable from the local workbench rather than requiring direct database manipulation.
-
-**Acceptance evidence**
-
-- The golden scenario can be advanced through a bounded response workflow without commanding external systems.
-- Required and optional actions, actors, timestamps, evidence, and unresolved items are distinguishable.
-- An operator can perform and review supported response steps through the local workbench.
-
-**Tests**
-
-- Valid transitions, skipped requirements, duplicate actions, role labels, handoff, and audit tests.
-
-**Non-goals**
-
-- Autonomous action.
-- Complete work-order or CMMS behavior.
-
-## Milestone 10 — Impairment management
+## Milestone 9 — Human verification, recovery, disposition, and incident reconstruction
 
 **Status:** Planned
 
+**Purpose**
+
+Complete the flagship assurance loop by recording qualified human decisions separately from computation and requiring new evidence for recovery.
+
 **Scope**
 
-- Model local impairment declaration, affected function, duration, authorization record, mitigation, compensatory monitoring, extension, and restoration.
-- Make impairment state available to deterministic state and consequence rules.
+- Add bounded local records for acknowledgement, verification request, observation, procedure reference, decision, action, mitigation, escalation, waiver, review, and disposition.
+- Record role and authority context without assuming enterprise identity or granting physical authority.
+- Require human response or recorded action to lead to new observations and a separate recovery evaluation.
+- Evaluate successful recovery and incomplete recovery from new evidence; a recorded action alone cannot establish restoration.
+- Reconstruct the scenario timeline from retained observations, inferences, findings, human records, and recovery evidence.
+- Include only the impairment and functional-test concepts necessary for the flagship demonstration.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- A planned or emergent process-exhaust impairment changes applicable state and consequence logic predictably.
-- Restoration requires defined evidence rather than a text-only status change.
+- Computed findings and human review or disposition are separate, linked records.
+- A test cannot be represented as authorized or commissioning-accepted solely because its deterministic evaluation completed.
+- Recovery requires defined new evidence and a separate computed evaluation.
+- Reviewers can reconstruct the initiating event, degradation, human verification, response, recovery, and unresolved remainder.
 
 **Tests**
 
-- Planned, emergent, overlapping, expired, extended, mitigated, and restored impairment cases.
+- Valid record transitions, insufficient role context, skipped verification, duplicate action, waiver separation, recovery evidence, incomplete recovery, handoff, and reconstruction cases.
 
 **Non-goals**
 
-- Enterprise maintenance scheduling.
-- External permit approval.
+- Autonomous response.
+- General CMMS, work-order, impairment-management, commissioning-management, or training platforms.
+- Authorization for physical testing or operation.
+- Personnel performance scoring.
 
-## Milestone 11 — Functional testing and recovery
+## Milestone 10 — Flagship technical and portfolio demonstration
 
 **Status:** Planned
 
-**Scope**
+**Purpose**
 
-- Define local test plans, prerequisites, steps, synthetic observations, deterministic acceptance criteria, exceptions, abort conditions, and recovery checks.
-- Exercise exhaust failure, standby response, pressure restoration, and hold-time verification.
-
-**Acceptance evidence**
-
-- The golden scenario has a repeatable functional test whose pass/fail result is owned by deterministic code.
-- Failed prerequisites or recovery criteria prevent a passing result.
-- All test observations and determinations are retained as evidence.
-
-**Tests**
-
-- Pass, fail, abort, incomplete, invalid prerequisite, repeated run, and recovery-hold cases.
-
-**Non-goals**
-
-- Commanding equipment to execute a test.
-- Replacing commissioning authority or signed field documentation.
-
-## Milestone 12 — Incident review and training
-
-**Status:** Planned
+Present one coherent, reproducible proof of standards-grounded engineering reasoning.
 
 **Scope**
 
-- Reconstruct the golden scenario from retained observations, states, consequences, actions, impairments, tests, and recovery evidence.
-- Provide deterministic expected-versus-observed review and trainee decision checkpoints.
-- Present an operator-readable event and state timeline. Purposeful point trends may be included only when they directly support evidence and incident review.
+- Provide a guided end-to-end demonstration of the implemented process-exhaust and pressure-cascade scenario.
+- Present the minimum topology, evidence chain, requirement basis, inferences, consequences, uncertainty, findings, human review, recovery, and evidence manifest.
+- Document setup, replay, verification, recovery, rerun, and incident-review procedures.
+- Add screenshots or equivalent technical review artifacts.
+- Clearly label fictional data, provisional applicability, synthetic requirements, implemented behavior, planned behavior, and known limitations.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- Reviewers can trace every authoritative conclusion to retained evidence.
-- Training mode separates scenario truth, trainee-visible information, trainee actions, and after-action review.
-- Operators can read the event and state sequence without querying the database or reading source code.
-
-**Tests**
-
-- Timeline reconstruction, missing evidence, alternate trainee action, replay repeatability, and review-output tests.
-
-**Non-goals**
-
-- Personnel performance scoring for employment decisions.
-- Generic chat-based training without facility evidence.
-- A generic historian, trending product, or graphics framework.
-
-## Milestone 13 — Vendor-neutral adapter proof
-
-**Status:** Planned
-
-**Scope**
-
-- Define a read-only adapter/import contract for canonical observations and catalogs.
-- Prove the contract with a second synthetic or sanitized source profile distinct from the existing static Modbus-map shape.
-- Record source identity and transformation provenance without exposing sensitive infrastructure.
-
-**Acceptance evidence**
-
-- Two different source profiles produce equivalent canonical records for the same synthetic facility facts.
-- No adapter exposes command or configuration-write methods.
+- A reviewer can reproduce and understand the flagship scenario without reading source code.
+- Every computed finding traces to controlled requirements and retained evidence.
+- The demonstration explains what was observed, what was inferred, what remains uncertain, what a human decided, and what new evidence supports recovery.
+- The demonstration remains fully usable with AI disabled.
 
 **Tests**
 
-- Contract, mapping, invalid data, provenance, capability-boundary, and no-write-path tests.
+- Guided-flow smoke coverage, deterministic reset and rerun, documentation-step verification, evidence-link checks, and implemented-versus-planned labeling checks.
 
 **Non-goals**
 
-- Live customer connectivity.
-- Broad vendor coverage.
-
-## Milestone 14 — Guided operator workbench and portfolio demonstration
-
-**Status:** Planned
-
-**Scope**
-
-- Provide a guided end-to-end demonstration of the implemented golden scenario.
-- Present the minimum facility topology and dependencies concisely.
-- Provide operator-readable point, equipment, system, facility, consequence, response, recovery, and evidence views.
-- Document a reproducible demonstration procedure.
-- Add screenshots or equivalent repository documentation suitable for technical review.
-- Clearly label fictional data, implemented behavior, planned behavior, and known limitations.
-
-**Acceptance evidence**
-
-- A reviewer can set up, run, recover, and understand the golden scenario without reading source code.
-- The demonstration procedure produces repeatable authoritative results and identifies the evidence supporting them.
-- Repository documentation includes current visual or equivalent review artifacts and explicit scope labels.
-- The demonstration remains useful with AI disabled.
-
-**Tests**
-
-- Guided-flow smoke coverage, deterministic reset and rerun, documentation-step verification, and implemented-versus-planned labeling checks.
-
-**Non-goals**
-
-- A drag-and-drop BMS graphics editor.
-- A generic dashboard framework.
+- A generic dashboard or BMS graphics framework.
 - High-fidelity facility graphics.
 - Commercial product packaging.
-- Replacing deterministic evidence with presentation text.
+- Broad integrations unrelated to the flagship proof.
 
-## Milestone 15 — Advisory AI boundary
+## Milestone 11 — Optional comparative controls-assurance research
 
-**Status:** Planned
+**Status:** Planned after the flagship proof; may remain deferred
+
+**Purpose**
+
+Compare the FacilityOps evidence-oriented method with selected controller-conformance, control-description, semantic, or adapter approaches without turning the project into a general platform.
 
 **Scope**
 
-- Add an optional advisory interface over authoritative state and evidence.
-- Require citations to deterministic facts, explicit uncertainty, and clear advisory labeling.
-- Prevent advisory output from changing authoritative state or functional-test acceptance.
+- Optionally compare one bounded duty/standby sequence with a pinned ASHRAE Standard 231 CDL/CXF representation or other controlled research reference.
+- Study OpenBuildingControl-style replay, mapping, unit, tolerance, and reproducibility patterns.
+- Define a read-only adapter/import contract only if needed for a bounded second-source proof.
+- Preserve native source identity, quality, timestamps, override or priority evidence, and mapping provenance.
 
-**Acceptance evidence**
+**Completion evidence**
 
-- Advisory output is traceable to evidence and cannot mutate authoritative records.
-- The application remains fully operable for authoritative workflows with AI disabled.
+- The comparison states exactly what controller behavior or interoperability evidence it covers and what physical behavior it cannot prove.
+- Any adapter exposes no command or configuration-write capability.
+- Exact external resource and implementation versions are pinned.
 
 **Tests**
 
-- Citation, missing-evidence, contradictory-evidence, disabled-AI, prompt-boundary, and attempted-mutation tests.
+- Comparison reproducibility, mapping, units, tolerance, invalid data, provenance, capability boundary, and no-write-path cases.
 
 **Non-goals**
 
-- Autonomous control or response.
-- AI-owned alarm, state, consequence, operating-mode, or acceptance decisions.
+- A general CDL engine.
+- Broad vendor coverage or live customer connectivity.
+- A universal ontology or integration platform.
+- Controller conformance represented as facility conformance.
 
-## Deferred or Parking Lot
+## Milestone 12 — Optional advisory AI boundary
 
-These items are not approved roadmap milestones and require explicit review before promotion:
+**Status:** Planned after deterministic flagship completion; may remain deferred
+
+**Purpose**
+
+Study whether advisory AI adds value over the completed deterministic evidence chain.
+
+**Scope**
+
+- Permit drafting, explanation, comparison, and troubleshooting suggestions over controlled evidence.
+- Require citations to deterministic records, explicit uncertainty, and advisory labeling.
+- Prevent AI output from changing requirements, applicability decisions, computed records, human disposition, or physical systems.
+
+**Completion evidence**
+
+- Advisory output is traceable to evidence and cannot mutate controlled or human-authority records.
+- AI cannot approve its own mappings, requirements, tests, findings, or recommendations.
+- All deterministic evaluation, review, and evidence functions remain available with AI disabled.
+
+**Tests**
+
+- Citation, missing-evidence, contradictory-evidence, disabled-AI, prompt-boundary, self-approval, and attempted-mutation cases.
+
+**Non-goals**
+
+- Autonomous control, response, applicability, authorization, acceptance, waiver, or final disposition.
+- AI-owned point condition, state inference, consequence, or finding.
+
+## Deferred or parking lot
+
+These items are not approved milestones and require explicit review before promotion:
 
 - Live read-only connectivity to a real facility.
+- Commercial packaging, product-market validation, pricing, or go-to-market work.
 - Production authentication, authorization, multi-tenancy, and enterprise identity.
 - Cloud deployment, high availability, backup orchestration, and disaster recovery.
 - High-volume historian storage and streaming infrastructure.
 - High-fidelity airflow, contaminant, process, or electrical simulation.
-- Regulatory compliance automation or certification claims.
-- Full CMMS, work-order, document-control, or enterprise asset-management scope.
+- Comprehensive regulatory-compliance automation or certification claims.
+- Full CMMS, work-order, document-control, commissioning-management, or enterprise asset-management scope.
+- General impairment-management and training platforms beyond the bounded flagship proof.
 - Multi-site portfolio analytics.
+- Broad protocol and vendor integration.
 - Mobile applications and notification delivery.
+
+## 2026-07-22 roadmap rebaseline mapping
+
+This mapping preserves completed history and records how the prior planned milestones were consolidated:
+
+| Prior milestone | Rebaselined location | Treatment |
+|---|---|---|
+| 1 — Repeatable verification baseline | 1 | Preserved as the completed 211-test milestone. |
+| 2 — Minimum viable flagship catalog and topology | 2 | Preserved as the completed addition of 15 focused tests and the 226-test baseline. |
+| New standards/applicability work | 3 | Added ahead of executable flagship requirements. |
+| 3 — Point condition and temporal semantics | 4 | Expanded to include source-native observations, mapping, normalization, and canonical observations. |
+| 4 — Golden-scenario observations and replay | 5 | Combined with the controlled synthetic requirement and evidence package. |
+| 5 — Process-exhaust equipment state | 6 | Reframed as bounded equipment inference with independent corroboration. |
+| 6 — Exhaust-system and pressure-cascade state | 7 | Consolidated with the facility-inference portion of prior Milestone 7. |
+| 7 — Facility state and operational consequences | 7 | Consolidated into system/facility inference, consequence, and uncertainty. |
+| 8 — Durable provenance and evidence | 8 | Expanded into bounded evaluation and a reproducible evidence manifest. |
+| 9 — Operator response workflow | 9 | Narrowed to human verification and records required by the flagship proof. |
+| 10 — Impairment management | 9 or parking lot | Only flagship-required concepts remain in Milestone 9; general scope is deferred. |
+| 11 — Functional testing and recovery | 9 | Reframed around computed evaluation, human authority, new recovery evidence, and separate disposition. |
+| 12 — Incident review and training | 9 or parking lot | Incident reconstruction remains; general training-platform scope is deferred. |
+| 13 — Vendor-neutral adapter proof | 11 | Deferred until after the flagship and made optional comparative research. |
+| 14 — Guided operator workbench and portfolio demonstration | 10 | Refocused as the coherent technical and portfolio demonstration. |
+| 15 — Advisory AI boundary | 12 | Retained as optional work only after the deterministic flagship proof. |

@@ -1,130 +1,220 @@
 # FacilityOps Copilot Product Charter
 
-> **Change-controlled document — Version 1.0, approved 2026-07-19.** This charter describes the approved intended product. It may not be changed in a future task without explicit user approval for the charter change.
+> **Change-controlled document — Version 2.0, approved 2026-07-22.** This version supersedes Version 1.0, approved 2026-07-19. It defines the accepted project identity and authority boundaries. Future tasks may not change it without explicit approval for a charter revision.
 
-## Purpose
+## Revision summary
 
-FacilityOps Copilot is a vendor-neutral, read-only critical-environment operations, commissioning, training, and decision-support laboratory.
+Version 2.0 reorients FacilityOps Copilot from a broadly framed operations and commissioning product toward a standards-grounded technical laboratory. It makes technical competence, engineering reasoning, a coherent flagship demonstration, and portfolio value the primary outcomes; treats commercial differentiation as an unproven hypothesis; establishes controlled standards and assurance lifecycles; and separates deterministic computation from qualified human acceptance and disposition.
 
-It imports, replays, or simulates facility data; determines point, equipment, system, and facility state; identifies operational consequences; supports operator response, impairment management, functional testing, recovery, and incident review; and produces auditable evidence.
+This revision preserves the compatible Version 1.0 commitments to external read-only operation, fictional and controlled data, scenario-driven verification, evidence-oriented reasoning, deterministic reproducibility, explicit uncertainty, and advisory-only AI.
 
-The product exists to make facility behavior, operational risk, response decisions, and supporting evidence understandable and reproducible in a safe laboratory. AI-assisted development is part of project history, not the product mission.
+## Project identity
 
-This charter defines the intended product. It does not assert that every capability is currently implemented. Current verified behavior is maintained separately in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+FacilityOps Copilot is a standards-grounded technical laboratory for critical-environment facilities operations, reliability, controls, and operational-technology assurance.
 
-## Intended users
+It uses a fictional facility and deterministic scenarios to develop and demonstrate how heterogeneous facility evidence can be normalized, interpreted, compared with versioned control intent, and reconstructed after an event.
 
-- Critical-environment operators and shift leads reviewing alarms, impairments, recovery, and turnover risk.
-- Controls and integration technicians validating point mappings and deterministic behavior.
-- Commissioning personnel planning, executing, and reviewing functional tests.
-- Facility engineers and reliability personnel investigating dependencies and operational consequences.
-- Instructors and trainees rehearsing response and recovery in a fictional environment.
-- Reviewers who need traceable evidence for how a conclusion or action was reached.
+The project exists primarily to:
 
-## Intended outcomes
+1. Develop technically transferable competence across critical-facility operations, maintenance, controls, electrical systems, OT data, commissioning, reliability, and incident analysis.
+2. Integrate Daniel's nuclear operations, data-center facilities, building-automation, switchgear, and controls experience with deeper software and systems-engineering capability.
+3. Produce a credible technical portfolio demonstrating disciplined engineering reasoning, not merely application-development skill.
+4. Provide a safe laboratory in which equipment behavior, control sequences, abnormal conditions, evidence quality, operator response, and recovery can be studied.
+5. Explore a possible controls-assurance capability without assuming that a standalone commercial product opportunity exists.
 
-- Facility data can be safely imported, replayed, or simulated without controlling an external facility.
-- Point observations can be translated into explicit equipment, system, and facility state.
-- Operators can see what happened, what is affected, why it matters, what evidence supports the conclusion, and what uncertainty remains.
-- Alarm response, impairment, functional testing, recovery, and incident-review activities can be rehearsed and reviewed reproducibly.
-- Authoritative determinations are explainable, deterministic, testable, and auditable.
-- Advisory AI, when introduced, adds interpretation without replacing deterministic authority.
+This charter defines intended direction. It does not assert that every capability is implemented. Verified repository behavior is maintained separately in [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
-## Product principles
+## Project priorities
 
-### Read-only toward external facilities
+FacilityOps must optimize for:
 
-Read-only means FacilityOps Copilot must never issue a command, make a configuration change, or write back to an external BAS, EPMS, PLC, SCADA, DCIM, or physical facility system.
+- Technical depth rather than feature breadth.
+- Transferable facilities knowledge rather than software novelty alone.
+- Standards-grounded engineering rather than invented universal rules.
+- Explicit assumptions, applicability, uncertainty, and evidence sufficiency.
+- Deterministic and reproducible evaluation.
+- Separation of a reported indication from inferred physical state.
+- Separation of a computed finding from qualified human acceptance or disposition.
+- A coherent flagship demonstration rather than a general integration platform.
+- Career and portfolio value even if the commercial thesis is later rejected.
 
-Local laboratory writes are allowed. These include simulated samples, imported catalogs, scenarios, alarm rules, acknowledgements, audit records, functional-test results, and local configuration. Local writes must remain distinguishable from source observations and must not create an external control path.
+## Commercial position
 
-### Deterministic authority
+Commercial white space has not been established. Existing products already provide portions of fault detection and diagnostics, semantic normalization, commissioning workflow, functional testing, historians and event analysis, controller-conformance testing, OT integration, and visualization.
 
-Deterministic code, not AI, owns alarm state, point condition, equipment and system state, operating modes, consequence rules, functional-test acceptance, and other authoritative determinations. Rules and transitions must be testable and their inputs and outputs must be reviewable.
+The potentially differentiated capability remains a hypothesis:
 
-AI is a future advisory layer. It may summarize, explain, compare, or help users navigate evidence, but its output must be labeled advisory and traceable to authoritative data and rules.
+> A read-only, deterministic evaluation of critical-facility transitions using heterogeneous evidence, versioned control intent, explicit evidence sufficiency, and reproducible findings.
+
+FacilityOps may eventually become deployable, support professional services, or suggest a commercial product. None of those outcomes currently defines project success.
+
+## Observation and inference lifecycle
+
+The conceptual observation chain is:
+
+```text
+source artifact or stream
+→ source-native observation as received by FacilityOps
+→ versioned mapping and normalization
+→ canonical observation
+→ point condition
+→ equipment, system, and facility inference
+→ consequence and uncertainty
+```
+
+A canonical observation remains a reported indication from an identified source within its stated quality, timing, mapping, and transformation limits. It does not independently prove the physical state of equipment, a system, or the facility.
+
+Human response or operational action must lead to new observations and a separate recovery evaluation. A recorded action, acknowledgement, controller command/request indication, or work record does not prove that its intended physical effect occurred.
+
+## Standards and assurance lifecycle
+
+Formal standards are one controlled source category. Other possible bases include:
+
+- Laws and regulations.
+- Jurisdiction-adopted codes and amendments.
+- Permits, licenses, and consent conditions.
+- Owner requirements.
+- Owner's Project Requirements, Basis of Design, and sequences of operation.
+- Manufacturer instructions and equipment requirements.
+- Procedures and controlled test documents.
+- Project design assumptions.
+- Synthetic simulation assumptions.
+
+FacilityOps distinguishes three conceptual layers:
+
+1. **Standards Reference Registry** — identifies a source, edition, jurisdiction, adoption status, enforcement status, scope, section pointer, and access status.
+2. **Applicable Requirements Baseline** — contains requirements deliberately selected for a defined fictional facility, system, equipment item, operating mode, applicability profile, and effective interval.
+3. **Executable Requirements and Tests** — contains deterministic evaluations only after applicability, parameter basis, evidence needs, scope, assumptions, and limitations have been defined.
+
+The assurance lifecycle is:
+
+```text
+reference source
+→ applicability decision
+→ versioned requirement
+→ required evidence
+→ deterministic evaluation
+→ bounded finding
+→ evidence manifest
+→ human review and disposition
+```
+
+A source does not become an applicable or executable requirement merely because it appears in a registry. The project must distinguish publisher-current, jurisdiction-adopted, and project-effective editions; enforcement status; source requirements; owner or project requirements; synthetic simulation requirements; executable rules; computed findings; and qualified human acceptance or disposition.
+
+For the first golden proof, requirements must remain project-authored synthetic sequence-of-operation requirements informed by controlled references. They must not be characterized as directly code-required, owner-approved, commissioning-accepted, or suitable for physical operation unless later applicability and approval decisions establish that basis.
+
+Individual controlled requirements may use the working statuses `DRAFT`, `ACCEPTED_FOR_SIMULATION`, `DOMAIN_REVIEWED`, and `RETIRED`. These statuses do not apply to topology, reference sources, standards, or ADRs:
+
+- `ACCEPTED_FOR_SIMULATION` means only that a synthetic requirement may be used in the fictional laboratory.
+- `DOMAIN_REVIEWED` records a bounded technical review. It does not imply code compliance, commissioning acceptance, or authorization for physical operation.
+
+This charter does not select a requirement schema, field set, or single status-transition state machine.
+
+## Deterministic computation and human authority
+
+Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
+
+Deterministic evaluation must preserve insufficient-evidence behavior. Missing, stale, suspect, overridden, late, or conflicting evidence must be capable of producing an `INDETERMINATE` result rather than a forced binary result. The working external outcome set is `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE`; the internal separation between applicability and evaluation results remains a later architecture decision.
+
+AI may draft mappings, requirements, tests, explanations, and troubleshooting suggestions. AI must not approve its own output, determine applicability, authorize a test or operational action, accept commissioning work, waive a requirement, make a final disposition, or serve as the safety authority. All deterministic computation, evidence review, and non-AI laboratory workflows must remain available when AI is disabled.
+
+## External-system and safety boundaries
+
+FacilityOps must not:
+
+- Command or configure a physical BAS, EPMS, PLC, SCADA, DCIM, controller, drive, or other facility system.
+- Create an external write-back or control path.
+- Certify commissioning.
+- Independently determine that a physical system is safe.
+- Authorize physical testing, lockout/tagout, energized work, impairment, restoration, or return to service.
+- Treat controller execution as proof of approved control intent or actual physical response.
+- Treat a protocol-quality flag, point value, command/request indication, or status indication as proof beyond what that source reports.
+
+Local laboratory writes are permitted for fictional imports, replay, simulation, scenarios, rules, acknowledgements, review records, test records, audit, and local configuration. They must remain distinguishable from source-native observations and must never create an external control path.
+
+## Data and evidence principles
+
+### Fictional and controlled data
+
+Repository fixtures must remain fictional. Any future ingestion must use synthetic, sanitized, non-sensitive, or explicitly authorized read-only data. Credentials, customer data, proprietary exports, real facility network information, and confidential configurations must never be committed.
 
 ### Evidence before assertion
 
-Operational conclusions must identify their inputs, applicable rules, state transitions, timestamps, provenance, and uncertainty. Clearing active laboratory state must not destroy durable provenance or incident evidence in the intended product.
-
-### Vendor-neutral core
-
-The canonical facility, point, state, consequence, workflow, and evidence models must not depend on a single control-system vendor. Protocol- or vendor-specific adapters translate into the canonical model rather than redefining it.
-
-### Safe and truthful data use
-
-Current repository fixtures are fictional. Future ingestion may use synthetic, sanitized, non-sensitive, or explicitly authorized read-only data. Credentials, customer data, proprietary exports, real facility network information, and confidential configurations must never be committed.
+Computed conditions, inferences, evaluations, and findings must identify their inputs, applicable rules, mappings, timestamps, configuration, provenance, assumptions, limitations, contradictory evidence, and uncertainty. Clearing active laboratory state must not destroy durable evidence in the intended architecture.
 
 ### Scenario-driven verification
 
-Important behavior is developed through small, repeatable scenarios with defined preconditions, observations, expected transitions, consequences, recovery criteria, and evidence.
+Important behavior must be developed through small, repeatable scenarios with declared preconditions, observations, expected transitions, evidence needs, insufficient-evidence cases, consequences, recovery criteria, and reproducible outputs.
 
-### Explicit uncertainty and vocabulary
+### Vendor and protocol boundaries
 
-The product must not silently equate alarm priority, point condition, operational risk, advisory classification, and incident severity. Their vocabularies and relationships remain an open architectural decision until explicitly approved.
+The core observation, inference, requirement, finding, and evidence concepts must not depend on a single control-system vendor. This compatibility goal does not make FacilityOps a universal integration platform. Protocol and vendor adapters remain bounded translators or research artifacts, not the project identity.
 
-## Product boundaries
+## Intended participants and reviewers
 
-The intended product may:
+- Critical-environment operators, facility engineers, reliability personnel, and shift leads.
+- Controls, BAS, EPMS, PLC, and integration practitioners.
+- Mechanical, electrical, commissioning, maintenance, process-safety, and industrial-hygiene reviewers.
+- Instructors and trainees using fictional scenarios.
+- Technical portfolio reviewers evaluating engineering reasoning, traceability, and software discipline.
 
-- Import static catalogs and authorized read-only observations.
-- Replay recorded or synthetic sequences.
-- Simulate point observations and local operating conditions.
-- Maintain local scenario, workflow, test, acknowledgement, and audit state.
-- Determine point, equipment, system, and facility state through deterministic logic.
-- Determine operational consequences and required verification through deterministic rules.
-- Support human decisions with procedures, evidence, context, and future advisory AI.
-- Export or present auditable laboratory evidence.
+Qualified roles and review authority for specific requirements or scenarios remain contextual decisions; this list grants no approval authority.
 
-The intended product must not create a control path to an external facility.
+## Preservation constraints
+
+Completed foundations must be preserved while the documentation is rebaselined:
+
+- The Milestone 1 repeatable 211-test verification history.
+- The Milestone 2 addition of 15 focused tests and the current 226-test baseline.
+- Deterministic alarm evaluation and lifecycle logic.
+- Point catalogs, point-sample history, current-value projections, and point-health concepts.
+- Static Modbus-map preview and import.
+- Deterministic CSV replay and simulated reads.
+- Scenarios and facility-aware operational reset.
+- Generated-alarm acknowledgement and audit events.
+- Fixture version `1.0.0`, the Northstar isolation boundary, atomic flagship loading, rollback behavior, reset behavior, and database-hash evidence.
+- The accepted decisions in ADR 0001 and ADR 0002.
+- The fictional Northstar Data Hall as a legacy regression environment and secondary data-center demonstration.
+
+Preservation does not convert existing laboratory rules, topology, or observations into standards-based requirements, conformance evidence, or evidence-sufficiency determinations. Current operational reset also deletes point samples and audit events; durable evidence retention remains planned.
+
+## Flagship commitment
+
+The flagship remains the fictional **Advanced Materials Research and Precision-Environment Facility** and its process-exhaust and pressure-cascade scenario.
+
+The first coherent proof must cover:
+
+- Duty process-exhaust fan failure and standby-fan response.
+- A read-only or synthetic observation of a controller command/request indication compared with status.
+- Independent airflow or pressure evidence.
+- VFD or motor electrical corroboration.
+- Makeup-air response, zone-pressure consequences, and treatment dependency.
+- Missing, stale, suspect, overridden, late, or conflicting evidence.
+- Failed standby start and degraded facility inference.
+- Human verification, recovery, incomplete recovery, and reproducible incident evidence.
+
+The exact command/request, VFD, and motor points and any topology expansion require a later ADR and roadmap slice. Duty/standby redundancy, pressure criteria, timers, airflow thresholds, and recovery intervals remain synthetic project intent unless a later applicability decision establishes another basis.
+
+New York State outside New York City is a provisional reference-jurisdiction assumption only. Exact AHJ, local amendments, enforcement status, new/existing/altered status, facility use, material hazards, quantities, control areas, and process-exhaust applicability remain unresolved.
 
 ## Non-goals
 
 FacilityOps Copilot is not:
 
-- A replacement BAS, EPMS, PLC, SCADA, DCIM, or autonomous controller.
-- An autonomous operator or a system authorized to execute physical actions.
+- A BAS, EPMS, PLC, SCADA, DCIM, autonomous controller, or external control interface.
+- A general-purpose facilities integration platform.
+- A universal facilities ontology or comprehensive standards-compliance engine.
+- A system that certifies commissioning, determines physical safety, or replaces qualified judgment.
+- An AI-controlled or AI-approved operational system.
+- A commercially validated product.
 - A complete CMMS, work-order, document-control, or enterprise asset-management platform.
-- A generic chatbot detached from facility evidence and deterministic state.
-- A high-fidelity physics, airflow, process, electrical-transient, or computational-fluid-dynamics simulator.
-- A regulatory compliance engine or a guarantee of cleanroom, containment, safety, or commissioning compliance.
-- A repository for real customer secrets, credentials, proprietary exports, or confidential facility configurations.
-
-## Preservation constraints
-
-Useful implemented foundations must be preserved while the product is reoriented:
-
-- Deterministic alarm evaluation and lifecycle logic.
-- The point catalog and current-value projection.
-- Point-sample history, current-value projection, and point-health concepts.
-- Static Modbus-map preview and import.
-- Deterministic CSV replay and simulated reads.
-- Scenarios and operational reset.
-- Generated-alarm acknowledgement and audit events.
-- Existing tests and the Northstar Data Hall fixture.
-
-Northstar Data Hall remains an implemented legacy fixture, regression environment, and secondary data-center demonstration. It is not the flagship environment.
-
-Preservation does not mean that every existing behavior is target-complete. In particular, current operational reset deletes generated alarms and audit events. The intended direction is to clear active laboratory state without destroying durable provenance or incident evidence, but that change requires a future approved roadmap slice.
-
-## Flagship commitment
-
-The planned flagship is a fictional **Advanced Materials Research and Precision-Environment Facility**. It will provide a richer environment for process exhaust, pressure relationships, precision environmental control, utilities, electrical support, commissioning, impairment, response, and recovery.
-
-The flagship is planned and is not implemented at charter version 1.0. Its current target description is in [`FLAGSHIP_FACILITY.md`](FLAGSHIP_FACILITY.md).
-
-## Golden-scenario commitment
-
-The planned first golden scenario is a **process-exhaust failure causing pressure-cascade degradation**. It will be developed as a deterministic, evidence-producing scenario with explicit preconditions, observations, equipment and system state, operational consequences, response, impairment, functional verification, recovery, and incident review.
-
-The golden scenario is planned and is not implemented at charter version 1.0.
+- A high-fidelity airflow, contaminant, process, electrical-transient, or CFD simulator.
+- Primarily a software playground detached from facilities-engineering purpose.
 
 ## Change control
 
-- This approved version is 1.0, dated 2026-07-19.
-- Future tasks may not edit this file without explicit user approval that specifically authorizes a product-charter change.
-- A proposed charter change must identify the exact text or policy being changed, the reason, affected boundaries and roadmap milestones, and compatibility with preservation constraints.
-- Charter changes must not be inferred from ordinary implementation, documentation, refactoring, or roadmap-progress requests.
-- Architecture decision records may clarify implementation choices but cannot override this charter.
-- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md) may evolve as behavior changes, provided they continue to distinguish verified reality from intended direction.
+- This approved version is 2.0, dated 2026-07-22, and supersedes Version 1.0 dated 2026-07-19.
+- Future tasks may not edit this file without explicit user approval for a charter revision.
+- A proposed revision must identify the policy being changed, its reason, affected authority boundaries and roadmap consequences, and compatibility with preservation constraints.
+- ADRs may clarify architecture and implementation choices but cannot override this charter.
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) must continue to distinguish verified repository behavior from intended direction.

@@ -65,12 +65,13 @@ Link the charter, roadmap milestone, architecture, status evidence, and related 
 
 ## Decision index
 
-ADRs 0001 and 0002 have been accepted.
+ADRs 0001, 0002, and 0003 have been accepted.
 
 | ADR | Title | Status | Date | Supersedes |
 |---|---|---|---|---|
 | [ADR 0001](0001-minimum-flagship-topology.md) | Minimum flagship topology | Accepted | 2026-07-20 | None |
 | [ADR 0002](0002-facility-fixture-identity-and-topology-persistence.md) | Facility fixture identity and minimum topology persistence | Accepted | 2026-07-20 | None |
+| [ADR 0003](0003-epistemic-and-human-authority-boundaries.md) | Epistemic and human-authority boundaries | Accepted | 2026-07-22 | None |
 
 The index must be updated whenever an ADR is added or changes status.
 
@@ -83,22 +84,21 @@ The index must be updated whenever an ADR is added or changes status.
 - When implementation lags an accepted ADR, [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md) must continue to report actual behavior rather than the intended decision.
 - A superseding ADR still cannot conflict with the product charter.
 
-## Unresolved architectural decisions
+## Consolidated unresolved decision backlog
 
-The following topics are intentionally unresolved. Listing them does not approve a design:
+The following topics are intentionally unresolved. Listing them does not approve a design, schema, requirement, parameter, workflow, or implementation:
 
-1. **Operational vocabularies:** Separate models and mappings for alarm priority, point condition, operational risk, advisory classification, and incident severity.
-2. **Canonical state hierarchy:** State names, precedence, uncertainty, and transition ownership for point, equipment, system, and facility layers.
-3. **Temporal semantics:** Event time versus receive time, ordering, late data, persistence, staleness, hold times, and replay clocks.
-4. **Future topology expansion:** ADRs 0001 and 0002 settle the minimum Milestone 2 topology and persistence model. Additional zones, systems, relationship types, multi-facility storage, or broader topology require a later decision.
-5. **Consequence model:** Rule representation, affected scope, uncertainty, escalation, recovery, and the boundary between consequence and advisory text.
-6. **Evidence and provenance:** Durable identifiers, source manifests, hashes, rule versions, retention, export, and tamper-evident metadata.
-7. **Reset semantics:** Which active laboratory records reset may clear and which provenance or incident evidence must survive.
-8. **Scenario package format:** Versioning, preconditions, observations, expected states, branches, recovery, and compatibility across fixtures.
-9. **Impairment workflow:** Types, authorization records, mitigations, extensions, compensatory monitoring, expiry, and restoration criteria.
-10. **Functional-test model:** Plans, prerequisites, steps, observations, deterministic acceptance, exceptions, aborts, recovery, and evidence.
-11. **Read-only adapter contract:** Allowed capabilities, mapping, provenance, sanitization, error behavior, and technical prevention of external writes.
-12. **Persistence evolution:** SQLite foreign-key enforcement, migration strategy, transaction boundaries, concurrency, and evidence retention.
-13. **Identity and authorization:** Local actor identity now and any future multi-user roles, without expanding into enterprise identity prematurely.
-14. **Advisory AI boundary:** Evidence citation, uncertainty, prompt and data boundaries, audit, failure behavior, and prevention of authoritative mutation.
-15. **Domain validation:** Approval process for synthetic facility assumptions, pressure relationships, operational consequences, and functional-test criteria.
+1. **Controlled sources, applicability, and requirements:** Representation of reference categories; editions; adoption and enforcement status; applicability decisions; project-effective requirements; parameter basis; requirement status history; licensed-source access; and traceability without copying protected clauses.
+2. **Fictional applicability profile and flagship evidence expansion:** Exact AHJ, local amendments, enforcement status, new/existing/altered status, use, hazards, quantities, control areas, process-exhaust applicability, and the read-only command/request plus VFD or motor electrical evidence needed beyond the accepted Milestone 2 topology.
+3. **Canonical observation and temporal semantics:** Source-native preservation, versioned mapping and normalization, units, provenance, observation identity, event/receive/evaluation time, ordering, lateness, staleness, clock limitations, quality, suspect data, override, OOS, persistence, and recovery holds.
+4. **Inference and operational vocabularies:** State names, precedence, uncertainty, transition ownership, and mappings among point condition, equipment/system/facility inference, alarm priority, operational risk, consequence, advisory classification, and incident severity.
+5. **Evidence sufficiency and outcome structure:** Required-evidence rules, contradiction handling, bounded finding vocabulary, and the internal separation of applicability from evaluation while preserving the working `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE` presentation.
+6. **Consequence model:** Rule representation, affected scope, assumptions, uncertainty, escalation, recovery, and the boundary between computed consequence and advisory text.
+7. **Scenario and replay package:** Versioning, preconditions, source observations, expected inferences and findings, branches, command/request indications, recovery, incomplete recovery, and compatibility across fixtures.
+8. **Evidence manifest, retention, and persistence evolution:** Durable identifiers, source manifests, hashes, mapping and rule versions, retained evidence, reset survival, export, tamper-evident metadata, SQLite foreign-key enforcement, migrations, transactions, concurrency, and upgrade behavior.
+9. **Human review, test, impairment, recovery, and disposition:** Contextual roles and authority; test authorization; plans, prerequisites, steps, exceptions, aborts, and computed results; impairment and mitigation records; waivers; commissioning acceptance; new recovery evidence; final disposition; and bounded local identity without premature enterprise scope.
+10. **Read-only source and comparison contracts:** Allowed adapter capabilities, mapping, provenance, sanitization, error behavior, technical prevention of external writes, and any bounded CDL/CXF or controller-conformance comparison.
+11. **Advisory AI boundary implementation:** Evidence citation, uncertainty, prompt and data boundaries, audit, failure behavior, self-approval prevention, and prevention of mutation or exercise of human authority.
+12. **Domain validation:** Review scopes and qualified disciplines for fictional facility assumptions, synthetic requirements, evidence needs, pressure relationships, consequences, test content, and recovery criteria.
+
+[ADR 0003](0003-epistemic-and-human-authority-boundaries.md) settles only the cross-cutting epistemic and human-authority boundaries. It does not resolve the detailed decisions above.
