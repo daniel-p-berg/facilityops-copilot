@@ -1,16 +1,20 @@
 import copy
+import csv
 import json
 import re
 import threading
 from pathlib import Path
+
+from backend.services.facility_package_registry import FLAGSHIP_FACILITY_ID
+from backend.services.facility_package_registry import FLAGSHIP_FACILITY_NAME
+from backend.services.facility_package_registry import FLAGSHIP_FIXTURE_VERSION
+from backend.services.facility_package_registry import FLAGSHIP_MANIFEST
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STANDARDS_BASIS_MANIFEST = (
     PROJECT_ROOT / "data" / "standards" / "flagship" / "1.0.0" / "manifest.json"
 )
-FLAGSHIP_FACILITY_ID = "FACILITY-ADVANCED-MATERIALS-RESEARCH"
-FLAGSHIP_FIXTURE_VERSION = "1.0.0"
 
 EXPECTED_FILE_ROLES = {
     "applicability_profile",
@@ -224,6 +228,64 @@ def _resolve_package_file(package_root, relative_path, role):
     return candidate
 
 
+def _load_bound_flagship_point_ids():
+    """Read the exact point identifiers from the immutable bound fixture."""
+    manifest_path = Path(FLAGSHIP_MANIFEST).resolve()
+    manifest = _read_json(manifest_path, "bound flagship fixture manifest")
+    _require(
+        manifest.get("facility")
+        == {
+            "facility_id": FLAGSHIP_FACILITY_ID,
+            "facility_name": FLAGSHIP_FACILITY_NAME,
+            "fixture_version": FLAGSHIP_FIXTURE_VERSION,
+        },
+        "bound flagship fixture identity is invalid",
+    )
+    files = manifest.get("files")
+    _require(isinstance(files, dict), "bound flagship fixture files are invalid")
+    points_declaration = files.get("points")
+    _require_nonblank(points_declaration, "bound flagship fixture files.points")
+    points_path = (manifest_path.parent / points_declaration).resolve()
+    _require(
+        manifest_path.parent == points_path.parent,
+        "bound flagship point catalog escapes the fixture directory",
+    )
+    _require(points_path.is_file(), "bound flagship point catalog does not exist")
+
+    try:
+        with points_path.open(newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            fieldnames = set(reader.fieldnames or [])
+            required_fields = {"facility_id", "fixture_version", "id"}
+            _require(
+                required_fields <= fieldnames,
+                "bound flagship point catalog is missing identity fields",
+            )
+            point_ids = set()
+            for row_number, row in enumerate(reader, start=2):
+                context = f"bound flagship point catalog row {row_number}"
+                _require(
+                    row["facility_id"] == FLAGSHIP_FACILITY_ID,
+                    f"{context} has an invalid facility binding",
+                )
+                _require(
+                    row["fixture_version"] == FLAGSHIP_FIXTURE_VERSION,
+                    f"{context} has an invalid fixture binding",
+                )
+                point_id = row["id"]
+                _require_identifier(point_id, f"{context}.id")
+                _require(
+                    point_id not in point_ids,
+                    f"Duplicate flagship point identifier: {point_id}",
+                )
+                point_ids.add(point_id)
+    except OSError as error:
+        _fail(f"Unable to read bound flagship point catalog at {points_path}: {error}")
+
+    _require(point_ids, "bound flagship point catalog must not be empty")
+    return point_ids
+
+
 def _validate_manifest(manifest):
     _require_exact_keys(
         manifest,
@@ -262,7 +324,10 @@ def _validate_manifest(manifest):
         manifest["facility"]["facility_id"] == FLAGSHIP_FACILITY_ID,
         "standards basis must bind to the flagship facility",
     )
-    _require_nonblank(manifest["facility"]["facility_name"], "manifest.facility.facility_name")
+    _require(
+        manifest["facility"]["facility_name"] == FLAGSHIP_FACILITY_NAME,
+        "standards basis must use the accepted flagship facility name",
+    )
     _require(
         manifest["facility"]["fixture_version"] == FLAGSHIP_FIXTURE_VERSION,
         "standards basis must bind to flagship fixture version 1.0.0",
@@ -350,6 +415,19 @@ def _index_records(records, role):
         _require(record["id"] not in index, f"Duplicate identifier: {record['id']}")
         index[record["id"]] = record
     return index
+
+
+def _validate_global_identifiers(indexes):
+    owners = {}
+    for role, index in indexes.items():
+        for identifier in index:
+            previous_role = owners.get(identifier)
+            _require(
+                previous_role is None,
+                "Duplicate identifier across package roles: "
+                f"{identifier} ({previous_role}, {role})",
+            )
+            owners[identifier] = role
 
 
 def _validate_record_facility(record, facility_id, context):
@@ -477,7 +555,7 @@ def _validate_applicability(records, facility_id, source_ids, profile_fact_ids):
         _require_provenance(record["provenance"], f"{context}.provenance")
 
 
-def _validate_evidence_categories(records, facility_id):
+def _validate_evidence_categories(records, facility_id, bound_point_ids):
     expected_keys = {
         "id",
         "facility_id",
@@ -515,6 +593,12 @@ def _validate_evidence_categories(records, facility_id):
             record["current_point_ids"],
             f"{context}.current_point_ids",
             allow_empty=True,
+        )
+        missing_points = sorted(set(record["current_point_ids"]) - bound_point_ids)
+        _require(
+            not missing_points,
+            f"{context} references points outside the bound flagship fixture: "
+            f"{missing_points}",
         )
         _require_provenance(record["provenance"], f"{context}.provenance")
 
@@ -652,7 +736,9 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
         role: _index_records(document["records"], role)
         for role, document in documents.items()
     }
+    _validate_global_identifiers(indexes)
     facility_id = manifest["facility"]["facility_id"]
+    bound_point_ids = _load_bound_flagship_point_ids()
     profile_fact_ids = set(indexes["applicability_profile"])
     source_ids = set(indexes["controlled_sources"])
     applicability_ids = set(indexes["applicability_matrix"])
@@ -673,6 +759,7 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
     _validate_evidence_categories(
         documents["evidence_categories"]["records"],
         facility_id,
+        bound_point_ids,
     )
     _validate_requirements(
         documents["requirements"]["records"],
@@ -798,14 +885,32 @@ def _build_traceability(package):
         ]
         chains.append(
             {
-                "requirement": requirement,
-                "applicability_bases": bases,
+                "requirement": {
+                    "id": requirement["id"],
+                    "activation_status": requirement["activation_status"],
+                },
+                "applicability_bases": [
+                    {
+                        "id": basis["id"],
+                        "status": basis["status"],
+                        "source_id": basis["source_id"],
+                    }
+                    for basis in bases
+                ],
                 "controlled_sources": [
-                    sources[basis["source_id"]]
+                    {
+                        "id": sources[basis["source_id"]]["id"],
+                        "source_category": sources[basis["source_id"]][
+                            "source_category"
+                        ],
+                    }
                     for basis in bases
                 ],
                 "required_evidence_categories": [
-                    evidence[evidence_id]
+                    {
+                        "id": evidence[evidence_id]["id"],
+                        "status": evidence[evidence_id]["status"],
+                    }
                     for evidence_id in requirement["evidence_category_ids"]
                 ],
             }

@@ -175,23 +175,33 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
         self.assertTrue(all(record["activation_status"] == "INACTIVE" for record in proposed))
 
     def test_traceability_resolves_source_to_basis_to_requirement_to_evidence(self):
-        result = get_standards_traceability(
-            StandardsBasisStore(DEFAULT_STANDARDS_BASIS_MANIFEST)
-        )
+        store = StandardsBasisStore(DEFAULT_STANDARDS_BASIS_MANIFEST)
+        package = store.get()
+        requirements = {record["id"]: record for record in package["requirements"]}
+        result = get_standards_traceability(store)
 
         self.assertEqual(len(result["traceability"]), 12)
         for chain in result["traceability"]:
             requirement = chain["requirement"]
+            source_requirement = requirements[requirement["id"]]
+            self.assertEqual(
+                set(requirement),
+                {"id", "activation_status"},
+            )
             self.assertTrue(chain["controlled_sources"])
             self.assertTrue(chain["applicability_bases"])
             self.assertTrue(chain["required_evidence_categories"])
             self.assertEqual(
                 [record["id"] for record in chain["applicability_bases"]],
-                requirement["applicability_basis_ids"],
+                source_requirement["applicability_basis_ids"],
             )
             self.assertEqual(
                 [record["id"] for record in chain["required_evidence_categories"]],
-                requirement["evidence_category_ids"],
+                source_requirement["evidence_category_ids"],
+            )
+            self.assertEqual(
+                [record["source_id"] for record in chain["applicability_bases"]],
+                [record["id"] for record in chain["controlled_sources"]],
             )
 
     def test_repeated_load_is_deterministic_and_returns_independent_copies(self):
@@ -217,6 +227,23 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
 
         self.mutate_role(manifest_path, "applicability_profile", duplicate)
         self.assert_invalid(manifest_path, "Duplicate identifier")
+
+    def test_rejects_duplicate_identifier_across_package_roles(self):
+        manifest_path = self.copy_package()
+        controlled_sources = self.read_json(
+            self.role_path(manifest_path, "controlled_sources")
+        )
+        duplicate_id = controlled_sources["records"][0]["id"]
+
+        def duplicate_across_roles(value):
+            value["records"][0]["id"] = duplicate_id
+
+        self.mutate_role(
+            manifest_path,
+            "applicability_profile",
+            duplicate_across_roles,
+        )
+        self.assert_invalid(manifest_path, "Duplicate identifier across package roles")
 
     def test_rejects_invalid_status(self):
         manifest_path = self.copy_package()
@@ -271,6 +298,14 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
 
         self.assert_invalid(manifest_path, "must bind to the flagship facility")
 
+    def test_rejects_wrong_flagship_facility_name(self):
+        manifest_path = self.copy_package()
+        manifest = self.read_json(manifest_path)
+        manifest["facility"]["facility_name"] = "Northstar Data Hall"
+        self.write_json(manifest_path, manifest)
+
+        self.assert_invalid(manifest_path, "accepted flagship facility name")
+
     def test_rejects_cross_fixture_record(self):
         manifest_path = self.copy_package()
 
@@ -279,6 +314,15 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
 
         self.mutate_role(manifest_path, "requirements", invalidate)
         self.assert_invalid(manifest_path, "does not match the package binding")
+
+    def test_rejects_point_reference_outside_bound_flagship_fixture(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["current_point_ids"] = ["UPS-A_OUTPUT_KW"]
+
+        self.mutate_role(manifest_path, "evidence_categories", invalidate)
+        self.assert_invalid(manifest_path, "outside the bound flagship fixture")
 
     def test_rejects_attempt_to_mark_requirement_executable(self):
         manifest_path = self.copy_package()
