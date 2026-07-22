@@ -155,6 +155,19 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
             "PROJECT_OWNER_DECISION_RECORDED",
         )
 
+        sources = {record["id"]: record for record in package["controlled_sources"]}
+        electrical_source = sources["SRC-NFPA-70-ELECTRICAL"]
+        self.assertIn("NFPA 70-2026 publisher-current", electrical_source["identifier"])
+        self.assertIn("NFPA 70-23 incorporated", electrical_source["identifier"])
+        self.assertEqual(
+            electrical_source["edition_or_effective_date"],
+            "2026 publisher-current; New York-incorporated edition: 2023",
+        )
+        self.assertEqual(
+            sources["SRC-ASHRAE-MEASUREMENT-METHODS"]["edition_or_effective_date"],
+            "2026, 2025, and 2023 editions, respectively",
+        )
+
     def test_exact_ten_recorded_requirements_are_accepted_and_all_are_inactive(self):
         package = load_standards_basis_package()
         requirements = {record["id"]: record for record in package["requirements"]}
