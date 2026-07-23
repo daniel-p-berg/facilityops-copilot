@@ -3,7 +3,8 @@
 ## Status basis
 
 - **Status date:** 2026-07-23
-- **Current branch:** `codex/m2-flagship-topology` (no configured upstream; local and unpushed)
+- **Implementation branch:** `codex/m2-flagship-topology`
+- **Observation-and-replay acceptance-correction HEAD:** `509939c85b27dbf2a8d4c76a03750359762738c9`
 - **Milestone 3 pre-correction HEAD:** `df83a1fe1a932c6d5194765674fe18799d9c73f6`
 - **Milestone 2 base commit:** `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`
 - **Verification base commit:** `5718e5060935ba8b813b7354be094d44f4ee383b`
