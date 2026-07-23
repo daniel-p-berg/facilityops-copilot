@@ -1,0 +1,174 @@
+{
+  "source_bindings": [
+    {
+      "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+      "source_binding_version": "1.0.0",
+      "content_digest": "2b29b473657a63cf27fca2bfebe9d8250e498b64c65fcb0cae31dbeeb2da2c4c",
+      "source_id": "SYNTHETIC-EXHAUST-CONTROLLER-01",
+      "channel": "controller/reported-indications",
+      "description": "Repository-only synthetic controller reports. The binding is read-only evidence and has no FacilityOps command or configuration path.",
+      "dependency_provenance": {
+        "controller_logic_origin": "SYNTHETIC-EXHAUST-CONTROLLER-LOGIC-01",
+        "source_device_origin": "SYNTHETIC-EXHAUST-CONTROLLER-01",
+        "gateway_origin": "UNKNOWN",
+        "measurement_chain_origin": "CONTROLLER-INTERNAL-REPORTED-FIELDS",
+        "power_origin": "UNKNOWN",
+        "timestamp_origin": "SYNTHETIC-CONTROLLER-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-CONTROLLER-SNAPSHOT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-DUTY-VFD",
+      "source_binding_version": "1.0.0",
+      "content_digest": "555e39b9f2ec25b3dbfad31c4368dbbafa8a5eaac800e0322066a8653e7de8c1",
+      "source_id": "SYNTHETIC-DUTY-VFD-01",
+      "channel": "vfd/duty/reported-telemetry",
+      "description": "Repository-only synthetic duty VFD snapshots containing source-reported status and telemetry fields.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "SYNTHETIC-DUTY-VFD-01",
+        "gateway_origin": "SYNTHETIC-VFD-GATEWAY-01",
+        "measurement_chain_origin": "DUTY-VFD-INTERNAL-TELEMETRY",
+        "power_origin": "SYNTHETIC-MCC-FEED-01",
+        "timestamp_origin": "SYNTHETIC-VFD-GATEWAY-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-VFD-SNAPSHOT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-STANDBY-VFD",
+      "source_binding_version": "1.0.0",
+      "content_digest": "40f60a9a51ca2a87c7519eac821a90dbf5bf4015b38183771c01c926b55fd7fa",
+      "source_id": "SYNTHETIC-STANDBY-VFD-01",
+      "channel": "vfd/standby/reported-telemetry",
+      "description": "Repository-only synthetic standby VFD snapshots containing source-reported status and telemetry fields.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "SYNTHETIC-STANDBY-VFD-01",
+        "gateway_origin": "SYNTHETIC-VFD-GATEWAY-01",
+        "measurement_chain_origin": "STANDBY-VFD-INTERNAL-TELEMETRY",
+        "power_origin": "SYNTHETIC-MCC-FEED-02",
+        "timestamp_origin": "SYNTHETIC-VFD-GATEWAY-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-VFD-SNAPSHOT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-DUTY-MOTOR-CURRENT",
+      "source_binding_version": "1.0.0",
+      "content_digest": "a20ecf3e205186938e38f63f1cb42dbc82fe5e8ab8dbcda1621d265952090015",
+      "source_id": "SYNTHETIC-DUTY-CURRENT-METER-01",
+      "channel": "meter/duty/current-registers",
+      "description": "Repository-only synthetic signed 32-bit motor-current report delivered as explicit high- and low-word source records.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "SYNTHETIC-DUTY-CURRENT-METER-01",
+        "gateway_origin": "SYNTHETIC-ELECTRICAL-GATEWAY-01",
+        "measurement_chain_origin": "SYNTHETIC-DUTY-CURRENT-TRANSDUCER-01",
+        "power_origin": "SYNTHETIC-MCC-FEED-01",
+        "timestamp_origin": "SYNTHETIC-ELECTRICAL-GATEWAY-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-SIGNED-REGISTER-PAIR"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-STANDBY-MOTOR-CURRENT",
+      "source_binding_version": "1.0.0",
+      "content_digest": "d861dc24abb64182a81e6c903c01c9fb8e6a9fce75bbd5ee0b41fee22dab69d6",
+      "source_id": "SYNTHETIC-STANDBY-CURRENT-METER-01",
+      "channel": "meter/standby/current-registers",
+      "description": "Repository-only synthetic signed 32-bit motor-current report delivered as explicit high- and low-word source records.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "SYNTHETIC-STANDBY-CURRENT-METER-01",
+        "gateway_origin": "SYNTHETIC-ELECTRICAL-GATEWAY-01",
+        "measurement_chain_origin": "SYNTHETIC-STANDBY-CURRENT-TRANSDUCER-01",
+        "power_origin": "SYNTHETIC-MCC-FEED-02",
+        "timestamp_origin": "SYNTHETIC-ELECTRICAL-GATEWAY-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-SIGNED-REGISTER-PAIR"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
+      "source_binding_version": "1.0.0",
+      "content_digest": "dbc89c994248278d83ca9e8b6aebd842b9ba8a4fd7310f8d9fdcbcfcbbded8e2",
+      "source_id": "SYNTHETIC-PROCESS-PATH-GATEWAY-01",
+      "channel": "process-path/reported-measurements",
+      "description": "Repository-only synthetic shared process-exhaust airflow, duct-static, and damper-position reports.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "MULTIPLE-DECLARED-INSTRUMENTS",
+        "gateway_origin": "SYNTHETIC-PROCESS-PATH-GATEWAY-01",
+        "measurement_chain_origin": "SYNTHETIC-PROCESS-PATH-MEASUREMENT-CHAIN-01",
+        "power_origin": "UNKNOWN",
+        "timestamp_origin": "SYNTHETIC-PROCESS-PATH-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-PROCESS-PATH-SNAPSHOT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-TREATMENT-MONITOR",
+      "source_binding_version": "1.0.0",
+      "content_digest": "807f4405fe8cee721b9c498ba5383ae6bbc98ddc7a0154d7c43af7a5bcd9310c",
+      "source_id": "SYNTHETIC-TREATMENT-MONITOR-01",
+      "channel": "treatment/reported-indications",
+      "description": "Repository-only synthetic treatment availability and permissive indications; neither field proves treatment performance.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "SYNTHETIC-TREATMENT-MONITOR-01",
+        "gateway_origin": "UNKNOWN",
+        "measurement_chain_origin": "SYNTHETIC-TREATMENT-MONITORING-CHAIN-01",
+        "power_origin": "UNKNOWN",
+        "timestamp_origin": "SYNTHETIC-TREATMENT-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-TREATMENT-SNAPSHOT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-CONTROLLER",
+      "source_binding_version": "1.0.0",
+      "content_digest": "3817af1d9f751430c9bcd4d15ee44549c621d736e65549b43548c449f6cd3862",
+      "source_id": "SYNTHETIC-MAKEUP-CONTROLLER-01",
+      "channel": "makeup-air/reported-controller-status",
+      "description": "Repository-only synthetic makeup-air controller-status indication, separate from delivered airflow.",
+      "dependency_provenance": {
+        "controller_logic_origin": "SYNTHETIC-MAKEUP-CONTROLLER-LOGIC-01",
+        "source_device_origin": "SYNTHETIC-MAKEUP-CONTROLLER-01",
+        "gateway_origin": "UNKNOWN",
+        "measurement_chain_origin": "CONTROLLER-INTERNAL-REPORTED-FIELD",
+        "power_origin": "UNKNOWN",
+        "timestamp_origin": "SYNTHETIC-MAKEUP-CONTROLLER-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-MAKEUP-CONTROLLER-REPORT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-AIRFLOW",
+      "source_binding_version": "1.0.0",
+      "content_digest": "48ab84cb6fd7ed93f0cd5bca060085bd4224b54a63ca95da9a0c73513b9a7bb2",
+      "source_id": "SYNTHETIC-MAKEUP-AIRFLOW-SENSOR-01",
+      "channel": "makeup-air/reported-airflow",
+      "description": "Repository-only synthetic delivered makeup-air measurement, separate from controller status.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "SYNTHETIC-MAKEUP-AIRFLOW-SENSOR-01",
+        "gateway_origin": "SYNTHETIC-MAKEUP-AIR-GATEWAY-01",
+        "measurement_chain_origin": "SYNTHETIC-MAKEUP-AIRFLOW-MEASUREMENT-CHAIN-01",
+        "power_origin": "UNKNOWN",
+        "timestamp_origin": "SYNTHETIC-MAKEUP-AIR-GATEWAY-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-MAKEUP-AIRFLOW-REPORT"
+      }
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-PRESSURE",
+      "source_binding_version": "1.0.0",
+      "content_digest": "dc108a8a4f73a35911aed81a82d325325f24b777bf633fc46872e32d1f9bc0b2",
+      "source_id": "SYNTHETIC-PRESSURE-GATEWAY-01",
+      "channel": "pressure/reported-measurements",
+      "description": "Repository-only synthetic process-laboratory zone and boundary differential-pressure reports.",
+      "dependency_provenance": {
+        "controller_logic_origin": "UNKNOWN",
+        "source_device_origin": "MULTIPLE-DECLARED-PRESSURE-INSTRUMENTS",
+        "gateway_origin": "SYNTHETIC-PRESSURE-GATEWAY-01",
+        "measurement_chain_origin": "SYNTHETIC-PRESSURE-MEASUREMENT-CHAIN-01",
+        "power_origin": "UNKNOWN",
+        "timestamp_origin": "SYNTHETIC-PRESSURE-GATEWAY-CLOCK-01",
+        "derivation_origin": "SOURCE-NATIVE-PRESSURE-SNAPSHOT"
+      }
+    }
+  ]
+}

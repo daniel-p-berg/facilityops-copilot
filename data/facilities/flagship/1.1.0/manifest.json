@@ -1,0 +1,35 @@
+{
+  "manifest_schema_version": 1,
+  "package_type": "minimum_flagship_topology",
+  "facility": {
+    "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+    "facility_name": "Advanced Materials Research and Precision-Environment Facility",
+    "fixture_version": "1.1.0"
+  },
+  "topology": {
+    "topology_id": "TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST",
+    "topology_version": "1.1.0"
+  },
+  "files": {
+    "equipment": "equipment.csv",
+    "points": "points.csv",
+    "zones": "zones.csv",
+    "systems": "systems.csv",
+    "pressure_boundaries": "pressure_boundaries.csv",
+    "shared_system_paths": "shared_system_paths.csv",
+    "monitored_dependencies": "monitored_dependencies.csv",
+    "equipment_system_memberships": "equipment_system_memberships.csv",
+    "system_zone_services": "system_zone_services.csv",
+    "equipment_shared_path_memberships": "equipment_shared_path_memberships.csv",
+    "shared_path_monitored_dependencies": "shared_path_monitored_dependencies.csv",
+    "pressure_boundary_system_dependencies": "pressure_boundary_system_dependencies.csv",
+    "pressure_boundary_monitored_dependencies": "pressure_boundary_monitored_dependencies.csv",
+    "pressure_boundary_cascade_order": "pressure_boundary_cascade_order.csv",
+    "point_zone_bindings": "point_zone_bindings.csv",
+    "point_system_bindings": "point_system_bindings.csv",
+    "point_pressure_boundary_bindings": "point_pressure_boundary_bindings.csv",
+    "point_shared_path_bindings": "point_shared_path_bindings.csv",
+    "point_monitored_dependency_bindings": "point_monitored_dependency_bindings.csv",
+    "current_point_values": null
+  }
+}

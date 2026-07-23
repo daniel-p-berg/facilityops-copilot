@@ -10,6 +10,10 @@ from analysis import load_alarm_db
 from backend.services.facility_package_registry import FLAGSHIP_FACILITY_ID
 from backend.services.facility_package_registry import FLAGSHIP_FACILITY_NAME
 from backend.services.facility_package_registry import FLAGSHIP_FIXTURE_VERSION
+from backend.services.facility_package_registry import (
+    FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+)
+from backend.services.facility_package_registry import FLAGSHIP_TOPOLOGY_ID
 from backend.services.facility_package_registry import manifest_identity
 from backend.services.facility_package_registry import read_manifest
 from backend.services.facility_package_registry import resolve_manifest_file
@@ -241,7 +245,139 @@ REQUIRED_BOUNDARY_DIRECTIONS = {
     ),
 }
 
-REQUIRED_POINT_CATEGORY_COUNTS = {
+BASE_FLAGSHIP_EQUIPMENT_IDS = {
+    "FAN-EXHAUST-DUTY",
+    "FAN-EXHAUST-STANDBY",
+    "SENSOR-EXHAUST-AIRFLOW",
+    "SENSOR-EXHAUST-DUCT-STATIC",
+    "DAMPER-EXHAUST-SHARED",
+    "MONITOR-TREATMENT",
+    "MONITOR-SUPPLY-MAKEUP",
+    "SENSOR-PRESSURE-PROCESS-LAB",
+    "SENSOR-DP-CORRIDOR-TRANSITION",
+    "SENSOR-DP-TRANSITION-LAB",
+}
+
+OBSERVATION_TOPOLOGY_EQUIPMENT_IDS = BASE_FLAGSHIP_EQUIPMENT_IDS | {
+    "CONTROLLER-PROCESS-EXHAUST",
+    "SENSOR-SUPPLY-MAKEUP-AIRFLOW",
+}
+
+OBSERVATION_EQUIPMENT_CONTRACTS = {
+    "CONTROLLER-PROCESS-EXHAUST": "Process Exhaust Controller",
+    "SENSOR-SUPPLY-MAKEUP-AIRFLOW": "Airflow Instrument",
+}
+
+BASE_FLAGSHIP_POINT_IDS = {
+    "FAN-EXHAUST-DUTY_AVAILABLE",
+    "FAN-EXHAUST-DUTY_RUN_STATUS",
+    "FAN-EXHAUST-DUTY_FAULT_STATUS",
+    "FAN-EXHAUST-DUTY_SPEED_FEEDBACK",
+    "FAN-EXHAUST-STANDBY_AVAILABLE",
+    "FAN-EXHAUST-STANDBY_RUN_STATUS",
+    "FAN-EXHAUST-STANDBY_FAULT_STATUS",
+    "FAN-EXHAUST-STANDBY_SPEED_FEEDBACK",
+    "PROCESS-EXHAUST_AIRFLOW",
+    "EXHAUST-SHARED_DUCT_STATIC",
+    "EXHAUST-SHARED_DAMPER_POSITION",
+    "TREATMENT_PERMISSIVE_STATUS",
+    "SUPPLY-MAKEUP_STATUS",
+    "PROCESS-LAB_ZONE_PRESSURE",
+    "CORRIDOR-TRANSITION_DIFFERENTIAL_PRESSURE",
+    "TRANSITION-LAB_DIFFERENTIAL_PRESSURE",
+}
+
+OBSERVATION_TOPOLOGY_POINT_IDS = BASE_FLAGSHIP_POINT_IDS | {
+    "PROCESS_ENABLED_STATUS",
+    "PROCESS_PERMISSIVE_STATUS",
+    "FAN-EXHAUST-DUTY_REQUEST",
+    "FAN-EXHAUST-DUTY_CONTROLLER_EXECUTION_STATUS",
+    "FAN-EXHAUST-DUTY_VFD_STATE",
+    "FAN-EXHAUST-DUTY_MOTOR_CURRENT",
+    "FAN-EXHAUST-STANDBY_REQUEST",
+    "FAN-EXHAUST-STANDBY_CONTROLLER_EXECUTION_STATUS",
+    "FAN-EXHAUST-STANDBY_VFD_STATE",
+    "FAN-EXHAUST-STANDBY_MOTOR_CURRENT",
+    "TREATMENT_AVAILABILITY_STATUS",
+    "SUPPLY-MAKEUP_AIRFLOW",
+}
+
+OBSERVATION_POINT_CONTRACTS = {
+    "PROCESS_ENABLED_STATUS": (
+        "CONTROLLER-PROCESS-EXHAUST",
+        "process_enabled_status",
+        "boolean",
+        "",
+    ),
+    "PROCESS_PERMISSIVE_STATUS": (
+        "CONTROLLER-PROCESS-EXHAUST",
+        "process_permissive_status",
+        "boolean",
+        "",
+    ),
+    "FAN-EXHAUST-DUTY_REQUEST": (
+        "FAN-EXHAUST-DUTY",
+        "controller_request",
+        "boolean",
+        "",
+    ),
+    "FAN-EXHAUST-DUTY_CONTROLLER_EXECUTION_STATUS": (
+        "FAN-EXHAUST-DUTY",
+        "controller_execution_status",
+        "string",
+        "",
+    ),
+    "FAN-EXHAUST-DUTY_VFD_STATE": (
+        "FAN-EXHAUST-DUTY",
+        "vfd_state",
+        "string",
+        "",
+    ),
+    "FAN-EXHAUST-DUTY_MOTOR_CURRENT": (
+        "FAN-EXHAUST-DUTY",
+        "motor_current",
+        "analog",
+        "A",
+    ),
+    "FAN-EXHAUST-STANDBY_REQUEST": (
+        "FAN-EXHAUST-STANDBY",
+        "controller_request",
+        "boolean",
+        "",
+    ),
+    "FAN-EXHAUST-STANDBY_CONTROLLER_EXECUTION_STATUS": (
+        "FAN-EXHAUST-STANDBY",
+        "controller_execution_status",
+        "string",
+        "",
+    ),
+    "FAN-EXHAUST-STANDBY_VFD_STATE": (
+        "FAN-EXHAUST-STANDBY",
+        "vfd_state",
+        "string",
+        "",
+    ),
+    "FAN-EXHAUST-STANDBY_MOTOR_CURRENT": (
+        "FAN-EXHAUST-STANDBY",
+        "motor_current",
+        "analog",
+        "A",
+    ),
+    "TREATMENT_AVAILABILITY_STATUS": (
+        "MONITOR-TREATMENT",
+        "treatment_availability",
+        "boolean",
+        "",
+    ),
+    "SUPPLY-MAKEUP_AIRFLOW": (
+        "SENSOR-SUPPLY-MAKEUP-AIRFLOW",
+        "supply_makeup_airflow",
+        "analog",
+        "m3/s",
+    ),
+}
+
+BASE_POINT_CATEGORY_COUNTS = {
     "fan_availability": 2,
     "run_status": 2,
     "fault_status": 2,
@@ -255,7 +391,19 @@ REQUIRED_POINT_CATEGORY_COUNTS = {
     "differential_pressure": 2,
 }
 
-EXPECTED_POINT_BINDINGS = {
+OBSERVATION_POINT_CATEGORY_COUNTS = {
+    **BASE_POINT_CATEGORY_COUNTS,
+    "process_enabled_status": 1,
+    "process_permissive_status": 1,
+    "controller_request": 2,
+    "controller_execution_status": 2,
+    "vfd_state": 2,
+    "motor_current": 2,
+    "treatment_availability": 1,
+    "supply_makeup_airflow": 1,
+}
+
+BASE_POINT_BINDINGS = {
     "point_zone_bindings": {
         ("PROCESS-LAB_ZONE_PRESSURE", "ZONE-PROCESS-LAB"),
     },
@@ -281,6 +429,52 @@ EXPECTED_POINT_BINDINGS = {
         ("SUPPLY-MAKEUP_STATUS", "DEPENDENCY-SUPPLY-MAKEUP"),
     },
 }
+
+OBSERVATION_POINT_BINDINGS = {
+    **BASE_POINT_BINDINGS,
+    "point_system_bindings": BASE_POINT_BINDINGS["point_system_bindings"]
+    | {
+        ("PROCESS_ENABLED_STATUS", "SYSTEM-PROCESS-EXHAUST"),
+        ("PROCESS_PERMISSIVE_STATUS", "SYSTEM-PROCESS-EXHAUST"),
+    },
+    "point_monitored_dependency_bindings": BASE_POINT_BINDINGS[
+        "point_monitored_dependency_bindings"
+    ]
+    | {
+        ("TREATMENT_AVAILABILITY_STATUS", "PERMISSIVE-TREATMENT"),
+        ("SUPPLY-MAKEUP_AIRFLOW", "DEPENDENCY-SUPPLY-MAKEUP"),
+    },
+}
+
+PRIMARY_POINT_BINDING_ROLES = set(BASE_POINT_BINDINGS)
+
+FLAGSHIP_VERSION_EXPECTATIONS = {
+    FLAGSHIP_FIXTURE_VERSION: {
+        "equipment_ids": BASE_FLAGSHIP_EQUIPMENT_IDS,
+        "point_ids": BASE_FLAGSHIP_POINT_IDS,
+        "point_category_counts": BASE_POINT_CATEGORY_COUNTS,
+        "point_bindings": BASE_POINT_BINDINGS,
+        "added_equipment_contracts": {},
+        "added_point_contracts": {},
+        "topology": None,
+    },
+    FLAGSHIP_OBSERVATION_FIXTURE_VERSION: {
+        "equipment_ids": OBSERVATION_TOPOLOGY_EQUIPMENT_IDS,
+        "point_ids": OBSERVATION_TOPOLOGY_POINT_IDS,
+        "point_category_counts": OBSERVATION_POINT_CATEGORY_COUNTS,
+        "point_bindings": OBSERVATION_POINT_BINDINGS,
+        "added_equipment_contracts": OBSERVATION_EQUIPMENT_CONTRACTS,
+        "added_point_contracts": OBSERVATION_POINT_CONTRACTS,
+        "topology": {
+            "topology_id": FLAGSHIP_TOPOLOGY_ID,
+            "topology_version": FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+        },
+    },
+}
+
+# Historical aliases remain available to callers that inspect the 1.0.0 contract.
+REQUIRED_POINT_CATEGORY_COUNTS = BASE_POINT_CATEGORY_COUNTS
+EXPECTED_POINT_BINDINGS = BASE_POINT_BINDINGS
 
 
 def _require_stable_id(value, context):
@@ -420,7 +614,7 @@ def _validate_cascade(rows_by_role):
 
 def _validate_primary_point_bindings(rows_by_role):
     bound_points = []
-    for role in EXPECTED_POINT_BINDINGS:
+    for role in PRIMARY_POINT_BINDING_ROLES:
         role_point_ids = [row["point_id"] for row in rows_by_role[role]]
         if len(role_point_ids) != len(set(role_point_ids)):
             raise ValueError(f"Duplicate point binding in {role}")
@@ -443,7 +637,12 @@ def _relationship_tuples(role, rows):
     return {tuple(row[column] for column in columns) for row in rows}
 
 
-def _validate_required_flagship_topology(rows_by_role, entity_ids):
+def _validate_required_flagship_topology(
+    rows_by_role,
+    entity_ids,
+    fixture_version,
+):
+    expectations = FLAGSHIP_VERSION_EXPECTATIONS[fixture_version]
     for role, required_ids in REQUIRED_ENTITY_IDS.items():
         if entity_ids[role] != required_ids:
             raise ValueError(
@@ -451,11 +650,59 @@ def _validate_required_flagship_topology(rows_by_role, entity_ids):
                 f"{sorted(required_ids)}, received {sorted(entity_ids[role])}"
             )
 
-    required_fans = {"FAN-EXHAUST-DUTY", "FAN-EXHAUST-STANDBY"}
-    if not required_fans.issubset(entity_ids["equipment"]):
+    if entity_ids["equipment"] != expectations["equipment_ids"]:
         raise ValueError(
-            "Minimum flagship equipment must include duty and standby fans"
+            f"Invalid flagship equipment inventory for version {fixture_version}: "
+            f"expected {sorted(expectations['equipment_ids'])}, "
+            f"received {sorted(entity_ids['equipment'])}"
         )
+    equipment_by_id = {
+        row["equipment"]: row for row in rows_by_role["equipment"]
+    }
+    for equipment_id, equipment_type in expectations[
+        "added_equipment_contracts"
+    ].items():
+        equipment = equipment_by_id[equipment_id]
+        if equipment["equipment_type"] != equipment_type:
+            raise ValueError(
+                f"Invalid equipment type for {equipment_id}: expected "
+                f"{equipment_type!r}, received {equipment['equipment_type']!r}"
+            )
+        if equipment["source_system"] != "SYNTHETIC":
+            raise ValueError(
+                f"Observation point owner {equipment_id} must remain synthetic"
+            )
+    if entity_ids["points"] != expectations["point_ids"]:
+        raise ValueError(
+            f"Invalid flagship point inventory for version {fixture_version}: "
+            f"expected {sorted(expectations['point_ids'])}, "
+            f"received {sorted(entity_ids['points'])}"
+        )
+
+    point_by_id = {row["id"]: row for row in rows_by_role["points"]}
+    for point_id, expected_contract in expectations[
+        "added_point_contracts"
+    ].items():
+        point = point_by_id[point_id]
+        actual_contract = (
+            point["equipment_id"],
+            point["point_type"],
+            point["data_type"],
+            point["unit"],
+        )
+        if actual_contract != expected_contract:
+            raise ValueError(
+                f"Invalid point-definition contract for {point_id}: expected "
+                f"{expected_contract}, received {actual_contract}"
+            )
+        if point["normal_min"] is not None or point["normal_max"] is not None:
+            raise ValueError(
+                f"Observation-only point {point_id} must not define a normal range"
+            )
+        if point["source_system"] != "SYNTHETIC":
+            raise ValueError(
+                f"Observation-only point {point_id} must remain synthetic"
+            )
 
     boundary_by_id = {
         row["id"]: row for row in rows_by_role["pressure_boundaries"]
@@ -493,15 +740,15 @@ def _validate_required_flagship_topology(rows_by_role, entity_ids):
         row["point_type"] for row in rows_by_role["points"]
     )
     if dict(sorted(point_category_counts.items())) != dict(
-        sorted(REQUIRED_POINT_CATEGORY_COUNTS.items())
+        sorted(expectations["point_category_counts"].items())
     ):
         raise ValueError(
             "Flagship point categories do not cover the accepted evidence inventory: "
-            f"expected {REQUIRED_POINT_CATEGORY_COUNTS}, "
+            f"expected {expectations['point_category_counts']}, "
             f"received {dict(point_category_counts)}"
         )
 
-    for role, expected_rows in EXPECTED_POINT_BINDINGS.items():
+    for role, expected_rows in expectations["point_bindings"].items():
         actual_rows = _relationship_tuples(role, rows_by_role[role])
         if actual_rows != expected_rows:
             raise ValueError(
@@ -526,15 +773,42 @@ def read_and_validate_fixture(manifest_path):
     _require_stable_id(identity["facility_id"], "facility_id")
     if not FIXTURE_VERSION_PATTERN.fullmatch(identity["fixture_version"]):
         raise ValueError("fixture_version must use MAJOR.MINOR.PATCH numeric format")
+    if identity["fixture_version"] not in FLAGSHIP_VERSION_EXPECTATIONS:
+        raise ValueError(
+            "Unsupported flagship fixture_version; registered versions are "
+            + ", ".join(sorted(FLAGSHIP_VERSION_EXPECTATIONS))
+        )
     expected_identity = {
         "facility_id": FLAGSHIP_FACILITY_ID,
         "facility_name": FLAGSHIP_FACILITY_NAME,
-        "fixture_version": FLAGSHIP_FIXTURE_VERSION,
+        "fixture_version": identity["fixture_version"],
     }
     if identity != expected_identity:
         raise ValueError(
             "Minimum flagship manifest identity must remain stable: "
             f"expected {expected_identity}, received {identity}"
+        )
+
+    expected_topology = FLAGSHIP_VERSION_EXPECTATIONS[
+        identity["fixture_version"]
+    ]["topology"]
+    expected_manifest_keys = {
+        "manifest_schema_version",
+        "package_type",
+        "facility",
+        "files",
+    }
+    if expected_topology is not None:
+        expected_manifest_keys.add("topology")
+    if set(manifest) != expected_manifest_keys:
+        raise ValueError(
+            f"Flagship manifest keys for version {identity['fixture_version']} "
+            f"must be exactly {sorted(expected_manifest_keys)}"
+        )
+    if expected_topology is not None and manifest.get("topology") != expected_topology:
+        raise ValueError(
+            "Flagship topology identity must match the registered version: "
+            f"expected {expected_topology}, received {manifest.get('topology')}"
         )
 
     files = manifest.get("files")
@@ -547,7 +821,7 @@ def read_and_validate_fixture(manifest_path):
         )
     if files["current_point_values"] is not None:
         raise ValueError(
-            "Milestone 2 flagship must not declare current-value observations"
+            "Flagship topology packages must not declare current-value observations"
         )
 
     rows_by_role = {}
@@ -572,7 +846,11 @@ def read_and_validate_fixture(manifest_path):
     _validate_references(rows_by_role, entity_ids)
     _validate_cascade(rows_by_role)
     _validate_primary_point_bindings(rows_by_role)
-    _validate_required_flagship_topology(rows_by_role, entity_ids)
+    _validate_required_flagship_topology(
+        rows_by_role,
+        entity_ids,
+        identity["fixture_version"],
+    )
 
     return {
         "manifest_path": resolved_manifest_path,

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "package_type": "flagship_standards_requirement_basis",
+  "package_id": "STANDARDS-BASIS-FLAGSHIP-1.1.0",
+  "package_version": "1.1.0",
+  "status": "READ_ONLY_NON_EXECUTABLE",
+  "facility": {
+    "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+    "facility_name": "Advanced Materials Research and Precision-Environment Facility",
+    "fixture_version": "1.1.0"
+  },
+  "topology": {
+    "topology_id": "TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST",
+    "topology_version": "1.1.0",
+    "topology_content_digest": "cd6aeddbeaf9756c28b1cd66461b008542c4a5010dd0bcf634e4ffb825a42672"
+  },
+  "files": {
+    "applicability_profile": "applicability_profile.json",
+    "controlled_sources": "controlled_sources.json",
+    "applicability_matrix": "applicability_matrix.json",
+    "evidence_categories": "evidence_categories.json",
+    "requirements": "requirements.json"
+  },
+  "accepted_qualitative_requirement_ids": [
+    "REQ-SOO-001",
+    "REQ-SOO-002",
+    "REQ-SOO-003",
+    "REQ-SOO-004",
+    "REQ-SOO-005",
+    "REQ-SOO-006",
+    "REQ-SOO-007",
+    "REQ-SOO-008",
+    "REQ-SOO-009",
+    "REQ-SOO-010"
+  ],
+  "notices": {
+    "applicability": "The applicability matrix is provisional and requires controlled-source verification plus review by persons or organizations that possess the required qualifications and assigned organizational or legal authority.",
+    "authorship": "The requirements are project-authored synthetic sequence-of-operation requirements; external sources are provisional or informative influences unless stated otherwise.",
+    "execution": "Every requirement in this package is inactive and non-executable during this tranche.",
+    "authority": "FacilityOps does not establish code compliance, commissioning acceptance, physical safety, operability, or authorization for operation. Human authority belongs only to persons or organizations that possess the required qualifications and assigned organizational or legal authority."
+  },
+  "provenance": {
+    "recorded_on": "2026-07-23",
+    "project_owner_decision_reference": "ADR 0004, ADR 0006, and the project-owner directives dated 2026-07-22 and 2026-07-23",
+    "research_access_date": "2026-07-22"
+  }
+}

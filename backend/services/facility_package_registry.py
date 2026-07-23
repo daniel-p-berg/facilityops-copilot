@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,9 @@ FLAGSHIP_FACILITY_NAME = (
     "Advanced Materials Research and Precision-Environment Facility"
 )
 FLAGSHIP_FIXTURE_VERSION = "1.0.0"
+FLAGSHIP_TOPOLOGY_ID = "TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST"
+FLAGSHIP_OBSERVATION_FIXTURE_VERSION = "1.1.0"
+FLAGSHIP_TOPOLOGY_VERSION = FLAGSHIP_OBSERVATION_FIXTURE_VERSION
 
 NORTHSTAR_MANIFEST = (
     PROJECT_ROOT
@@ -28,10 +32,34 @@ FLAGSHIP_MANIFEST = (
     / FLAGSHIP_FIXTURE_VERSION
     / "manifest.json"
 )
+FLAGSHIP_OBSERVATION_MANIFEST = (
+    PROJECT_ROOT
+    / "data"
+    / "facilities"
+    / "flagship"
+    / FLAGSHIP_OBSERVATION_FIXTURE_VERSION
+    / "manifest.json"
+)
+FLAGSHIP_TOPOLOGY_MANIFEST = FLAGSHIP_OBSERVATION_MANIFEST
 
 REGISTERED_MANIFESTS = {
     (NORTHSTAR_FACILITY_ID, NORTHSTAR_FIXTURE_VERSION): NORTHSTAR_MANIFEST,
     (FLAGSHIP_FACILITY_ID, FLAGSHIP_FIXTURE_VERSION): FLAGSHIP_MANIFEST,
+    (
+        FLAGSHIP_FACILITY_ID,
+        FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+    ): FLAGSHIP_OBSERVATION_MANIFEST,
+}
+
+REGISTERED_TOPOLOGY_IDENTITIES = {
+    (
+        FLAGSHIP_FACILITY_ID,
+        FLAGSHIP_FIXTURE_VERSION,
+    ): (FLAGSHIP_TOPOLOGY_ID, FLAGSHIP_FIXTURE_VERSION),
+    (
+        FLAGSHIP_FACILITY_ID,
+        FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+    ): (FLAGSHIP_TOPOLOGY_ID, FLAGSHIP_TOPOLOGY_VERSION),
 }
 
 
@@ -82,6 +110,37 @@ def resolve_manifest_file(manifest_path, relative_path):
     return resolved_path
 
 
+def facility_package_content_digest(manifest_path):
+    """Hash the exact manifest and declared package-file bytes deterministically."""
+    resolved_manifest_path, manifest = read_manifest(manifest_path)
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        raise ValueError("Fixture manifest must define a files object")
+
+    entries = [("manifest", "manifest.json", resolved_manifest_path.read_bytes())]
+    for role in sorted(files):
+        declaration = files[role]
+        if declaration is None:
+            continue
+        resolved_path = resolve_manifest_file(resolved_manifest_path, declaration)
+        if not resolved_path.is_relative_to(resolved_manifest_path.parent):
+            raise ValueError(
+                f"Fixture package file {role!r} escapes its versioned package"
+            )
+        relative_path = resolved_path.relative_to(
+            resolved_manifest_path.parent
+        ).as_posix()
+        entries.append((role, relative_path, resolved_path.read_bytes()))
+
+    digest = hashlib.sha256()
+    digest.update(b"facilityops-facility-package-content-v1\0")
+    for role, relative_path, content in entries:
+        for value in (role.encode("utf-8"), relative_path.encode("utf-8"), content):
+            digest.update(len(value).to_bytes(8, byteorder="big"))
+            digest.update(value)
+    return digest.hexdigest()
+
+
 def resolve_registered_fixture(facility_id, fixture_version):
     """Resolve one exact registered facility/version context without fallback."""
     manifest_path = REGISTERED_MANIFESTS.get((facility_id, fixture_version))
@@ -115,9 +174,18 @@ def resolve_registered_fixture(facility_id, fixture_version):
             baseline_declaration,
         )
 
-    return {
+    resolved = {
         **identity,
         "manifest_path": resolved_manifest_path,
         "package_type": manifest.get("package_type", ""),
         "current_point_value_path": baseline_path,
     }
+    topology_identity = REGISTERED_TOPOLOGY_IDENTITIES.get(
+        (facility_id, fixture_version)
+    )
+    if topology_identity is not None:
+        resolved["topology_id"], resolved["topology_version"] = topology_identity
+        resolved["package_content_digest"] = facility_package_content_digest(
+            resolved_manifest_path
+        )
+    return resolved

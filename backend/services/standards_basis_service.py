@@ -8,13 +8,42 @@ from pathlib import Path
 from backend.services.facility_package_registry import FLAGSHIP_FACILITY_ID
 from backend.services.facility_package_registry import FLAGSHIP_FACILITY_NAME
 from backend.services.facility_package_registry import FLAGSHIP_FIXTURE_VERSION
-from backend.services.facility_package_registry import FLAGSHIP_MANIFEST
+from backend.services.facility_package_registry import (
+    FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+)
+from backend.services.facility_package_registry import FLAGSHIP_TOPOLOGY_ID
+from backend.services.facility_package_registry import (
+    facility_package_content_digest,
+)
+from backend.services.facility_package_registry import resolve_registered_fixture
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STANDARDS_BASIS_MANIFEST = (
     PROJECT_ROOT / "data" / "standards" / "flagship" / "1.0.0" / "manifest.json"
 )
+FLAGSHIP_OBSERVATION_STANDARDS_BASIS_MANIFEST = (
+    PROJECT_ROOT / "data" / "standards" / "flagship" / "1.1.0" / "manifest.json"
+)
+FLAGSHIP_STANDARDS_BASIS_V1_1_MANIFEST = (
+    FLAGSHIP_OBSERVATION_STANDARDS_BASIS_MANIFEST
+)
+
+STANDARDS_BASIS_VERSION_BINDINGS = {
+    "1.0.0": {
+        "package_id": "STANDARDS-BASIS-FLAGSHIP-1.0.0",
+        "fixture_version": FLAGSHIP_FIXTURE_VERSION,
+        "topology": None,
+    },
+    "1.1.0": {
+        "package_id": "STANDARDS-BASIS-FLAGSHIP-1.1.0",
+        "fixture_version": FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+        "topology": {
+            "topology_id": FLAGSHIP_TOPOLOGY_ID,
+            "topology_version": FLAGSHIP_OBSERVATION_FIXTURE_VERSION,
+        },
+    },
+}
 
 EXPECTED_FILE_ROLES = {
     "applicability_profile",
@@ -97,6 +126,135 @@ EVIDENCE_POINT_DEFINITION_REPRESENTATIONS = {
 EVIDENCE_OBSERVATION_AVAILABILITIES = {"NO_FLAGSHIP_OBSERVATION_BASELINE"}
 REQUIREMENT_LIFECYCLE_STATUSES = {"ACCEPTED_FOR_SIMULATION", "DRAFT"}
 REQUIREMENT_APPROVAL_STATUSES = {"PROJECT_OWNER_DECISION_RECORDED", "PROPOSED"}
+
+EXPECTED_1_1_EVIDENCE_POINT_BINDINGS = {
+    "EVIDENCE-PROCESS-PERMISSIVE": (
+        "BOUND_POINT_DEFINITIONS",
+        ["PROCESS_PERMISSIVE_STATUS"],
+    ),
+    "EVIDENCE-PROCESS-ENABLED-CONTEXT": (
+        "BOUND_POINT_DEFINITIONS",
+        ["PROCESS_ENABLED_STATUS"],
+    ),
+    "EVIDENCE-TREATMENT-AVAILABILITY": (
+        "BOUND_POINT_DEFINITIONS",
+        ["TREATMENT_AVAILABILITY_STATUS"],
+    ),
+    "EVIDENCE-SUPPLY-MAKEUP-DELIVERED-RESPONSE": (
+        "BOUND_POINT_DEFINITIONS",
+        ["SUPPLY-MAKEUP_AIRFLOW"],
+    ),
+    "EVIDENCE-DUTY-FAN-REQUEST": (
+        "BOUND_POINT_DEFINITIONS",
+        ["FAN-EXHAUST-DUTY_REQUEST"],
+    ),
+    "EVIDENCE-STANDBY-FAN-REQUEST": (
+        "BOUND_POINT_DEFINITIONS",
+        ["FAN-EXHAUST-STANDBY_REQUEST"],
+    ),
+    "EVIDENCE-DUTY-CONTROLLER-EXECUTION": (
+        "BOUND_POINT_DEFINITIONS",
+        ["FAN-EXHAUST-DUTY_CONTROLLER_EXECUTION_STATUS"],
+    ),
+    "EVIDENCE-STANDBY-CONTROLLER-EXECUTION": (
+        "BOUND_POINT_DEFINITIONS",
+        ["FAN-EXHAUST-STANDBY_CONTROLLER_EXECUTION_STATUS"],
+    ),
+    "EVIDENCE-VFD-STATE": (
+        "BOUND_POINT_DEFINITIONS",
+        [
+            "FAN-EXHAUST-DUTY_SPEED_FEEDBACK",
+            "FAN-EXHAUST-DUTY_VFD_STATE",
+            "FAN-EXHAUST-STANDBY_SPEED_FEEDBACK",
+            "FAN-EXHAUST-STANDBY_VFD_STATE",
+        ],
+    ),
+    "EVIDENCE-MOTOR-ELECTRICAL-RESPONSE": (
+        "BOUND_POINT_DEFINITIONS",
+        [
+            "FAN-EXHAUST-DUTY_MOTOR_CURRENT",
+            "FAN-EXHAUST-STANDBY_MOTOR_CURRENT",
+        ],
+    ),
+}
+
+EXPECTED_1_1_EVIDENCE_TEXT_UPDATES = {
+    "EVIDENCE-PROCESS-PERMISSIVE": {
+        "limitations": (
+            "The bound point definition is not an observation baseline. No observation, "
+            "mapping, state vocabulary, or executable interpretation is approved in this "
+            "package."
+        ),
+    },
+    "EVIDENCE-PROCESS-ENABLED-CONTEXT": {
+        "limitations": (
+            "This remains a project-authored traceability category. The bound point "
+            "definition is not an observation baseline, and no observation, mapping, state "
+            "vocabulary, or executable interpretation is approved in this package."
+        ),
+    },
+    "EVIDENCE-TREATMENT-AVAILABILITY": {
+        "provenance_consideration": (
+            "The bound point definition represents a reported availability indication; "
+            "later provenance must distinguish treatment controller logic, device status, "
+            "differential pressure, monitoring, and other physical evidence."
+        ),
+        "limitations": (
+            "The point definition is not an observation baseline. A future availability "
+            "indication would not prove treatment operation, performance, condition, or "
+            "suitability."
+        ),
+    },
+    "EVIDENCE-SUPPLY-MAKEUP-DELIVERED-RESPONSE": {
+        "limitations": (
+            "The delivered-response point definition is not an observation baseline. No "
+            "observation, instrument basis, threshold, timing rule, or sufficiency rule is "
+            "approved."
+        ),
+    },
+    "EVIDENCE-DUTY-CONTROLLER-EXECUTION": {
+        "limitations": (
+            "The bound point definition is not an observation baseline. No observation or "
+            "controller status vocabulary is selected, and controller-reported execution "
+            "does not prove physical effect."
+        ),
+    },
+    "EVIDENCE-STANDBY-CONTROLLER-EXECUTION": {
+        "limitations": (
+            "The bound point definition is not an observation baseline. No observation or "
+            "controller status vocabulary is selected, and controller-reported execution "
+            "does not prove physical effect."
+        ),
+    },
+    "EVIDENCE-VFD-STATE": {
+        "description": (
+            "Bound point-definition representation for future VFD-side operating-state and "
+            "speed feedback for each fan."
+        ),
+        "limitations": (
+            "Speed-feedback and dedicated VFD operating-state point definitions exist, but "
+            "no baseline observations exist; neither a future speed indication nor VFD-state "
+            "indication would prove motor response or airflow."
+        ),
+    },
+    "EVIDENCE-MOTOR-ELECTRICAL-RESPONSE": {
+        "limitations": (
+            "The bound motor-current point definitions are not an observation baseline. No "
+            "observation, instrument method, tolerance, or inference is approved; electrical "
+            "response alone would not prove airflow."
+        ),
+    },
+    "EVIDENCE-HEALTH-AND-TIMING": {
+        "limitations": (
+            "Existing Northstar current-value health fields cover only part of this category "
+            "and do not provide flagship baseline observations; lateness criteria, "
+            "independence evaluation, evidence-health interpretation, and point-condition "
+            "use remain deferred. Accepted duplicate, conflict, out-of-order, and "
+            "mapping-version semantics apply only to the separate explicitly selected "
+            "synthetic replay."
+        ),
+    },
+}
 
 EXPECTED_PROFILE_FACT_STATEMENTS = {
     "PROFILE-FACILITY-CONSTRUCTION": (
@@ -420,16 +578,26 @@ def _resolve_package_file(package_root, relative_path, role):
     return candidate
 
 
-def _load_bound_flagship_point_ids():
-    """Read the exact point identifiers from the immutable bound fixture."""
-    manifest_path = Path(FLAGSHIP_MANIFEST).resolve()
+def _load_bound_flagship_point_ids(fixture_version):
+    """Read exact point identifiers from one registered flagship fixture version."""
+    try:
+        fixture_context = resolve_registered_fixture(
+            FLAGSHIP_FACILITY_ID,
+            fixture_version,
+        )
+    except (LookupError, ValueError, OSError) as error:
+        _fail(
+            "Unable to resolve the bound flagship fixture version "
+            f"{fixture_version}: {error}"
+        )
+    manifest_path = Path(fixture_context["manifest_path"]).resolve()
     manifest = _read_json(manifest_path, "bound flagship fixture manifest")
     _require(
         manifest.get("facility")
         == {
             "facility_id": FLAGSHIP_FACILITY_ID,
             "facility_name": FLAGSHIP_FACILITY_NAME,
-            "fixture_version": FLAGSHIP_FIXTURE_VERSION,
+            "fixture_version": fixture_version,
         },
         "bound flagship fixture identity is invalid",
     )
@@ -461,7 +629,7 @@ def _load_bound_flagship_point_ids():
                     f"{context} has an invalid facility binding",
                 )
                 _require(
-                    row["fixture_version"] == FLAGSHIP_FIXTURE_VERSION,
+                    row["fixture_version"] == fixture_version,
                     f"{context} has an invalid fixture binding",
                 )
                 point_id = row["id"]
@@ -479,20 +647,31 @@ def _load_bound_flagship_point_ids():
 
 
 def _validate_manifest(manifest):
+    _require(isinstance(manifest, dict), "manifest must be an object")
+    package_version = manifest.get("package_version")
+    _require_nonblank(package_version, "manifest.package_version")
+    version_binding = STANDARDS_BASIS_VERSION_BINDINGS.get(package_version)
+    _require(
+        version_binding is not None,
+        "manifest.package_version is not a registered standards-basis version",
+    )
+    expected_manifest_keys = {
+        "schema_version",
+        "package_type",
+        "package_id",
+        "package_version",
+        "status",
+        "facility",
+        "files",
+        "accepted_qualitative_requirement_ids",
+        "notices",
+        "provenance",
+    }
+    if version_binding["topology"] is not None:
+        expected_manifest_keys.add("topology")
     _require_exact_keys(
         manifest,
-        {
-            "schema_version",
-            "package_type",
-            "package_id",
-            "package_version",
-            "status",
-            "facility",
-            "files",
-            "accepted_qualitative_requirement_ids",
-            "notices",
-            "provenance",
-        },
+        expected_manifest_keys,
         "manifest",
     )
     _require(manifest["schema_version"] == 1, "manifest.schema_version must be 1")
@@ -501,7 +680,10 @@ def _validate_manifest(manifest):
         "manifest.package_type is invalid",
     )
     _require_identifier(manifest["package_id"], "manifest.package_id")
-    _require_nonblank(manifest["package_version"], "manifest.package_version")
+    _require(
+        manifest["package_id"] == version_binding["package_id"],
+        "manifest.package_id does not match the registered package version",
+    )
     _require(
         manifest["status"] == "READ_ONLY_NON_EXECUTABLE",
         "manifest.status must be READ_ONLY_NON_EXECUTABLE",
@@ -521,9 +703,43 @@ def _validate_manifest(manifest):
         "standards basis must use the accepted flagship facility name",
     )
     _require(
-        manifest["facility"]["fixture_version"] == FLAGSHIP_FIXTURE_VERSION,
-        "standards basis must bind to flagship fixture version 1.0.0",
+        manifest["facility"]["fixture_version"]
+        == version_binding["fixture_version"],
+        "standards basis must bind to the registered flagship fixture version",
     )
+    topology_binding = version_binding["topology"]
+    if topology_binding is not None:
+        _require_exact_keys(
+            manifest["topology"],
+            {
+                "topology_id",
+                "topology_version",
+                "topology_content_digest",
+            },
+            "manifest.topology",
+        )
+        _require(
+            manifest["topology"]["topology_id"]
+            == topology_binding["topology_id"],
+            "standards basis topology_id is invalid",
+        )
+        _require(
+            manifest["topology"]["topology_version"]
+            == topology_binding["topology_version"],
+            "standards basis topology_version is invalid",
+        )
+        fixture_context = resolve_registered_fixture(
+            FLAGSHIP_FACILITY_ID,
+            version_binding["fixture_version"],
+        )
+        expected_digest = facility_package_content_digest(
+            fixture_context["manifest_path"]
+        )
+        _require(
+            manifest["topology"]["topology_content_digest"] == expected_digest,
+            "standards basis topology_content_digest does not match the "
+            "registered topology package",
+        )
 
     _require_exact_keys(manifest["files"], EXPECTED_FILE_ROLES, "manifest.files")
     for role, relative_path in manifest["files"].items():
@@ -1042,6 +1258,66 @@ def _validate_requirements(
     )
 
 
+def _load_historical_standards_documents():
+    manifest_path = Path(DEFAULT_STANDARDS_BASIS_MANIFEST).resolve()
+    manifest = _read_json(manifest_path, "historical standards-basis manifest")
+    package_root = manifest_path.parent
+    documents = {}
+    for role in sorted(EXPECTED_FILE_ROLES):
+        document_path = _resolve_package_file(
+            package_root,
+            manifest["files"][role],
+            role,
+        )
+        documents[role] = _read_json(document_path, f"historical {role}")
+    return documents
+
+
+def _validate_additive_1_1_derivation(manifest, documents):
+    if manifest["package_version"] != "1.1.0":
+        return
+
+    historical = _load_historical_standards_documents()
+    for role in (
+        "applicability_profile",
+        "controlled_sources",
+        "applicability_matrix",
+        "requirements",
+    ):
+        _require(
+            documents[role]["records"] == historical[role]["records"],
+            f"{role} semantics must remain identical to standards basis 1.0.0",
+        )
+
+    historical_evidence = {
+        record["id"]: record
+        for record in historical["evidence_categories"]["records"]
+    }
+    actual_evidence = {
+        record["id"]: record for record in documents["evidence_categories"]["records"]
+    }
+    _require(
+        set(actual_evidence) == set(historical_evidence),
+        "standards basis 1.1.0 must preserve the exact evidence-category inventory",
+    )
+    for evidence_id, historical_record in historical_evidence.items():
+        expected_record = copy.deepcopy(historical_record)
+        point_binding = EXPECTED_1_1_EVIDENCE_POINT_BINDINGS.get(evidence_id)
+        if point_binding is not None:
+            representation, point_ids = point_binding
+            expected_record["point_definition_representation"] = representation
+            expected_record["bound_point_definition_ids"] = point_ids
+        expected_record.update(
+            EXPECTED_1_1_EVIDENCE_TEXT_UPDATES.get(evidence_id, {})
+        )
+        _require(
+            actual_evidence[evidence_id] == expected_record,
+            "standards basis 1.1.0 may change only approved point-definition "
+            f"representation fields and corresponding text; unexpected change in "
+            f"{evidence_id}",
+        )
+
+
 def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST):
     """Read and completely validate a standards-basis package without side effects."""
     manifest_path = Path(manifest_path).resolve()
@@ -1062,7 +1338,9 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
     }
     _validate_global_identifiers(indexes)
     facility_id = manifest["facility"]["facility_id"]
-    bound_point_ids = _load_bound_flagship_point_ids()
+    bound_point_ids = _load_bound_flagship_point_ids(
+        manifest["facility"]["fixture_version"]
+    )
     profile_fact_ids = set(indexes["applicability_profile"])
     evidence_category_ids = set(indexes["evidence_categories"])
 
@@ -1090,6 +1368,7 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
         indexes["applicability_matrix"],
         evidence_category_ids,
     )
+    _validate_additive_1_1_derivation(manifest, documents)
 
     return {
         "manifest": manifest,
@@ -1138,7 +1417,7 @@ DEFAULT_STANDARDS_BASIS_STORE = StandardsBasisStore()
 
 def _package_metadata(package):
     manifest = package["manifest"]
-    return {
+    metadata = {
         "package_id": manifest["package_id"],
         "package_version": manifest["package_version"],
         "status": manifest["status"],
@@ -1148,6 +1427,9 @@ def _package_metadata(package):
         "notices": manifest["notices"],
         "provenance": manifest["provenance"],
     }
+    if "topology" in manifest:
+        metadata["topology"] = manifest["topology"]
+    return metadata
 
 
 def get_standards_basis_summary(store=DEFAULT_STANDARDS_BASIS_STORE):

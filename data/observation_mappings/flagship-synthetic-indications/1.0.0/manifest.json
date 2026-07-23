@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "package_type": "synthetic_observation_mapping",
+  "package_id": "MAPPING-PACKAGE-FLAGSHIP-SYNTHETIC-INDICATIONS",
+  "package_version": "1.0.0",
+  "content_digest": "bb911da15d4d4804742bfd5a999623d9e9e8acc7b9c85161dd15cdff7fb18e8a",
+  "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+  "topology": {
+    "topology_id": "TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST",
+    "topology_version": "1.1.0",
+    "content_digest": "cd6aeddbeaf9756c28b1cd66461b008542c4a5010dd0bcf634e4ffb825a42672"
+  },
+  "canonicalizer_version": "facilityops-canonicalizer/1.0.0",
+  "files": {
+    "source_bindings": "source_bindings.json",
+    "mappings": "mappings.json"
+  },
+  "limitations": [
+    "This package contains fictional repository-only source bindings and deterministic transformations for a local synthetic replay.",
+    "A canonical observation remains a source-reported indication within the declared mapping, timing, quality, and provenance limits; it does not independently prove physical state.",
+    "Dependency provenance records declared origins or UNKNOWN values only. The package makes no evidence-independence, corroboration-count, weighting, or sufficiency conclusion.",
+    "The mappings define no point condition, equipment state, system state, facility state, consequence, physical criterion, finding, safety determination, recovery evaluation, or authorization.",
+    "The package opens no external connection and provides no command, configuration, or write-back path."
+  ]
+}

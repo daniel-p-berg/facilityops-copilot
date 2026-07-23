@@ -1,0 +1,456 @@
+{
+  "mappings": [
+    {
+      "mapping_id": "MAPPING-EXHAUST-CONTROLLER-INDICATIONS",
+      "mapping_version": "1.0.0",
+      "content_digest": "77571f5bfc09af2aeca9cd04932b0b9ddf91319e76baa6a707fb7a8735fbf717",
+      "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+      "description": "Selects only controller fields present in a source-native snapshot. Request and controller-execution reports remain separate reported indications.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "process_enabled",
+            "target_point_id": "PROCESS_ENABLED_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "process_permissive",
+            "target_point_id": "PROCESS_PERMISSIVE_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "duty_request",
+            "target_point_id": "FAN-EXHAUST-DUTY_REQUEST",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "duty_execution_report",
+            "target_point_id": "FAN-EXHAUST-DUTY_CONTROLLER_EXECUTION_STATUS",
+            "value_type": "ENUM",
+            "normalization": {
+              "kind": "DIRECT_ENUM",
+              "mapping": {
+                "EXECUTION_ASSERTED": "EXECUTION_ASSERTED",
+                "EXECUTION_NOT_ASSERTED": "EXECUTION_NOT_ASSERTED"
+              }
+            }
+          },
+          {
+            "source_field": "standby_request",
+            "target_point_id": "FAN-EXHAUST-STANDBY_REQUEST",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "standby_execution_report",
+            "target_point_id": "FAN-EXHAUST-STANDBY_CONTROLLER_EXECUTION_STATUS",
+            "value_type": "ENUM",
+            "normalization": {
+              "kind": "DIRECT_ENUM",
+              "mapping": {
+                "EXECUTION_ASSERTED": "EXECUTION_ASSERTED",
+                "EXECUTION_NOT_ASSERTED": "EXECUTION_NOT_ASSERTED"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-DUTY-VFD-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "1c119c7d4bd1e161c4026702f7ab2941fc041b10af95b12835e6228227b1cad4",
+      "source_binding_id": "SOURCE-BINDING-DUTY-VFD",
+      "description": "Partially decodes duty VFD source fields into separate availability, run, fault, VFD-state, and speed reported indications.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "available",
+            "target_point_id": "FAN-EXHAUST-DUTY_AVAILABLE",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "run_status",
+            "target_point_id": "FAN-EXHAUST-DUTY_RUN_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "fault_status",
+            "target_point_id": "FAN-EXHAUST-DUTY_FAULT_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "vfd_state",
+            "target_point_id": "FAN-EXHAUST-DUTY_VFD_STATE",
+            "value_type": "ENUM",
+            "normalization": {
+              "kind": "DIRECT_ENUM",
+              "mapping": {
+                "READY_REPORTED": "READY_REPORTED",
+                "RUN_REPORTED": "RUN_REPORTED",
+                "STOP_REPORTED": "STOP_REPORTED",
+                "FAULT_REPORTED": "FAULT_REPORTED"
+              }
+            }
+          },
+          {
+            "source_field": "speed_tenths_percent",
+            "target_point_id": "FAN-EXHAUST-DUTY_SPEED_FEEDBACK",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "0.1",
+              "quantum": "0.1"
+            },
+            "unit": "%"
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-STANDBY-VFD-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "2643f2c70a89b866b267b453f0b0b6b5f5494b389f1aa0ed1362d901ea9733c8",
+      "source_binding_id": "SOURCE-BINDING-STANDBY-VFD",
+      "description": "Partially decodes standby VFD source fields into separate availability, run, fault, VFD-state, and speed reported indications.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "available",
+            "target_point_id": "FAN-EXHAUST-STANDBY_AVAILABLE",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "run_status",
+            "target_point_id": "FAN-EXHAUST-STANDBY_RUN_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "fault_status",
+            "target_point_id": "FAN-EXHAUST-STANDBY_FAULT_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "vfd_state",
+            "target_point_id": "FAN-EXHAUST-STANDBY_VFD_STATE",
+            "value_type": "ENUM",
+            "normalization": {
+              "kind": "DIRECT_ENUM",
+              "mapping": {
+                "READY_REPORTED": "READY_REPORTED",
+                "RUN_REPORTED": "RUN_REPORTED",
+                "STOP_REPORTED": "STOP_REPORTED",
+                "FAULT_REPORTED": "FAULT_REPORTED"
+              }
+            }
+          },
+          {
+            "source_field": "speed_tenths_percent",
+            "target_point_id": "FAN-EXHAUST-STANDBY_SPEED_FEEDBACK",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "0.1",
+              "quantum": "0.1"
+            },
+            "unit": "%"
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-DUTY-MOTOR-CURRENT",
+      "mapping_version": "1.0.0",
+      "content_digest": "634723e3e69df068e183bd084f6f27883dd9a7cee818024ff69053c1425a2ced",
+      "source_binding_id": "SOURCE-BINDING-DUTY-MOTOR-CURRENT",
+      "description": "Combines a source-declared high-word and low-word pair into one signed 32-bit duty motor-current report.",
+      "transformation": {
+        "kind": "REGISTER_PAIR_SIGNED_INT32_BE",
+        "decode_group_field": "$.decode_group_id",
+        "component_role_field": "$.register_role",
+        "value_field": "$.register_value",
+        "high_role": "HIGH_WORD",
+        "low_role": "LOW_WORD",
+        "target_point_id": "FAN-EXHAUST-DUTY_MOTOR_CURRENT",
+        "value_type": "DECIMAL",
+        "factor": "0.01",
+        "quantum": "0.01",
+        "unit": "A"
+      }
+    },
+    {
+      "mapping_id": "MAPPING-STANDBY-MOTOR-CURRENT",
+      "mapping_version": "1.0.0",
+      "content_digest": "bd7c359169219eb08fb565adfa78e2fd08a04e6782ed7cb67aa1daccb546fe19",
+      "source_binding_id": "SOURCE-BINDING-STANDBY-MOTOR-CURRENT",
+      "description": "Combines a source-declared high-word and low-word pair into one signed 32-bit standby motor-current report.",
+      "transformation": {
+        "kind": "REGISTER_PAIR_SIGNED_INT32_BE",
+        "decode_group_field": "$.decode_group_id",
+        "component_role_field": "$.register_role",
+        "value_field": "$.register_value",
+        "high_role": "HIGH_WORD",
+        "low_role": "LOW_WORD",
+        "target_point_id": "FAN-EXHAUST-STANDBY_MOTOR_CURRENT",
+        "value_type": "DECIMAL",
+        "factor": "0.01",
+        "quantum": "0.01",
+        "unit": "A"
+      }
+    },
+    {
+      "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "01ade97c17383e91d463a4fb9d1b310cfa2342ba4c20e4c5df10518915814f2e",
+      "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
+      "description": "Partially decodes initial shared-path reports, converting cubic feet per minute to cubic metres per second and scaling decipascal source values.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "airflow_cfm",
+            "target_point_id": "PROCESS-EXHAUST_AIRFLOW",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "UNIT_CONVERSION",
+              "factor": "0.00047194745",
+              "quantum": "0.0001"
+            },
+            "source_unit": "ft3/min",
+            "unit": "m3/s"
+          },
+          {
+            "source_field": "duct_static_deci_pa",
+            "target_point_id": "EXHAUST-SHARED_DUCT_STATIC",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "0.1",
+              "quantum": "0.1"
+            },
+            "source_unit": "dPa",
+            "unit": "Pa"
+          },
+          {
+            "source_field": "damper_position_percent",
+            "target_point_id": "EXHAUST-SHARED_DAMPER_POSITION",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "1",
+              "quantum": "0.1"
+            },
+            "unit": "%"
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+      "mapping_version": "1.1.0",
+      "content_digest": "c3f02161cc374e66609e19db0f0a909457866f538ca7ad752dbdb14e9f46f1c1",
+      "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
+      "description": "Prospective source-schema transition that decodes litres per second and direct pascal values while retaining the same canonical point definitions.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "airflow_lps",
+            "target_point_id": "PROCESS-EXHAUST_AIRFLOW",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "UNIT_CONVERSION",
+              "factor": "0.001",
+              "quantum": "0.0001"
+            },
+            "source_unit": "L/s",
+            "unit": "m3/s"
+          },
+          {
+            "source_field": "duct_static_pa",
+            "target_point_id": "EXHAUST-SHARED_DUCT_STATIC",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "1",
+              "quantum": "0.1"
+            },
+            "unit": "Pa"
+          },
+          {
+            "source_field": "damper_position_percent",
+            "target_point_id": "EXHAUST-SHARED_DAMPER_POSITION",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "1",
+              "quantum": "0.1"
+            },
+            "unit": "%"
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-TREATMENT-INDICATIONS",
+      "mapping_version": "1.0.0",
+      "content_digest": "0bbbbf37d50d94f4f804666991655ca1f54cc8af04a4d810fca78e527c34c874",
+      "source_binding_id": "SOURCE-BINDING-TREATMENT-MONITOR",
+      "description": "Partially selects source-reported treatment availability and permissive without inferring treatment performance.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "availability_reported",
+            "target_point_id": "TREATMENT_AVAILABILITY_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          },
+          {
+            "source_field": "permissive_reported",
+            "target_point_id": "TREATMENT_PERMISSIVE_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-MAKEUP-CONTROLLER-STATUS",
+      "mapping_version": "1.0.0",
+      "content_digest": "a9a3bd420e5da166155693d60b1cfff566cec5d76fe601faf6fcd171456dd765",
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-CONTROLLER",
+      "description": "Directly normalizes the makeup-air controller status as one reported indication.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": false,
+        "outputs": [
+          {
+            "source_field": "status_reported",
+            "target_point_id": "SUPPLY-MAKEUP_STATUS",
+            "value_type": "BOOLEAN",
+            "normalization": {
+              "kind": "STRICT_BOOLEAN"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-MAKEUP-AIRFLOW",
+      "mapping_version": "1.0.0",
+      "content_digest": "7c20987ae6412fab36f0b4d8e8a3cf932f065c4a92659bfc3c46c4a69da3ef96",
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-AIRFLOW",
+      "description": "Converts a source-reported makeup airflow in cubic feet per minute to cubic metres per second.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": false,
+        "outputs": [
+          {
+            "source_field": "airflow_cfm",
+            "target_point_id": "SUPPLY-MAKEUP_AIRFLOW",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "UNIT_CONVERSION",
+              "factor": "0.00047194745",
+              "quantum": "0.0001"
+            },
+            "source_unit": "ft3/min",
+            "unit": "m3/s"
+          }
+        ]
+      }
+    },
+    {
+      "mapping_id": "MAPPING-PRESSURE-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "6eb9c06798f90b4122e151ebf7c19c165c92d85630c0847756d6abf6ae4882d6",
+      "source_binding_id": "SOURCE-BINDING-PRESSURE",
+      "description": "Scales source hundredths-of-pascal fields into separate zone and boundary pressure reports without evaluating direction or adequacy.",
+      "transformation": {
+        "kind": "FIELD_SET",
+        "partial_decode": true,
+        "outputs": [
+          {
+            "source_field": "process_lab_centi_pa",
+            "target_point_id": "PROCESS-LAB_ZONE_PRESSURE",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "0.01",
+              "quantum": "0.01"
+            },
+            "source_unit": "cPa",
+            "unit": "Pa"
+          },
+          {
+            "source_field": "corridor_transition_centi_pa",
+            "target_point_id": "CORRIDOR-TRANSITION_DIFFERENTIAL_PRESSURE",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "0.01",
+              "quantum": "0.01"
+            },
+            "source_unit": "cPa",
+            "unit": "Pa"
+          },
+          {
+            "source_field": "transition_lab_centi_pa",
+            "target_point_id": "TRANSITION-LAB_DIFFERENTIAL_PRESSURE",
+            "value_type": "DECIMAL",
+            "normalization": {
+              "kind": "DECIMAL_SCALE",
+              "factor": "0.01",
+              "quantum": "0.01"
+            },
+            "source_unit": "cPa",
+            "unit": "Pa"
+          }
+        ]
+      }
+    }
+  ]
+}
