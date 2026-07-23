@@ -123,11 +123,26 @@ Establish the minimum controlled basis for one honest synthetic requirement pack
 
 ## Milestone 4 — Canonical observations, point condition, and temporal semantics
 
-**Status:** Planned
+**Status:** Partially completed — canonical observation, source identity, lineage, and approved temporal semantics completed; point condition and physical/operational criteria remain planned
 
 **Purpose**
 
 Create the evidence semantics needed to distinguish what a source reported from what FacilityOps later computes or infers.
+
+**Completed observation tranche**
+
+- Accepted ADR 0005 defines distinct delivery, source-event, source-native, canonical-observation, mapping, canonicalizer, topology, package, replay-execution, and request-idempotency identities.
+- Immutable source-native records preserve exact synthetic payload representation and digest, source identity and order facts, original timestamp text/offset/precision, source-reported quality, transport and synthetic provenance, receipt time, and deterministic ingestion order.
+- Canonical observations preserve typed values, units where applicable, source time and time basis, mapping/canonicalizer identity, source-quality and synthetic provenance, and exact one-to-many or many-to-one source-native field lineage.
+- Approved event-time and knowledge-time semantics cover UTC normalization, missing/invalid source time, declared source sequence/session scope, out-of-order arrival, sequence/time disagreement, exact/conflicting redelivery, and explicit bitemporal cutoffs without using wall-clock time.
+- A rebuildable source-scoped reported-observation projection returns ingestion dispositions without claiming actual point or equipment condition and without silently selecting conflicts, unordered evidence, another source binding, or an older fallback.
+- The append-only records are stored in a dedicated, lazily initialized local SQLite database with enabled foreign keys, immutable-record triggers, bounded payloads/pages, one-transaction publication, and isolation from legacy operational reset.
+
+**Remaining milestone work**
+
+- No computed point-condition record or rule is implemented.
+- Existing Northstar alarm-health behavior is preserved as a compatibility path; it has not been reinterpreted as the approved canonical point-condition model.
+- Quality, suspect, override, and out-of-service interpretation for canonical observations and every staleness, freshness, lateness, persistence, recovery-hold, validity, and uncertainty criterion require later approval.
 
 **Scope**
 
@@ -137,7 +152,7 @@ Create the evidence semantics needed to distinguish what a source reported from 
 - Define event time, receive time, evaluation time, ordering, late observations, staleness, clock limitations, quality, suspect evidence, override, and out-of-service behavior.
 - Preserve existing Northstar alarm behavior unless a separately approved compatibility change is required.
 
-**Completion evidence**
+**Full milestone completion evidence**
 
 - Each canonical observation remains explicitly a reported indication and does not claim physical proof.
 - Each computed point condition identifies its observation, reason, evaluation time, applicable temporal semantics, and uncertainty.
@@ -157,11 +172,28 @@ Create the evidence semantics needed to distinguish what a source reported from 
 
 ## Milestone 5 — Golden-proof requirements, evidence, and replay
 
-**Status:** Planned
+**Status:** Partially completed — repository-versioned synthetic observation replay completed; inference, evaluation, findings, and recovery remain planned
 
 **Purpose**
 
 Package the first project-authored synthetic SOO requirements and the complete deterministic evidence sequences needed to evaluate them later.
+
+**Completed observation replay tranche**
+
+- Accepted ADR 0006 adds flagship topology `1.1.0` while preserving `1.0.0` byte-for-byte. The additive package introduces only the approved point-owning equipment, reported-indication point definitions, and typed bindings; it adds no inferred-state point.
+- Standards-basis `1.1.0` preserves the profile, sources, applicability bases, requirements, lifecycle/activation state, evidence-category inventory, and absence of numerical criteria while binding the approved point-definition representation to topology `1.1.0`.
+- One repository-versioned mapping package pins topology, source bindings, every mapping identity/digest, and canonicalizer version. Transformations are limited to parsing, field selection, type/enum normalization, declared scaling, same-dimension unit conversion, partial decode, and decoding one reported value from declared source fields/registers.
+- The allowlisted `flagship-process-exhaust-evidence-sequence` package pins fixed source-event identities, source sessions/epochs, sequences, source timestamp representations, virtual receipt times, source-reported quality, mapping versions/digests, topology, canonicalizer, and synthetic provenance.
+- Its 23-entry narrative covers initial reports, later divergent and standby-related reports, dependencies, shared-path and pressure indications, a non-authoritative asserted-action annotation, new post-action indications, and two unexecuted tranche-boundary markers. It computes no failure, changeover, containment, recovery, or conformance outcome.
+- Replay validation occurs completely before persistence. A single transaction publishes each isolated execution, and repeated separate executions reproduce the same normalized semantic digest while retaining separate run-scoped identities.
+- The structural oracle and replay tests cover exact and conflicting redelivery, equal content under distinct identities, out-of-order arrival, missing/invalid/future/equal source time, sequence/time disagreement, declared and ambiguous reset, mapping transition, one-to-many/many-to-one/partial decode, restart rebuild, idempotent retry, and transaction rollback.
+- Bounded facility-aware APIs and a minimal workbench expose package metadata, replay execution, source-native records, canonical observations and lineage, redelivery/conflict groups, reported-observation projection with explicit cutoffs, and the reproducibility manifest.
+
+**Remaining milestone work**
+
+- The project-authored standards requirements remain inactive and non-executable.
+- Point condition, equipment/system/facility inference, physical and temporal criteria, evidence-sufficiency and evidence-independence conclusions, deterministic findings, consequences, human workflows, and recovery evaluation remain outside this tranche.
+- The replay manifest is a bounded replay-integrity and reproducibility record; the incident-level durable evidence manifest remains Milestone 8 work.
 
 **Scope**
 
@@ -174,9 +206,9 @@ Package the first project-authored synthetic SOO requirements and the complete d
 - Record stable replay-run and replay-step identity, source fixture version, deterministic timestamps, mappings, normalization configuration, and requirement versions.
 - Use an accepted ADR before changing the Milestone 2 point or topology inventory.
 
-**Completion evidence**
+**Full milestone completion evidence**
 
-- Replay begins from a known flagship baseline and produces the same ordered canonical observations on every run.
+- An explicitly selected allowlisted replay package produces equivalent normalized canonical-observation semantics and the same normalized semantic digest on every separate run. No replay is selected as the standards view's default observation baseline.
 - The evidence package covers every required flagship evidence category without assigning unapproved numerical criteria.
 - Command/request evidence is explicitly received or synthetic and cannot create a command path.
 - Missing or conflicting evidence can support a later `INDETERMINATE` outcome.

@@ -1,6 +1,6 @@
 # Flagship Facility and Golden Proof
 
-> **Status: minimum Milestone 2 topology and Milestone 3 fictional profile, controlled-source catalog, provisional applicability matrix, inactive requirements, evidence categories, and traceability implemented; observations, inference, evaluation, human review, recovery behavior, and the golden scenario remain planned.** This document defines a fictional technical-laboratory environment. It does not describe a real facility, certify a design, establish code applicability, approve physical control intent, determine safety, or claim behavior beyond [PROJECT_STATUS.md](PROJECT_STATUS.md).
+> **Status: minimum topology `1.0.0`, additive reported-indication topology and standards basis `1.1.0`, canonical observation semantics, and one repository synthetic observation replay are implemented; point condition, equipment/system/facility inference, evaluation, human review, recovery evaluation, and physical outcome scenarios remain planned.** This document defines a fictional technical-laboratory environment. It does not describe a real facility, certify a design, establish code applicability, approve physical control intent, determine safety, or claim behavior beyond [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Flagship purpose
 
@@ -42,7 +42,18 @@ ADRs 0001 and 0002 define the implemented minimum topology and persistence bound
 
 The topology represents synthetic project intent. It does not establish a physical design, approved sequence of operation, applicable redundancy requirement, pressure criterion, capacity threshold, controller behavior, or evidence-sufficiency rule. ADR 0004 separately records qualitative inactive design intent; topology alone does not establish it.
 
-The implemented fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no process-enabled operating-context or controller command/request point definition and no dedicated VFD or motor electrical corroboration point definition. Those evidence categories are required by the rebaselined proof, but exact point definitions, relationships, and topology changes require a later ADR and approved roadmap slice.
+The preserved `1.0.0` fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no process-enabled operating-context or controller command/request point definition and no dedicated VFD or motor electrical corroboration point definition.
+
+## Implemented additive observation topology
+
+[ADR 0006](decisions/0006-synthetic-flagship-replay-and-topology-evolution.md) defines additive topology `TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST` version `1.1.0`. It preserves `1.0.0` byte-for-byte and adds two real point-owning equipment records:
+
+- `CONTROLLER-PROCESS-EXHAUST` for external controller-reported process context and permissive indications.
+- `SENSOR-SUPPLY-MAKEUP-AIRFLOW` for delivered supply or makeup-air response.
+
+The version adds twelve point definitions for process enabled/permissive; duty and standby controller request, controller-reported execution, VFD state, and motor current; treatment availability; and delivered supply/makeup airflow. Four new typed bindings associate process context with the process-exhaust system and treatment/makeup reports with their monitored dependencies. Existing shared process-exhaust airflow, fan status and speed, makeup controller status, shared-path, laboratory-pressure, and boundary-pressure definitions remain reused.
+
+These point definitions describe possible reported indications only. No recovered, fan-failed, containment, point-condition, equipment-state, system-state, pressure-cascade-state, or facility-state point is present. Neither topology version declares a current-value baseline.
 
 ## Implemented Milestone 3 boundary
 
@@ -53,6 +64,28 @@ Whole-package validation enforces exact flagship and fixture binding, global ide
 Seven read-only routes and a separate reviewer workbench display the package and the visible chain `controlled source → applicability basis → synthetic requirement → required evidence category`. The package is independent of active SQLite state and adds no database schema or topology change.
 
 The Milestone 3 feature does not evaluate a requirement; compute `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, or `NOT_APPLICABLE`; infer equipment, system, or facility state; approve a legal applicability determination; or authorize physical operation.
+
+An additive standards-basis package version `1.1.0` preserves all profile, source, applicability, requirement, lifecycle, activation, parameter, and evidence-category semantics while binding the approved new point-definition representations to topology `1.1.0`. All requirements remain inactive and non-executable, and every evidence category continues to state that no flagship observation baseline exists. A reviewer must explicitly start and select a separate synthetic replay execution to inspect observations.
+
+## Implemented canonical observations and replay
+
+[ADR 0005](decisions/0005-source-native-and-canonical-observation-semantics.md) implements the bounded chain:
+
+```text
+source delivery
+→ immutable source-native record
+→ pinned mapping and canonicalization
+→ immutable canonical observation
+→ source-scoped reported-observation projection
+```
+
+Source-native records preserve the exact synthetic source payload and digest, source-event identity and order facts, original source timestamp representation, source-reported quality, provenance, receipt time, and ingestion order. Canonical observations preserve typed reported values, exact mapping and canonicalizer identity, time and quality provenance, and exact source-field lineage. They remain reported indications and do not independently prove physical state.
+
+The reported-observation projection requires explicit event-time and knowledge-time cutoffs. It exposes conflicts, unordered evidence, missing/invalid source time, and out-of-order arrival without choosing a winner, silently falling back to older evidence, merging sources, or using an unapproved lateness threshold.
+
+The allowlisted `flagship-process-exhaust-evidence-sequence` version `1.0.0` converts the corrected 23-entry narrative into a repository-only synthetic observation replay. It includes initial reports, later divergent and standby-related reports, dependency/shared-path/pressure reports, a non-authoritative asserted-action annotation, and new post-action underlying indications. `E230` and `E240` remain unexecuted tranche-boundary markers.
+
+The replay's structural oracle covers identities, redelivery/conflict groups, decode lineage, ordering facts, and projection dispositions only. It does not determine duty-fan failure, standby-changeover success, process-exhaust or pressure-cascade condition, containment, consequence, conformance, safety, authorization, or recovery.
 
 ## Observation and inference chain
 
@@ -70,7 +103,7 @@ source artifact or stream
 
 A canonical observation remains a reported indication. Examples include a controller command/request indication, run-status indication, fault bit, speed feedback, motor current, VFD state, measured airflow, or differential pressure. No single indication independently proves physical equipment response or facility condition.
 
-The future proof must identify which evidence is:
+Later inference and evaluation work must identify which evidence is:
 
 - Directly reported by a source.
 - Normalized or derived through a versioned mapping.

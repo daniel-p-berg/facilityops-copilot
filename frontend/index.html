@@ -504,6 +504,68 @@
       margin-top: 6px;
     }
 
+    .observation-replay {
+      border-left: 5px solid #1d4ed8;
+      margin-bottom: 18px;
+    }
+
+    .observation-replay details {
+      border-top: 1px solid var(--line);
+      margin-top: 14px;
+      padding-top: 10px;
+    }
+
+    .observation-replay summary {
+      cursor: pointer;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .replay-controls,
+    .projection-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      align-items: end;
+      margin: 14px 0;
+    }
+
+    .replay-controls label,
+    .projection-controls label {
+      color: var(--muted);
+      display: grid;
+      font-size: 0.78rem;
+      font-weight: 700;
+      gap: 4px;
+      text-transform: uppercase;
+    }
+
+    .replay-controls select,
+    .replay-controls input,
+    .projection-controls select,
+    .projection-controls input {
+      width: 100%;
+    }
+
+    .evidence-json {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin: 10px 0 0;
+      max-height: 22rem;
+      overflow: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .replay-boundary {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      margin: 14px 0;
+      padding: 10px 14px;
+    }
+
     @media (max-width: 760px) {
       header,
       .overview,
@@ -535,6 +597,159 @@
 
     <div id="error" class="error" hidden></div>
 
+    <section class="panel observation-replay" aria-labelledby="observationReplayHeading">
+      <div class="section-heading">
+        <h2 id="observationReplayHeading">Synthetic Observation Replay</h2>
+        <span id="observationReplayStatus" class="note">Loading allowlisted packages...</span>
+      </div>
+      <div class="replay-boundary">
+        This evidence-only workbench inspects source reports and deterministic
+        normalization. It computes no equipment, system, facility, conformance,
+        safety, authorization, or recovery conclusion.
+      </div>
+      <div id="observationReplayError" class="error" hidden></div>
+
+      <form id="observationReplayForm" class="replay-controls">
+        <label>
+          Structurally validated replay package
+          <select id="observationReplayPackage" required disabled></select>
+        </label>
+        <label>
+          Replay request idempotency key
+          <input
+            id="observationReplayIdempotencyKey"
+            type="text"
+            value="reviewer-replay-001"
+            required
+          >
+        </label>
+        <button id="startObservationReplayButton" type="submit" disabled>
+          Start Isolated Synthetic Replay
+        </button>
+      </form>
+
+      <div id="observationReplayPackageMetadata" class="summary-fields"></div>
+      <details open>
+        <summary>Replay package, topology, mappings, and structural oracle</summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mapping</th>
+                <th>Version</th>
+                <th>Digest</th>
+                <th>Source binding</th>
+                <th>Transformation</th>
+              </tr>
+            </thead>
+            <tbody id="observationReplayMappingRows"></tbody>
+          </table>
+        </div>
+        <pre id="observationReplayOracle" class="evidence-json">No package selected.</pre>
+      </details>
+
+      <div id="observationReplayExecution" hidden>
+        <div id="observationReplayExecutionMetadata" class="summary-fields"></div>
+
+        <details open>
+          <summary>Source-native records — observed time and receipt time</summary>
+          <div class="note">
+            Each row is one immutable synthetic delivery record. Receipt order is
+            not a substitute for source-reported event order.
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Delivery / record</th>
+                  <th>Source / channel</th>
+                  <th>Source-event identity</th>
+                  <th>Observed time reported by source</th>
+                  <th>FacilityOps receipt time</th>
+                  <th>Delivery classification</th>
+                  <th>Ordering facts</th>
+                  <th>Inspect</th>
+                </tr>
+              </thead>
+              <tbody id="sourceNativeRecordRows"></tbody>
+            </table>
+          </div>
+          <pre id="sourceNativeRecordDetail" class="evidence-json">Select a source-native record.</pre>
+        </details>
+
+        <details open>
+          <summary>Canonical observations and exact lineage</summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Canonical observation</th>
+                  <th>Reported indication point</th>
+                  <th>Normalized value</th>
+                  <th>Source binding</th>
+                  <th>Mapping identity</th>
+                  <th>Observed time reported by source</th>
+                  <th>FacilityOps receipt time</th>
+                  <th>Ordering facts</th>
+                  <th>Inspect lineage</th>
+                </tr>
+              </thead>
+              <tbody id="canonicalObservationRows"></tbody>
+            </table>
+          </div>
+          <pre id="canonicalLineageDetail" class="evidence-json">Select a canonical observation.</pre>
+        </details>
+
+        <details>
+          <summary>Exact redelivery and unresolved conflict groups</summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Source-event group</th>
+                  <th>Source / channel</th>
+                  <th>Identity</th>
+                  <th>Deliveries</th>
+                  <th>Variants</th>
+                  <th>Exact redeliveries</th>
+                  <th>Conflicting redeliveries</th>
+                </tr>
+              </thead>
+              <tbody id="redeliveryGroupRows"></tbody>
+            </table>
+          </div>
+        </details>
+
+        <details open>
+          <summary>Reported-observation projection with explicit cutoffs</summary>
+          <form id="reportedObservationProjectionForm" class="projection-controls">
+            <label>
+              Canonical derivation scope
+              <select id="projectionCandidate" required></select>
+            </label>
+            <label>
+              Event-time cutoff — as_of_observed_at
+              <input id="projectionObservedCutoff" type="text" required>
+            </label>
+            <label>
+              Knowledge-time cutoff — known_by_received_at
+              <input id="projectionReceivedCutoff" type="text" required>
+            </label>
+            <button id="queryProjectionButton" type="submit">
+              Rebuild Reported-Observation Projection
+            </button>
+          </form>
+          <div id="projectionScopeMetadata" class="summary-fields"></div>
+          <pre id="reportedObservationProjectionResult" class="evidence-json">Choose a derivation and explicit cutoffs.</pre>
+        </details>
+
+        <details>
+          <summary>Reproducibility manifest</summary>
+          <pre id="observationReplayManifest" class="evidence-json">No replay execution selected.</pre>
+        </details>
+      </div>
+    </section>
+
     <section class="panel standards-basis" aria-labelledby="standardsBasisHeading">
       <div class="section-heading">
         <h2 id="standardsBasisHeading">Flagship Applicability and Requirement Basis</h2>
@@ -544,7 +759,10 @@
         Repository-versioned reviewer material for the flagship facility. This package is
         separate from the active SQLite facility and contains no executable evaluation.
         Bound point definitions are topology records, not observations; the flagship fixture
-        declares no observation baseline.
+        declares no observation baseline by default
+        (<span class="mono">NO_FLAGSHIP_OBSERVATION_BASELINE</span>) until a reviewer explicitly
+        selects a separate synthetic replay execution. Selecting a replay does not
+        modify the standards package or its default observation-baseline declaration.
       </div>
       <div id="standardsBasisMetadata" class="summary-fields"></div>
       <ul id="standardsBasisNotices" class="standards-notices"></ul>
@@ -1050,6 +1268,31 @@
   <script>
     const statusEl = document.getElementById("status");
     const errorEl = document.getElementById("error");
+    const observationReplayFacilityId = "FACILITY-ADVANCED-MATERIALS-RESEARCH";
+    const observationReplayStatusEl = document.getElementById("observationReplayStatus");
+    const observationReplayErrorEl = document.getElementById("observationReplayError");
+    const observationReplayFormEl = document.getElementById("observationReplayForm");
+    const observationReplayPackageEl = document.getElementById("observationReplayPackage");
+    const observationReplayIdempotencyKeyEl = document.getElementById("observationReplayIdempotencyKey");
+    const startObservationReplayButton = document.getElementById("startObservationReplayButton");
+    const observationReplayPackageMetadataEl = document.getElementById("observationReplayPackageMetadata");
+    const observationReplayMappingRowsEl = document.getElementById("observationReplayMappingRows");
+    const observationReplayOracleEl = document.getElementById("observationReplayOracle");
+    const observationReplayExecutionEl = document.getElementById("observationReplayExecution");
+    const observationReplayExecutionMetadataEl = document.getElementById("observationReplayExecutionMetadata");
+    const sourceNativeRecordRowsEl = document.getElementById("sourceNativeRecordRows");
+    const sourceNativeRecordDetailEl = document.getElementById("sourceNativeRecordDetail");
+    const canonicalObservationRowsEl = document.getElementById("canonicalObservationRows");
+    const canonicalLineageDetailEl = document.getElementById("canonicalLineageDetail");
+    const redeliveryGroupRowsEl = document.getElementById("redeliveryGroupRows");
+    const reportedObservationProjectionFormEl = document.getElementById("reportedObservationProjectionForm");
+    const projectionCandidateEl = document.getElementById("projectionCandidate");
+    const projectionObservedCutoffEl = document.getElementById("projectionObservedCutoff");
+    const projectionReceivedCutoffEl = document.getElementById("projectionReceivedCutoff");
+    const queryProjectionButton = document.getElementById("queryProjectionButton");
+    const projectionScopeMetadataEl = document.getElementById("projectionScopeMetadata");
+    const reportedObservationProjectionResultEl = document.getElementById("reportedObservationProjectionResult");
+    const observationReplayManifestEl = document.getElementById("observationReplayManifest");
     const standardsBasisStatusEl = document.getElementById("standardsBasisStatus");
     const standardsBasisMetadataEl = document.getElementById("standardsBasisMetadata");
     const standardsBasisNoticesEl = document.getElementById("standardsBasisNotices");
@@ -1111,6 +1354,10 @@
     const createRuleSeverityEl = document.getElementById("createRuleSeverity");
     const createRuleEnabledEl = document.getElementById("createRuleEnabled");
     const createRuleMessageEl = document.getElementById("createRuleMessage");
+    let observationReplayPackages = [];
+    let selectedObservationReplayPackage = null;
+    let activeObservationReplayExecutionId = null;
+    let observationProjectionScopes = [];
 
     function setError(message) {
       errorEl.textContent = message;
@@ -1323,6 +1570,578 @@
       }
 
       standardsBasisStatusEl.textContent = "Structurally validated read-only package loaded";
+    }
+
+    function observationReplayApiBase() {
+      return `/facilities/${encodeURIComponent(observationReplayFacilityId)}/observation-replay`;
+    }
+
+    function formatEvidenceJson(value) {
+      return JSON.stringify(value === undefined ? null : value, null, 2);
+    }
+
+    function setObservationReplayError(message) {
+      observationReplayErrorEl.textContent = message;
+      observationReplayErrorEl.hidden = false;
+      observationReplayStatusEl.textContent = "Synthetic replay workbench unavailable";
+    }
+
+    function renderObservationReplayPackage(data) {
+      selectedObservationReplayPackage = data;
+      observationReplayPackageMetadataEl.innerHTML = "";
+      observationReplayMappingRowsEl.innerHTML = "";
+      observationReplayErrorEl.hidden = true;
+
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Replay package",
+        `${data.package_id} v${data.package_version}`,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Replay package digest",
+        data.content_digest,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Topology",
+        `${data.topology.topology_id} v${data.topology.topology_version}`,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Topology digest",
+        data.topology.content_digest,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Mapping package",
+        `${data.mapping_package.package_id} v${data.mapping_package.package_version}`,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Mapping package digest",
+        data.mapping_package.content_digest,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Canonicalizer",
+        data.canonicalizer_version,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Package validation",
+        data.structural_validation,
+      );
+
+      (data.mappings || []).forEach((mapping) => {
+        const row = document.createElement("tr");
+        appendCell(row, mapping.mapping_id, "mono");
+        appendCell(row, mapping.mapping_version);
+        appendCell(row, mapping.content_digest, "mono");
+        appendCell(row, mapping.source_binding_id, "mono");
+        appendCell(row, formatEvidenceJson(mapping.transformation), "mono");
+        observationReplayMappingRowsEl.appendChild(row);
+      });
+      if ((data.mappings || []).length === 0) {
+        renderEmptyRow(
+          observationReplayMappingRowsEl,
+          5,
+          "No mapping definitions were returned.",
+        );
+      }
+      observationReplayOracleEl.textContent = formatEvidenceJson({
+        description: data.description,
+        delivery_count: data.delivery_count,
+        oracle: data.oracle,
+        limitations: data.limitations,
+      });
+      observationReplayStatusEl.textContent =
+        "Structurally validated replay package selected; no execution started";
+      startObservationReplayButton.disabled = false;
+    }
+
+    function renderSourceNativeRecords(records) {
+      sourceNativeRecordRowsEl.innerHTML = "";
+      (records || []).forEach((record) => {
+        const row = document.createElement("tr");
+        const inspectButton = document.createElement("button");
+        inspectButton.type = "button";
+        inspectButton.textContent = "View record";
+        inspectButton.addEventListener("click", () => {
+          loadSourceNativeRecordDetail(record.source_native_record_id);
+        });
+
+        appendCell(
+          row,
+          `${record.delivery_id}\n${record.source_native_record_id}`,
+          "mono",
+        );
+        appendCell(
+          row,
+          `${record.source_id}\n${record.channel}\n${record.source_binding_id}`,
+          "mono",
+        );
+        appendCell(
+          row,
+          `${record.identity_kind}\n` +
+            `event=${displayValue(record.source_event_id)}\n` +
+            `group=${record.source_event_group_key}\n` +
+            `epoch=${displayValue(record.source_session_epoch)} ` +
+            `sequence=${displayValue(record.source_sequence)}`,
+          "mono",
+        );
+        appendCell(
+          row,
+          `${record.observed_at_status}\n` +
+            `original=${displayValue(record.original_observed_at_text)}\n` +
+            `UTC=${displayValue(record.observed_at_utc)}\n` +
+            `offset=${displayValue(record.original_timezone_offset)} ` +
+            `precision=${displayValue(record.timestamp_precision)}`,
+          "mono",
+        );
+        appendCell(row, record.received_at_utc, "mono");
+        appendCell(row, record.redelivery_classification);
+        appendCell(row, formatEvidenceJson(record.ordering_facts), "mono");
+        appendNodeCell(row, inspectButton);
+        sourceNativeRecordRowsEl.appendChild(row);
+      });
+      if ((records || []).length === 0) {
+        renderEmptyRow(
+          sourceNativeRecordRowsEl,
+          8,
+          "No source-native records were found for this execution.",
+        );
+      }
+    }
+
+    function renderProjectionScope() {
+      projectionScopeMetadataEl.innerHTML = "";
+      const scope = observationProjectionScopes[Number(projectionCandidateEl.value)];
+      if (!scope) {
+        return;
+      }
+      appendSummaryField(
+        projectionScopeMetadataEl,
+        "Source binding",
+        scope.source_binding_id,
+      );
+      appendSummaryField(
+        projectionScopeMetadataEl,
+        "Canonical point",
+        scope.canonical_point_definition_id,
+      );
+      appendSummaryField(
+        projectionScopeMetadataEl,
+        "Mapping",
+        `${scope.mapping_id} v${scope.mapping_version}`,
+      );
+      appendSummaryField(
+        projectionScopeMetadataEl,
+        "Mapping digest",
+        scope.mapping_digest,
+      );
+    }
+
+    function renderCanonicalObservations(observations, nativeRecords) {
+      canonicalObservationRowsEl.innerHTML = "";
+      projectionCandidateEl.innerHTML = "";
+      observationProjectionScopes = [];
+      const projectionScopeKeys = new Set();
+
+      (observations || []).forEach((observation) => {
+        const row = document.createElement("tr");
+        const lineageButton = document.createElement("button");
+        lineageButton.type = "button";
+        lineageButton.textContent = "View exact lineage";
+        lineageButton.addEventListener("click", () => {
+          loadCanonicalLineage(observation.canonical_observation_id);
+        });
+
+        appendCell(row, observation.canonical_observation_id, "mono");
+        appendCell(row, observation.canonical_point_definition_id, "mono");
+        appendCell(
+          row,
+          `${displayValue(observation.normalized_value)} ` +
+            `${displayValue(observation.unit, "")}\n${observation.value_type}`,
+        );
+        appendCell(
+          row,
+          `${observation.source_id}\n${observation.channel}\n` +
+            observation.source_binding_id,
+          "mono",
+        );
+        appendCell(
+          row,
+          `${observation.mapping_id} v${observation.mapping_version}\n` +
+            observation.mapping_digest,
+          "mono",
+        );
+        appendCell(
+          row,
+          `${observation.observed_at_status}\n` +
+            displayValue(observation.observed_at_utc),
+          "mono",
+        );
+        appendCell(row, observation.received_at_utc, "mono");
+        appendCell(row, formatEvidenceJson(observation.ordering_facts), "mono");
+        appendNodeCell(row, lineageButton);
+        canonicalObservationRowsEl.appendChild(row);
+
+        const scopeKey = formatEvidenceJson([
+          observation.source_binding_id,
+          observation.canonical_point_definition_id,
+          observation.mapping_id,
+          observation.mapping_version,
+          observation.mapping_digest,
+        ]);
+        if (!projectionScopeKeys.has(scopeKey)) {
+          projectionScopeKeys.add(scopeKey);
+          observationProjectionScopes.push(observation);
+        }
+      });
+      if ((observations || []).length === 0) {
+        renderEmptyRow(
+          canonicalObservationRowsEl,
+          9,
+          "No canonical observations were found for this execution.",
+        );
+      }
+
+      observationProjectionScopes.forEach((scope, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent =
+          `${scope.canonical_point_definition_id} | ${scope.source_binding_id} | ` +
+          `${scope.mapping_id} v${scope.mapping_version}`;
+        projectionCandidateEl.appendChild(option);
+      });
+
+      const observedTimes = (observations || [])
+        .filter(
+          (observation) =>
+            observation.observed_at_status === "VALID" &&
+            hasValue(observation.observed_at_utc),
+        )
+        .map((observation) => observation.observed_at_utc)
+        .sort();
+      const receivedTimes = (nativeRecords || [])
+        .map((record) => record.received_at_utc)
+        .filter(hasValue)
+        .sort();
+      const latestReceipt = receivedTimes.length
+        ? receivedTimes[receivedTimes.length - 1]
+        : "";
+      projectionObservedCutoffEl.value = observedTimes.length
+        ? observedTimes[observedTimes.length - 1]
+        : latestReceipt;
+      projectionReceivedCutoffEl.value = latestReceipt;
+      renderProjectionScope();
+    }
+
+    function renderRedeliveryGroups(groups) {
+      redeliveryGroupRowsEl.innerHTML = "";
+      (groups || []).forEach((group) => {
+        const row = document.createElement("tr");
+        appendCell(row, group.source_event_group_key, "mono");
+        appendCell(
+          row,
+          `${group.source_id}\n${group.channel}\n${group.source_binding_id}`,
+          "mono",
+        );
+        appendCell(
+          row,
+          `${group.identity_kind}\n` +
+            `event=${displayValue(group.source_event_id)}\n` +
+            `epoch=${displayValue(group.source_session_epoch)} ` +
+            `sequence=${displayValue(group.source_sequence)}`,
+          "mono",
+        );
+        appendCell(row, group.delivery_count);
+        appendCell(row, group.variant_count);
+        appendCell(row, group.exact_redelivery_count);
+        appendCell(row, group.conflicting_redelivery_count);
+        redeliveryGroupRowsEl.appendChild(row);
+      });
+      if ((groups || []).length === 0) {
+        renderEmptyRow(
+          redeliveryGroupRowsEl,
+          7,
+          "No repeated source-event identities were found.",
+        );
+      }
+    }
+
+    function renderObservationReplayExecution(
+      execution,
+      sourceNativePage,
+      canonicalPage,
+      redeliveryPage,
+      manifest,
+    ) {
+      activeObservationReplayExecutionId = execution.replay_execution_id;
+      observationReplayExecutionEl.hidden = false;
+      observationReplayExecutionMetadataEl.innerHTML = "";
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Replay execution",
+        execution.replay_execution_id,
+      );
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Execution status",
+        execution.status,
+      );
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Replay package",
+        `${execution.package_id} v${execution.package_version}`,
+      );
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Topology",
+        `${execution.topology_id} v${execution.topology_version}`,
+      );
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Canonicalizer",
+        execution.canonicalizer_version,
+      );
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Normalized semantic digest",
+        execution.normalized_semantic_digest,
+      );
+      appendSummaryField(
+        observationReplayExecutionMetadataEl,
+        "Record counts",
+        formatEvidenceJson(execution.record_counts),
+      );
+
+      renderSourceNativeRecords(sourceNativePage.source_native_records);
+      renderCanonicalObservations(
+        canonicalPage.canonical_observations,
+        sourceNativePage.source_native_records,
+      );
+      renderRedeliveryGroups(redeliveryPage.redelivery_groups);
+      observationReplayManifestEl.textContent = formatEvidenceJson(manifest);
+      sourceNativeRecordDetailEl.textContent =
+        "Select a source-native record to inspect its exact fixture representation.";
+      canonicalLineageDetailEl.textContent =
+        "Select a canonical observation to follow its exact source-native lineage.";
+      reportedObservationProjectionResultEl.textContent =
+        "Choose one source, point, and mapping derivation with explicit cutoffs.";
+    }
+
+    async function loadObservationReplayPackageDetail(packageSummary) {
+      startObservationReplayButton.disabled = true;
+      observationReplayStatusEl.textContent = "Validating selected replay package...";
+      observationReplayErrorEl.hidden = true;
+      try {
+        const url =
+          `${observationReplayApiBase()}/packages/` +
+          `${encodeURIComponent(packageSummary.package_id)}/versions/` +
+          encodeURIComponent(packageSummary.package_version);
+        const response = await fetch(url);
+        const data = await readJsonResponse(
+          response,
+          "synthetic observation replay package",
+        );
+        renderObservationReplayPackage(data);
+      } catch (error) {
+        setObservationReplayError(error.message);
+      }
+    }
+
+    async function loadObservationReplayCatalog() {
+      observationReplayStatusEl.textContent = "Loading allowlisted packages...";
+      observationReplayErrorEl.hidden = true;
+      observationReplayPackageEl.disabled = true;
+      startObservationReplayButton.disabled = true;
+      try {
+        const response = await fetch(`${observationReplayApiBase()}/packages`);
+        const data = await readJsonResponse(
+          response,
+          "observation replay package catalog",
+        );
+        observationReplayPackages = data.replay_packages || [];
+        observationReplayPackageEl.innerHTML = "";
+        observationReplayPackages.forEach((replayPackage, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent =
+            `${replayPackage.package_id} v${replayPackage.package_version}`;
+          observationReplayPackageEl.appendChild(option);
+        });
+        if (observationReplayPackages.length === 0) {
+          throw new Error("No allowlisted synthetic replay package was returned.");
+        }
+        observationReplayPackageEl.disabled = false;
+        await loadObservationReplayPackageDetail(observationReplayPackages[0]);
+      } catch (error) {
+        setObservationReplayError(error.message);
+      }
+    }
+
+    async function loadObservationReplayExecution(replayExecutionId) {
+      const base =
+        `${observationReplayApiBase()}/executions/` +
+        encodeURIComponent(replayExecutionId);
+      const responses = await Promise.all([
+        fetch(base),
+        fetch(`${base}/source-native-records?page=1&page_size=100`),
+        fetch(`${base}/canonical-observations?page=1&page_size=100`),
+        fetch(`${base}/redelivery-groups?page=1&page_size=100`),
+        fetch(`${base}/manifest`),
+      ]);
+      const [
+        executionData,
+        sourceNativePage,
+        canonicalPage,
+        redeliveryPage,
+        manifestData,
+      ] = await Promise.all([
+        readJsonResponse(responses[0], "replay execution"),
+        readJsonResponse(responses[1], "source-native records"),
+        readJsonResponse(responses[2], "canonical observations"),
+        readJsonResponse(responses[3], "redelivery groups"),
+        readJsonResponse(responses[4], "reproducibility manifest"),
+      ]);
+      renderObservationReplayExecution(
+        executionData.replay_execution,
+        sourceNativePage,
+        canonicalPage,
+        redeliveryPage,
+        manifestData.reproducibility_manifest,
+      );
+    }
+
+    async function startObservationReplay(event) {
+      event.preventDefault();
+      const packageSummary =
+        observationReplayPackages[Number(observationReplayPackageEl.value)];
+      if (!packageSummary) {
+        setObservationReplayError("Select an allowlisted replay package.");
+        return;
+      }
+      startObservationReplayButton.disabled = true;
+      startObservationReplayButton.textContent = "Starting Synthetic Replay...";
+      observationReplayErrorEl.hidden = true;
+      try {
+        const response = await fetch(
+          `${observationReplayApiBase()}/executions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              package_id: packageSummary.package_id,
+              package_version: packageSummary.package_version,
+              idempotency_key: observationReplayIdempotencyKeyEl.value,
+            }),
+          },
+        );
+        const data = await readJsonResponse(
+          response,
+          "synthetic observation replay execution",
+        );
+        await loadObservationReplayExecution(
+          data.replay_execution.replay_execution_id,
+        );
+        observationReplayStatusEl.textContent = data.idempotent_replay
+          ? "Identical replay request returned the existing isolated execution"
+          : "Isolated synthetic replay completed; reported indications are ready for inspection";
+      } catch (error) {
+        setObservationReplayError(error.message);
+      } finally {
+        startObservationReplayButton.disabled = false;
+        startObservationReplayButton.textContent =
+          "Start Isolated Synthetic Replay";
+      }
+    }
+
+    async function loadSourceNativeRecordDetail(sourceNativeRecordId) {
+      if (!activeObservationReplayExecutionId) {
+        return;
+      }
+      try {
+        const response = await fetch(
+          `${observationReplayApiBase()}/executions/` +
+            `${encodeURIComponent(activeObservationReplayExecutionId)}/` +
+            `source-native-records/${encodeURIComponent(sourceNativeRecordId)}`,
+        );
+        const data = await readJsonResponse(response, "source-native record");
+        sourceNativeRecordDetailEl.textContent = formatEvidenceJson(
+          data.source_native_record,
+        );
+      } catch (error) {
+        setObservationReplayError(error.message);
+      }
+    }
+
+    async function loadCanonicalLineage(canonicalObservationId) {
+      if (!activeObservationReplayExecutionId) {
+        return;
+      }
+      try {
+        const response = await fetch(
+          `${observationReplayApiBase()}/executions/` +
+            `${encodeURIComponent(activeObservationReplayExecutionId)}/` +
+            `canonical-observations/${encodeURIComponent(canonicalObservationId)}/lineage`,
+        );
+        const data = await readJsonResponse(
+          response,
+          "canonical observation lineage",
+        );
+        canonicalLineageDetailEl.textContent = formatEvidenceJson(data);
+      } catch (error) {
+        setObservationReplayError(error.message);
+      }
+    }
+
+    async function queryReportedObservationProjection(event) {
+      event.preventDefault();
+      const scope = observationProjectionScopes[Number(projectionCandidateEl.value)];
+      if (!scope || !activeObservationReplayExecutionId) {
+        setObservationReplayError(
+          "Select a canonical derivation from a replay execution.",
+        );
+        return;
+      }
+      queryProjectionButton.disabled = true;
+      queryProjectionButton.textContent = "Rebuilding Projection...";
+      observationReplayErrorEl.hidden = true;
+      try {
+        const query = new URLSearchParams({
+          source_binding_id: scope.source_binding_id,
+          point_id: scope.canonical_point_definition_id,
+          mapping_id: scope.mapping_id,
+          mapping_version: scope.mapping_version,
+          mapping_digest: scope.mapping_digest,
+          as_of_observed_at: projectionObservedCutoffEl.value,
+          known_by_received_at: projectionReceivedCutoffEl.value,
+        });
+        const response = await fetch(
+          `${observationReplayApiBase()}/executions/` +
+            `${encodeURIComponent(activeObservationReplayExecutionId)}/` +
+            `reported-observation-projection?${query.toString()}`,
+        );
+        const data = await readJsonResponse(
+          response,
+          "reported-observation projection",
+        );
+        const dispositionLabel = data.disposition === "CONFLICT_PRESENT"
+          ? "Unresolved conflict"
+          : data.disposition;
+        reportedObservationProjectionResultEl.textContent =
+          `${dispositionLabel}\n${formatEvidenceJson(data)}`;
+      } catch (error) {
+        setObservationReplayError(error.message);
+      } finally {
+        queryProjectionButton.disabled = false;
+        queryProjectionButton.textContent =
+          "Rebuild Reported-Observation Projection";
+      }
     }
 
     function renderCounts(container, counts) {
@@ -2765,10 +3584,24 @@
     previewModbusImportButton.addEventListener("click", previewModbusImport);
     commitModbusImportButton.addEventListener("click", commitModbusImport);
     createAlarmRuleFormEl.addEventListener("submit", createAlarmRule);
+    observationReplayFormEl.addEventListener("submit", startObservationReplay);
+    observationReplayPackageEl.addEventListener("change", () => {
+      const replayPackage =
+        observationReplayPackages[Number(observationReplayPackageEl.value)];
+      if (replayPackage) {
+        loadObservationReplayPackageDetail(replayPackage);
+      }
+    });
+    reportedObservationProjectionFormEl.addEventListener(
+      "submit",
+      queryReportedObservationProjection,
+    );
+    projectionCandidateEl.addEventListener("change", renderProjectionScope);
     createRuleTypeEl.addEventListener("change", () => {
       populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
     });
     populateOperatorSelect(createRuleOperatorEl, createRuleTypeEl.value);
+    loadObservationReplayCatalog();
     loadStandardsBasis();
     loadWorkbench();
   </script>
