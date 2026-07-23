@@ -1,0 +1,246 @@
+{
+  "oracle_type": "STRUCTURAL_OBSERVATION_ONLY",
+  "description": "Human-readable structural expectations for deterministic package validation and replay. These expectations describe records, identity, decoding, ordering facts, and reported-observation projection dispositions only.",
+  "expected_counts": {
+    "narrative_events": 23,
+    "executed_narrative_events": 21,
+    "non_executed_tranche_boundaries": 2,
+    "executed_observation_groups": 19,
+    "deliveries": 41,
+    "source_native_records": 41,
+    "source_event_groups": 39,
+    "logical_source_event_variants": 40,
+    "canonical_observations": 76,
+    "lineage_edges": 82,
+    "canonical_point_definitions_represented": 28,
+    "source_bindings": 10,
+    "mapping_versions": 11,
+    "register_decode_groups": 5,
+    "exact_redelivery_groups": 1,
+    "conflicting_redelivery_groups": 1,
+    "missing_observed_at_records": 1,
+    "invalid_observed_at_records": 1
+  },
+  "identity_groups": [
+    {
+      "group_kind": "EXACT_REDELIVERY",
+      "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+      "source_event_id": "EXHAUST-CONTROLLER-EVENT-0003",
+      "delivery_ids": [
+        "DELIVERY-E030-CONTROLLER-001",
+        "DELIVERY-E030-CONTROLLER-EXACT-REDELIVERY-002"
+      ],
+      "expected_source_native_records": 2,
+      "expected_logical_variants": 1,
+      "expected_canonical_observations": 1,
+      "statement": "Both receipts remain retained. The byte-equivalent logical variant is canonicalized once within the execution."
+    },
+    {
+      "group_kind": "CONFLICTING_REDELIVERY",
+      "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+      "source_event_id": "EXHAUST-CONTROLLER-EVENT-0006",
+      "delivery_ids": [
+        "DELIVERY-E120-CONTROLLER-CONFLICT-A",
+        "DELIVERY-E120-CONTROLLER-CONFLICT-B"
+      ],
+      "expected_source_native_records": 2,
+      "expected_logical_variants": 2,
+      "expected_canonical_observations": 2,
+      "statement": "The payloads differ under one source-event identity. Both variants remain retained and no winner is selected."
+    },
+    {
+      "group_kind": "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS",
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-CONTROLLER",
+      "source_event_ids": [
+        "MAKEUP-CONTROLLER-EVENT-0001",
+        "MAKEUP-CONTROLLER-EVENT-0002"
+      ],
+      "delivery_ids": [
+        "DELIVERY-E010-MAKEUP-STATUS-001",
+        "DELIVERY-E190-MAKEUP-STATUS-MISSING-TIME-001"
+      ],
+      "expected_source_event_groups": 2,
+      "expected_canonical_observations": 2,
+      "statement": "Equal payload content under distinct source-event identities remains two distinct reports."
+    }
+  ],
+  "decode_lineage": [
+    {
+      "decode_group_id": "DUTY-CURRENT-DECODE-0001",
+      "source_delivery_ids": ["DELIVERY-E050-DUTY-CURRENT-HIGH-001", "DELIVERY-E050-DUTY-CURRENT-LOW-001"],
+      "target_point_id": "FAN-EXHAUST-DUTY_MOTOR_CURRENT",
+      "expected_lineage_edges": 2
+    },
+    {
+      "decode_group_id": "DUTY-CURRENT-DECODE-0002",
+      "source_delivery_ids": ["DELIVERY-E100-DUTY-CURRENT-HIGH-001", "DELIVERY-E100-DUTY-CURRENT-LOW-001"],
+      "target_point_id": "FAN-EXHAUST-DUTY_MOTOR_CURRENT",
+      "expected_signed_raw_value": -25,
+      "expected_normalized_value": "-0.25",
+      "expected_lineage_edges": 2
+    },
+    {
+      "decode_group_id": "STANDBY-CURRENT-DECODE-0001",
+      "source_delivery_ids": ["DELIVERY-E150-STANDBY-CURRENT-HIGH-001", "DELIVERY-E150-STANDBY-CURRENT-LOW-001"],
+      "target_point_id": "FAN-EXHAUST-STANDBY_MOTOR_CURRENT",
+      "expected_lineage_edges": 2
+    },
+    {
+      "decode_group_id": "DUTY-CURRENT-DECODE-0003",
+      "source_delivery_ids": ["DELIVERY-E200-DUTY-CURRENT-HIGH-001", "DELIVERY-E200-DUTY-CURRENT-LOW-001"],
+      "target_point_id": "FAN-EXHAUST-DUTY_MOTOR_CURRENT",
+      "expected_lineage_edges": 2
+    },
+    {
+      "decode_group_id": "STANDBY-CURRENT-DECODE-0002",
+      "source_delivery_ids": ["DELIVERY-E200-STANDBY-CURRENT-HIGH-001", "DELIVERY-E200-STANDBY-CURRENT-LOW-001"],
+      "target_point_id": "FAN-EXHAUST-STANDBY_MOTOR_CURRENT",
+      "expected_lineage_edges": 2
+    }
+  ],
+  "ordering_facts": [
+    {
+      "fact_kind": "OUT_OF_ORDER_ARRIVAL",
+      "older_delivery_id": "DELIVERY-E110-PROCESS-PATH-OUT-OF-ORDER-001",
+      "newer_delivery_id": "DELIVERY-E060-PROCESS-PATH-001",
+      "statement": "The source sequence and observed time identify the E110 report as older even though FacilityOps receives it after the E060 report."
+    },
+    {
+      "fact_kind": "SEQUENCE_TIME_DISAGREEMENT",
+      "earlier_delivery_id": "DELIVERY-E120-CONTROLLER-CONFLICT-A",
+      "later_delivery_id": "DELIVERY-E130-CONTROLLER-001",
+      "statement": "The later source sequence carries an older observed time inside the same declared source epoch; the disagreement remains visible."
+    },
+    {
+      "fact_kind": "DECLARED_SEQUENCE_RESET",
+      "delivery_id": "DELIVERY-E200-CONTROLLER-DECLARED-RESET-001",
+      "statement": "The source sequence restarts at one under the explicitly different EXHAUST-CONTROLLER-BOOT-02 epoch."
+    },
+    {
+      "fact_kind": "AMBIGUOUS_SEQUENCE_RESET",
+      "delivery_id": "DELIVERY-E220-CONTROLLER-AMBIGUOUS-RESET-001",
+      "statement": "The sequence decreases without a declared source epoch while observed time advances; FacilityOps does not infer a reset."
+    },
+    {
+      "fact_kind": "EQUAL_OBSERVED_TIME_DIFFERENT_REPORTS",
+      "delivery_ids": ["DELIVERY-E170-PRESSURE-EQUAL-TIME-A", "DELIVERY-E170-PRESSURE-EQUAL-TIME-B"],
+      "statement": "Distinct source-event identities carry materially different pressure reports at the same observed time with no sequence tie-breaker."
+    },
+    {
+      "fact_kind": "MISSING_OBSERVED_TIME",
+      "delivery_id": "DELIVERY-E190-MAKEUP-STATUS-MISSING-TIME-001",
+      "statement": "FacilityOps preserves the missing event time and does not substitute received_at."
+    },
+    {
+      "fact_kind": "INVALID_OBSERVED_TIME",
+      "delivery_id": "DELIVERY-E190-TREATMENT-INVALID-TIME-001",
+      "statement": "FacilityOps preserves the invalid original timestamp and does not substitute received_at."
+    },
+    {
+      "fact_kind": "SOURCE_TIME_AFTER_RECEIPT",
+      "delivery_id": "DELIVERY-E200-CONTROLLER-DECLARED-RESET-001",
+      "statement": "The source-reported observed time is after the virtual receipt time; the clock relationship remains a visible fact, not a causation decision."
+    },
+    {
+      "fact_kind": "MAPPING_VERSION_TRANSITION",
+      "delivery_id": "DELIVERY-E210-PROCESS-PATH-MAPPING-TRANSITION-001",
+      "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+      "from_version": "1.0.0",
+      "to_version": "1.1.0",
+      "statement": "The source schema changes from cubic feet per minute and decipascal fields to litres per second and direct pascal fields under an explicitly pinned mapping version."
+    }
+  ],
+  "projection_expectations": [
+    {
+      "name": "exact redelivery does not add a logical candidate",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+        "point_id": "FAN-EXHAUST-DUTY_REQUEST",
+        "mapping_id": "MAPPING-EXHAUST-CONTROLLER-INDICATIONS",
+        "mapping_version": "1.0.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:03:00Z",
+      "known_by_received_at": "2026-07-23T10:03:00.300Z",
+      "expected_disposition": "REPORTED",
+      "expected_logical_candidate_count": 1
+    },
+    {
+      "name": "conflicting latest source-event identity remains unresolved",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+        "point_id": "PROCESS_PERMISSIVE_STATUS",
+        "mapping_id": "MAPPING-EXHAUST-CONTROLLER-INDICATIONS",
+        "mapping_version": "1.0.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:12:00Z",
+      "known_by_received_at": "2026-07-23T10:12:00.300Z",
+      "expected_disposition": "CONFLICT_PRESENT"
+    },
+    {
+      "name": "equal-order different pressure reports remain unresolved",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-PRESSURE",
+        "point_id": "PROCESS-LAB_ZONE_PRESSURE",
+        "mapping_id": "MAPPING-PRESSURE-SNAPSHOT",
+        "mapping_version": "1.0.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:17:00Z",
+      "known_by_received_at": "2026-07-23T10:17:00.300Z",
+      "expected_disposition": "CONFLICT_PRESENT"
+    },
+    {
+      "name": "newer sequence with missing event time prevents silent fallback",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-MAKEUP-CONTROLLER",
+        "point_id": "SUPPLY-MAKEUP_STATUS",
+        "mapping_id": "MAPPING-MAKEUP-CONTROLLER-STATUS",
+        "mapping_version": "1.0.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:20:00Z",
+      "known_by_received_at": "2026-07-23T10:20:00Z",
+      "expected_disposition": "UNORDERED"
+    },
+    {
+      "name": "valid older out-of-order arrival does not displace the newer report",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
+        "point_id": "PROCESS-EXHAUST_AIRFLOW",
+        "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+        "mapping_version": "1.0.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:16:00Z",
+      "known_by_received_at": "2026-07-23T10:16:00.500Z",
+      "expected_disposition": "REPORTED"
+    },
+    {
+      "name": "mapping transition is a separate derivation scope",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
+        "point_id": "PROCESS-EXHAUST_AIRFLOW",
+        "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+        "mapping_version": "1.1.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:21:00Z",
+      "known_by_received_at": "2026-07-23T10:21:00.500Z",
+      "expected_disposition": "REPORTED"
+    },
+    {
+      "name": "unresolved conflict is not displaced by a later unordered candidate",
+      "scope": {
+        "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+        "point_id": "PROCESS_PERMISSIVE_STATUS",
+        "mapping_id": "MAPPING-EXHAUST-CONTROLLER-INDICATIONS",
+        "mapping_version": "1.0.0"
+      },
+      "as_of_observed_at": "2026-07-23T10:22:00Z",
+      "known_by_received_at": "2026-07-23T10:22:00.500Z",
+      "expected_disposition": "CONFLICT_PRESENT"
+    }
+  ],
+  "excluded_outcomes": [
+    "No point condition is computed.",
+    "No equipment, system, pressure-cascade, facility, consequence, operability, conformance, safety, or recovery state is inferred.",
+    "No evidence-independence or evidence-sufficiency conclusion is made.",
+    "No alarm, requirement evaluation, finding, human disposition, test authorization, operational authorization, commissioning acceptance, or external command is created."
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "package_type": "synthetic_observation_replay",
+  "package_id": "flagship-process-exhaust-evidence-sequence",
+  "package_version": "1.0.0",
+  "content_digest": "f31d10e8866376dc19a87cd99da1732927f9f31388a5158eac1841d4113fa90c",
+  "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+  "topology": {
+    "topology_id": "TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST",
+    "topology_version": "1.1.0",
+    "content_digest": "cd6aeddbeaf9756c28b1cd66461b008542c4a5010dd0bcf634e4ffb825a42672"
+  },
+  "mapping_package": {
+    "package_id": "MAPPING-PACKAGE-FLAGSHIP-SYNTHETIC-INDICATIONS",
+    "package_version": "1.0.0",
+    "content_digest": "bb911da15d4d4804742bfd5a999623d9e9e8acc7b9c85161dd15cdff7fb18e8a"
+  },
+  "source_bindings": [
+    {
+      "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
+      "source_binding_version": "1.0.0",
+      "content_digest": "2b29b473657a63cf27fca2bfebe9d8250e498b64c65fcb0cae31dbeeb2da2c4c"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-DUTY-VFD",
+      "source_binding_version": "1.0.0",
+      "content_digest": "555e39b9f2ec25b3dbfad31c4368dbbafa8a5eaac800e0322066a8653e7de8c1"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-STANDBY-VFD",
+      "source_binding_version": "1.0.0",
+      "content_digest": "40f60a9a51ca2a87c7519eac821a90dbf5bf4015b38183771c01c926b55fd7fa"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-DUTY-MOTOR-CURRENT",
+      "source_binding_version": "1.0.0",
+      "content_digest": "a20ecf3e205186938e38f63f1cb42dbc82fe5e8ab8dbcda1621d265952090015"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-STANDBY-MOTOR-CURRENT",
+      "source_binding_version": "1.0.0",
+      "content_digest": "d861dc24abb64182a81e6c903c01c9fb8e6a9fce75bbd5ee0b41fee22dab69d6"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
+      "source_binding_version": "1.0.0",
+      "content_digest": "dbc89c994248278d83ca9e8b6aebd842b9ba8a4fd7310f8d9fdcbcfcbbded8e2"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-TREATMENT-MONITOR",
+      "source_binding_version": "1.0.0",
+      "content_digest": "807f4405fe8cee721b9c498ba5383ae6bbc98ddc7a0154d7c43af7a5bcd9310c"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-CONTROLLER",
+      "source_binding_version": "1.0.0",
+      "content_digest": "3817af1d9f751430c9bcd4d15ee44549c621d736e65549b43548c449f6cd3862"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-MAKEUP-AIRFLOW",
+      "source_binding_version": "1.0.0",
+      "content_digest": "48ab84cb6fd7ed93f0cd5bca060085bd4224b54a63ca95da9a0c73513b9a7bb2"
+    },
+    {
+      "source_binding_id": "SOURCE-BINDING-PRESSURE",
+      "source_binding_version": "1.0.0",
+      "content_digest": "dc108a8a4f73a35911aed81a82d325325f24b777bf633fc46872e32d1f9bc0b2"
+    }
+  ],
+  "mappings": [
+    {
+      "mapping_id": "MAPPING-EXHAUST-CONTROLLER-INDICATIONS",
+      "mapping_version": "1.0.0",
+      "content_digest": "77571f5bfc09af2aeca9cd04932b0b9ddf91319e76baa6a707fb7a8735fbf717"
+    },
+    {
+      "mapping_id": "MAPPING-DUTY-VFD-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "1c119c7d4bd1e161c4026702f7ab2941fc041b10af95b12835e6228227b1cad4"
+    },
+    {
+      "mapping_id": "MAPPING-STANDBY-VFD-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "2643f2c70a89b866b267b453f0b0b6b5f5494b389f1aa0ed1362d901ea9733c8"
+    },
+    {
+      "mapping_id": "MAPPING-DUTY-MOTOR-CURRENT",
+      "mapping_version": "1.0.0",
+      "content_digest": "634723e3e69df068e183bd084f6f27883dd9a7cee818024ff69053c1425a2ced"
+    },
+    {
+      "mapping_id": "MAPPING-STANDBY-MOTOR-CURRENT",
+      "mapping_version": "1.0.0",
+      "content_digest": "bd7c359169219eb08fb565adfa78e2fd08a04e6782ed7cb67aa1daccb546fe19"
+    },
+    {
+      "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "01ade97c17383e91d463a4fb9d1b310cfa2342ba4c20e4c5df10518915814f2e"
+    },
+    {
+      "mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT",
+      "mapping_version": "1.1.0",
+      "content_digest": "c3f02161cc374e66609e19db0f0a909457866f538ca7ad752dbdb14e9f46f1c1"
+    },
+    {
+      "mapping_id": "MAPPING-TREATMENT-INDICATIONS",
+      "mapping_version": "1.0.0",
+      "content_digest": "0bbbbf37d50d94f4f804666991655ca1f54cc8af04a4d810fca78e527c34c874"
+    },
+    {
+      "mapping_id": "MAPPING-MAKEUP-CONTROLLER-STATUS",
+      "mapping_version": "1.0.0",
+      "content_digest": "a9a3bd420e5da166155693d60b1cfff566cec5d76fe601faf6fcd171456dd765"
+    },
+    {
+      "mapping_id": "MAPPING-MAKEUP-AIRFLOW",
+      "mapping_version": "1.0.0",
+      "content_digest": "7c20987ae6412fab36f0b4d8e8a3cf932f065c4a92659bfc3c46c4a69da3ef96"
+    },
+    {
+      "mapping_id": "MAPPING-PRESSURE-SNAPSHOT",
+      "mapping_version": "1.0.0",
+      "content_digest": "6eb9c06798f90b4122e151ebf7c19c165c92d85630c0847756d6abf6ae4882d6"
+    }
+  ],
+  "canonicalizer_version": "facilityops-canonicalizer/1.0.0",
+  "generator": {
+    "generator_id": "facilityops-synthetic-observation-generator",
+    "generator_version": "1.0.0",
+    "synthetic": true,
+    "fictional": true
+  },
+  "files": {
+    "narrative": "narrative.json",
+    "deliveries": "deliveries.json",
+    "oracle": "oracle.json"
+  },
+  "limitations": [
+    "This allowlisted package is a fictional repository-only observation replay. Its values and timestamps are software fixture data, not engineering criteria or expected physical response.",
+    "Each canonical record is a source-reported indication within the pinned mapping, timing, quality, and provenance limits. It does not independently prove physical equipment, system, pressure-cascade, or facility state.",
+    "Dependency provenance may identify declared common origins or UNKNOWN origins. This replay makes no evidence-independence, corroboration-count, weighting, or evidence-sufficiency conclusion.",
+    "E180 is assertion-only action context. It does not prove authority, execution, causation, physical effect, restoration, or safety.",
+    "E230 and E240 are non-executed tranche-boundary markers. The replay creates no evaluation request, finding, outcome, recovery determination, or human disposition.",
+    "The package defines no physical or temporal criterion, alarm, requirement evaluation, conformance result, consequence, safety determination, commissioning acceptance, or operational authorization.",
+    "FacilityOps opens no external connection, issues no command, changes no controller configuration, and provides no external write-back path through this package."
+  ]
+}

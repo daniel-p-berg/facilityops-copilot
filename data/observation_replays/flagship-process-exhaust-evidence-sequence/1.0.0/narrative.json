@@ -1,0 +1,195 @@
+{
+  "events": [
+    {
+      "event_id": "E000-CONTEXT-DECLARED",
+      "order": 0,
+      "label": "Pinned replay context",
+      "kind": "CONTEXT",
+      "description": "Declares the fictional facility, topology, mapping package, canonicalizer, generator, and replay versions. It supplies no physical observation.",
+      "executed": true
+    },
+    {
+      "event_id": "E010-BASELINE-DEPENDENCY-INDICATIONS-RECEIVED",
+      "order": 10,
+      "label": "Initial dependency indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives treatment, makeup-air controller-status, separate makeup-air delivered-response, shared-damper, and shared-path source reports.",
+      "executed": true
+    },
+    {
+      "event_id": "E020-BASELINE-PERMISSIVE-INDICATION-RECEIVED",
+      "order": 20,
+      "label": "Initial permissive indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives an external controller-reported process-permissive indication.",
+      "executed": true
+    },
+    {
+      "event_id": "E025-PROCESS-ENABLED-INDICATION-RECEIVED",
+      "order": 25,
+      "label": "Process-enabled indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives a controller-reported process-enabled operating-context indication separately from the permissive. It does not prove process operation.",
+      "executed": true
+    },
+    {
+      "event_id": "E030-DUTY-REQUEST-INDICATION-RECEIVED",
+      "order": 30,
+      "label": "Duty request indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives the external controller's duty-fan request indication. FacilityOps does not issue the request.",
+      "executed": true
+    },
+    {
+      "event_id": "E040-DUTY-EXECUTION-INDICATION-RECEIVED",
+      "order": 40,
+      "label": "Duty controller-execution indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives a controller-reported execution assertion separately from its request indication.",
+      "executed": true
+    },
+    {
+      "event_id": "E050-DUTY-DEVICE-INDICATIONS-RECEIVED",
+      "order": 50,
+      "label": "Initial duty-device indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives duty availability, run, fault, VFD state, speed, and separately sourced motor-current reports without inferring fan operation.",
+      "executed": true
+    },
+    {
+      "event_id": "E060-BASELINE-PROCESS-INDICATIONS-RECEIVED",
+      "order": 60,
+      "label": "Initial process indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives delivered process-exhaust airflow, duct static, process-laboratory zone pressure, and both boundary differential-pressure reports.",
+      "executed": true
+    },
+    {
+      "event_id": "E100-DUTY-INDICATIONS-RECEIVED",
+      "order": 100,
+      "label": "New duty-device indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new duty fault, availability, run, VFD, speed, and motor-current reports. No duty-loss inference is part of this replay.",
+      "executed": true
+    },
+    {
+      "event_id": "E110-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+      "order": 110,
+      "label": "New airflow and path indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new shared airflow, duct-static, and damper reports without assigning a system-response conclusion.",
+      "executed": true
+    },
+    {
+      "event_id": "E120-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
+      "order": 120,
+      "label": "New process-permissive indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives a new controller-reported process-permissive indication without naming its consequence.",
+      "executed": true
+    },
+    {
+      "event_id": "E130-STANDBY-REQUEST-INDICATION-RECEIVED",
+      "order": 130,
+      "label": "Standby request indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives the external controller's standby-fan request indication. FacilityOps does not issue the request.",
+      "executed": true
+    },
+    {
+      "event_id": "E140-STANDBY-EXECUTION-INDICATION-RECEIVED",
+      "order": 140,
+      "label": "Standby controller-execution indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives a controller-reported standby execution assertion separately from its request indication.",
+      "executed": true
+    },
+    {
+      "event_id": "E150-STANDBY-DEVICE-INDICATIONS-RECEIVED",
+      "order": 150,
+      "label": "Standby-device indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives standby availability, run, fault, VFD state, speed, and separately sourced motor-current reports without inferring fan operation.",
+      "executed": true
+    },
+    {
+      "event_id": "E160-STANDBY-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+      "order": 160,
+      "label": "New shared airflow and path indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new shared airflow, duct-static, and damper reports. It does not determine a standby response.",
+      "executed": true
+    },
+    {
+      "event_id": "E170-PRESSURE-INDICATIONS-RECEIVED",
+      "order": 170,
+      "label": "New pressure indications received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new process-laboratory zone and boundary differential-pressure reports without evaluating pressure direction, adequacy, or containment.",
+      "executed": true
+    },
+    {
+      "event_id": "E180-HUMAN-ACTION-RECORDED",
+      "order": 180,
+      "label": "Asserted external human action recorded",
+      "kind": "ACTION_CONTEXT",
+      "description": "Records only a fictional assertion that a person acted outside FacilityOps. The record does not prove authority, execution, causation, physical effect, restoration, or safety.",
+      "asserted_context": {
+        "asserted_actor_id": "FICTIONAL-OPERATOR-01",
+        "asserted_role": "Facility operator",
+        "authority_verification": "NOT_ESTABLISHED",
+        "execution_evidence": "ASSERTION_ONLY",
+        "physical_effect_evidence": "NONE_FROM_ACTION_RECORD"
+      },
+      "executed": true
+    },
+    {
+      "event_id": "E190-POST-ACTION-DEPENDENCY-INDICATIONS-RECEIVED",
+      "order": 190,
+      "label": "New dependency indications received after action context",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new treatment-availability, makeup-air controller-status, and makeup-air delivered-response reports. Their timing relative to the action record does not establish causation.",
+      "executed": true
+    },
+    {
+      "event_id": "E200-POST-ACTION-FAN-INDICATIONS-RECEIVED",
+      "order": 200,
+      "label": "New fan indications received after action context",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new request, controller-execution, run, VFD, speed, electrical, fault, and availability reports without computing recovery.",
+      "executed": true
+    },
+    {
+      "event_id": "E210-POST-ACTION-PROCESS-INDICATIONS-RECEIVED",
+      "order": 210,
+      "label": "New process indications received after action context",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives new airflow, duct-static, zone-pressure, and both boundary reports through the pinned mapping transition without computing recovery.",
+      "executed": true
+    },
+    {
+      "event_id": "E220-RETURN-INDICATION-RECEIVED",
+      "order": 220,
+      "label": "Optional return indication received",
+      "kind": "OBSERVATION_GROUP",
+      "description": "Receives one new controller-reported process-permissive indication. FacilityOps records it only as a reported indication; this replay computes no physical recovery or authorization outcome.",
+      "executed": true
+    },
+    {
+      "event_id": "E230-RECOVERY-EVALUATION-REQUESTED",
+      "order": 230,
+      "label": "Future recovery-evaluation boundary",
+      "kind": "TRANCHE_BOUNDARY",
+      "description": "Non-executed marker reserved for a future evaluator input. This package creates no evaluation request.",
+      "executed": false
+    },
+    {
+      "event_id": "E240-RECOVERY-FINDING-COMPUTED",
+      "order": 240,
+      "label": "Future recovery-finding boundary",
+      "kind": "TRANCHE_BOUNDARY",
+      "description": "Non-executed marker reserved for a later milestone. This package computes no finding or expected outcome.",
+      "executed": false
+    }
+  ]
+}

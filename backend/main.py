@@ -7,6 +7,9 @@ from fastapi.responses import JSONResponse
 
 from backend.adapters.csv_replay_driver import CsvReplayDriver
 from backend.adapters.simulated_driver import SimulatedDriver
+from backend.domain.observation_semantics import ORDER_AFTER
+from backend.domain.observation_semantics import compare_rfc3339_instants
+from backend.domain.observation_semantics import require_valid_rfc3339_utc
 from backend.importers.modbus_importer import commit_modbus_import
 from backend.importers.modbus_importer import DEFAULT_MODBUS_IMPORT_CSV
 from backend.importers.modbus_importer import preview_modbus_import
@@ -42,6 +45,27 @@ from backend.services.csv_replay_runner import run_all_csv_replay_steps
 from backend.services.csv_replay_runner import run_csv_replay_step
 from backend.services.facility_topology_service import get_facility_topology
 from backend.services.operational_reset_service import reset_operational_state
+from backend.services.observation_package_service import get_replay_package_detail
+from backend.services.observation_package_service import list_replay_packages
+from backend.services.observation_replay_service import execute_replay_package
+from backend.services.observation_replay_service import get_canonical_lineage
+from backend.services.observation_replay_service import get_canonical_observation
+from backend.services.observation_replay_service import get_replay_execution
+from backend.services.observation_replay_service import (
+    get_reported_observation_projection,
+)
+from backend.services.observation_replay_service import (
+    get_reproducibility_manifest,
+)
+from backend.services.observation_replay_service import get_source_native_record
+from backend.services.observation_replay_service import (
+    list_canonical_observations,
+)
+from backend.services.observation_replay_service import list_redelivery_groups
+from backend.services.observation_replay_service import list_source_native_records
+from backend.services.observation_store import DEFAULT_OBSERVATION_DATABASE_FILE
+from backend.services.observation_store import IdempotencyConflictError
+from backend.services.observation_store import ImmutableIdentityConflictError
 from backend.services.point_ingest_service import ingest_driver_samples
 from backend.services.standards_basis_service import get_applicability_matrix
 from backend.services.standards_basis_service import get_applicability_profile
@@ -56,6 +80,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_FILE = PROJECT_ROOT / "frontend" / "index.html"
 REPLAY_SAMPLE_FILE = PROJECT_ROOT / "data" / "replay_samples.csv"
 MODBUS_IMPORT_SAMPLE_FILE = DEFAULT_MODBUS_IMPORT_CSV
+OBSERVATION_DATABASE_FILE = DEFAULT_OBSERVATION_DATABASE_FILE
 
 app = FastAPI(title="FacilityOps Copilot API")
 
@@ -139,6 +164,398 @@ def read_standards_basis_evidence_categories():
 @app.get("/standards-basis/traceability")
 def read_standards_basis_traceability():
     return get_standards_traceability()
+
+
+def observation_api_error_response(error):
+    if isinstance(
+        error,
+        (IdempotencyConflictError, ImmutableIdentityConflictError),
+    ):
+        status_code = 409
+    elif isinstance(error, LookupError):
+        status_code = 404
+    else:
+        status_code = 400
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": str(error)},
+    )
+
+
+def require_replay_execution(facility_id: str, replay_execution_id: str):
+    return get_replay_execution(
+        OBSERVATION_DATABASE_FILE,
+        facility_id,
+        replay_execution_id,
+    )
+
+
+@app.get("/facilities/{facility_id}/observation-replay/packages")
+def read_observation_replay_packages(facility_id: str):
+    try:
+        result = list_replay_packages(facility_id)
+        if not result["replay_packages"]:
+            raise LookupError(
+                "No allowlisted observation replay packages were found for "
+                "the selected facility"
+            )
+        return result
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/packages/"
+    "{package_id}/versions/{package_version}"
+)
+def read_observation_replay_package(
+    facility_id: str,
+    package_id: str,
+    package_version: str,
+):
+    try:
+        return get_replay_package_detail(
+            facility_id,
+            package_id,
+            package_version,
+        )
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.post("/facilities/{facility_id}/observation-replay/executions")
+def create_observation_replay_execution(
+    facility_id: str,
+    payload: dict | None = Body(default=None),
+):
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Observation replay request body must be an object"},
+        )
+
+    allowed_fields = {
+        "package_id",
+        "package_version",
+        "idempotency_key",
+        "replay_execution_id",
+    }
+    unknown_fields = sorted(set(payload) - allowed_fields)
+    if unknown_fields:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    "Observation replay request contains unsupported fields: "
+                    + ", ".join(unknown_fields)
+                )
+            },
+        )
+    missing_fields = [
+        field_name
+        for field_name in (
+            "package_id",
+            "package_version",
+            "idempotency_key",
+        )
+        if field_name not in payload
+    ]
+    if missing_fields:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    "Observation replay request is missing required fields: "
+                    + ", ".join(missing_fields)
+                )
+            },
+        )
+
+    try:
+        return execute_replay_package(
+            OBSERVATION_DATABASE_FILE,
+            facility_id=facility_id,
+            package_id=payload["package_id"],
+            package_version=payload["package_version"],
+            idempotency_key=payload["idempotency_key"],
+            replay_execution_id=payload.get("replay_execution_id"),
+        )
+    except (
+        LookupError,
+        ValueError,
+        IdempotencyConflictError,
+        ImmutableIdentityConflictError,
+    ) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}"
+)
+def read_observation_replay_execution(
+    facility_id: str,
+    replay_execution_id: str,
+):
+    try:
+        return {
+            "replay_execution": require_replay_execution(
+                facility_id,
+                replay_execution_id,
+            )
+        }
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/manifest"
+)
+def read_observation_replay_manifest(
+    facility_id: str,
+    replay_execution_id: str,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        return {
+            "reproducibility_manifest": get_reproducibility_manifest(
+                OBSERVATION_DATABASE_FILE,
+                facility_id,
+                replay_execution_id,
+            )
+        }
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/source-native-records"
+)
+def read_source_native_records(
+    facility_id: str,
+    replay_execution_id: str,
+    page: int = 1,
+    page_size: int = 50,
+    source_binding_id: str | None = None,
+    source_event_group_key: str | None = None,
+    observed_at_status: str | None = None,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        return list_source_native_records(
+            OBSERVATION_DATABASE_FILE,
+            facility_id,
+            replay_execution_id,
+            page=page,
+            page_size=page_size,
+            source_binding_id=source_binding_id,
+            source_event_group_key=source_event_group_key,
+            observed_at_status=observed_at_status,
+        )
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/source-native-records/{source_native_record_id}"
+)
+def read_source_native_record(
+    facility_id: str,
+    replay_execution_id: str,
+    source_native_record_id: str,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        record = get_source_native_record(
+            OBSERVATION_DATABASE_FILE,
+            facility_id,
+            source_native_record_id,
+        )
+        if record["replay_execution_id"] != replay_execution_id:
+            raise LookupError(
+                "Source-native record not found for the selected replay execution"
+            )
+        return {"source_native_record": record}
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/canonical-observations"
+)
+def read_canonical_observations(
+    facility_id: str,
+    replay_execution_id: str,
+    page: int = 1,
+    page_size: int = 50,
+    source_binding_id: str | None = None,
+    point_id: str | None = None,
+    mapping_id: str | None = None,
+    observed_from: str | None = None,
+    observed_to: str | None = None,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        normalized_observed_from = (
+            require_valid_rfc3339_utc(
+                observed_from,
+                field_name="observed_from",
+            )
+            if observed_from is not None
+            else None
+        )
+        normalized_observed_to = (
+            require_valid_rfc3339_utc(
+                observed_to,
+                field_name="observed_to",
+            )
+            if observed_to is not None
+            else None
+        )
+        if (
+            normalized_observed_from is not None
+            and normalized_observed_to is not None
+            and compare_rfc3339_instants(
+                normalized_observed_from,
+                normalized_observed_to,
+            )
+            == ORDER_AFTER
+        ):
+            raise ValueError(
+                "observed_from must not be after observed_to"
+            )
+        return list_canonical_observations(
+            OBSERVATION_DATABASE_FILE,
+            facility_id,
+            replay_execution_id,
+            page=page,
+            page_size=page_size,
+            source_binding_id=source_binding_id,
+            point_id=point_id,
+            mapping_id=mapping_id,
+            observed_from=normalized_observed_from,
+            observed_to=normalized_observed_to,
+        )
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/canonical-observations/"
+    "{canonical_observation_id}"
+)
+def read_canonical_observation(
+    facility_id: str,
+    replay_execution_id: str,
+    canonical_observation_id: str,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        observation = get_canonical_observation(
+            OBSERVATION_DATABASE_FILE,
+            facility_id,
+            canonical_observation_id,
+        )
+        if observation["replay_execution_id"] != replay_execution_id:
+            raise LookupError(
+                "Canonical observation not found for the selected replay "
+                "execution"
+            )
+        return {"canonical_observation": observation}
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/canonical-observations/"
+    "{canonical_observation_id}/lineage"
+)
+def read_canonical_observation_lineage(
+    facility_id: str,
+    replay_execution_id: str,
+    canonical_observation_id: str,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        result = get_canonical_lineage(
+            OBSERVATION_DATABASE_FILE,
+            facility_id,
+            canonical_observation_id,
+        )
+        if (
+            result["canonical_observation"]["replay_execution_id"]
+            != replay_execution_id
+        ):
+            raise LookupError(
+                "Canonical lineage not found for the selected replay execution"
+            )
+        return result
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/redelivery-groups"
+)
+def read_observation_redelivery_groups(
+    facility_id: str,
+    replay_execution_id: str,
+    page: int = 1,
+    page_size: int = 50,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        return list_redelivery_groups(
+            OBSERVATION_DATABASE_FILE,
+            facility_id,
+            replay_execution_id,
+            page=page,
+            page_size=page_size,
+        )
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
+
+
+@app.get(
+    "/facilities/{facility_id}/observation-replay/executions/"
+    "{replay_execution_id}/reported-observation-projection"
+)
+def read_reported_observation_projection(
+    facility_id: str,
+    replay_execution_id: str,
+    source_binding_id: str,
+    point_id: str,
+    mapping_id: str,
+    mapping_version: str,
+    mapping_digest: str,
+    as_of_observed_at: str,
+    known_by_received_at: str,
+):
+    try:
+        require_replay_execution(facility_id, replay_execution_id)
+        return get_reported_observation_projection(
+            OBSERVATION_DATABASE_FILE,
+            facility_id=facility_id,
+            replay_execution_id=replay_execution_id,
+            source_binding_id=source_binding_id,
+            point_id=point_id,
+            mapping_id=mapping_id,
+            mapping_version=mapping_version,
+            mapping_digest=mapping_digest,
+            as_of_observed_at=as_of_observed_at,
+            known_by_received_at=known_by_received_at,
+        )
+    except (LookupError, ValueError) as error:
+        return observation_api_error_response(error)
 
 
 @app.get("/operations/overview")

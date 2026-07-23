@@ -11,6 +11,20 @@ This packet consolidates decisions needed before Milestones 4 and 5. It is a rev
 
 Any future topology change requires a separate proposed ADR and explicit acceptance. Candidate point identifiers, semantics, scenario events, and parameter topics below remain inactive until the appropriate decision and review are complete. FacilityOps remains read-only toward external systems.
 
+## Historical and supersession notice
+
+> **Historical status as of 2026-07-23:** This packet is retained as the review record that preceded [ADR 0005](../decisions/0005-source-native-and-canonical-observation-semantics.md) and [ADR 0006](../decisions/0006-synthetic-flagship-replay-and-topology-evolution.md). Where this packet conflicts with either accepted ADR, the accepted ADR governs. The original metadata above and the recommendations below remain visible as history; they do not describe implementation by themselves.
+
+The following architectural recommendations are superseded:
+
+- ADR 0005 supersedes the proposed source-native and canonical boundaries; temporal semantics; identity, duplicate, conflict, and ordering handling; mapping and synthetic-provenance architecture; and current reported-observation projection rules. Only the boundaries stated in ADR 0005 are accepted.
+- ADR 0006 supersedes the proposed missing point-definition and topology authorization work with the exact additive topology `1.1.0` inventory, owners, and typed bindings stated in that ADR. Historical topology `1.0.0` remains preserved.
+- ADR 0006 supersedes the observation-package and replay-structure portions of the proposed golden sequence. It accepts the 23-entry narrative only as an observation replay: `E230` and `E240` are non-executed tranche-boundary markers, and the replay has no expected failure, changeover, containment, conformance, consequence, safety, authorization, or recovery outcome.
+
+The proposed evidence-independence rules below are not accepted evaluation rules. ADRs 0005 and 0006 permit dependency-provenance metadata but do not conclude independence, count corroboration, assign weight, or evaluate sufficiency. All numerical parameters, physical criteria, staleness or persistence thresholds, point conditions, equipment/system/facility inference, evidence-independence and evidence-sufficiency evaluations, findings, recovery evaluation and recovery rules, and human review or disposition remain **PROPOSED—INACTIVE**.
+
+The final “Items requiring the next project-owner approval” list is also retained as historical context. ADR 0005 later resolved items 1 and 2 and the mapping/provenance architecture portion of item 3. ADR 0006 later resolved item 5 and the observation-replay portion of item 6. The proposed pressure sign convention, evidence-independence rules, inference or expected outcomes, companion evaluation branches, every item 7 criterion, and separate implementation authorization remain unresolved unless another accepted decision states otherwise.
+
 ## Accepted boundaries carried forward
 
 This packet is subordinate to [ADR 0001](../decisions/0001-minimum-flagship-topology.md), [ADR 0002](../decisions/0002-facility-fixture-identity-and-topology-persistence.md), [ADR 0003](../decisions/0003-epistemic-and-human-authority-boundaries.md), and [ADR 0004](../decisions/0004-flagship-fictional-applicability-profile.md).
