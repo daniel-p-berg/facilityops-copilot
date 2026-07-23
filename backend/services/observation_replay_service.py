@@ -1222,10 +1222,8 @@ def _annotation_rows(
     replay_execution_id: str,
 ) -> list[dict[str, Any]]:
     kind_mapping = {
-        "CONTEXT": "CONTEXT",
         "ACTION_CONTEXT": "ASSERTED_ACTION",
         "ASSERTED_ACTION": "ASSERTED_ACTION",
-        "TRANCHE_BOUNDARY": "TRANCHE_BOUNDARY",
     }
     rows = []
     for event in narrative["events"]:
@@ -1527,11 +1525,6 @@ def _validate_structural_oracle_counts(
         "narrative_events": len(narrative_events),
         "executed_narrative_events": sum(
             event["executed"] for event in narrative_events
-        ),
-        "non_executed_tranche_boundaries": sum(
-            not event["executed"]
-            and event.get("kind") == "TRANCHE_BOUNDARY"
-            for event in narrative_events
         ),
         "executed_observation_groups": sum(
             event["executed"]

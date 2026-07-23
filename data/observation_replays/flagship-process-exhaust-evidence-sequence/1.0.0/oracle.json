@@ -2,9 +2,8 @@
   "oracle_type": "STRUCTURAL_OBSERVATION_ONLY",
   "description": "Human-readable structural expectations for deterministic package validation and replay. These expectations describe records, identity, decoding, ordering facts, and reported-observation projection dispositions only.",
   "expected_counts": {
-    "narrative_events": 23,
-    "executed_narrative_events": 21,
-    "non_executed_tranche_boundaries": 2,
+    "narrative_events": 20,
+    "executed_narrative_events": 20,
     "executed_observation_groups": 19,
     "deliveries": 41,
     "source_native_records": 41,

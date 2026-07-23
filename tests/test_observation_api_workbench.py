@@ -15,6 +15,81 @@ FLAGSHIP_FACILITY_ID = "FACILITY-ADVANCED-MATERIALS-RESEARCH"
 REPLAY_PACKAGE_ID = "flagship-process-exhaust-evidence-sequence"
 REPLAY_PACKAGE_VERSION = "1.0.0"
 REPLAY_EXECUTION_ID = "REPLAY-EXECUTION-API-TEST"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+REPLAY_PACKAGE_ROOT = (
+    REPOSITORY_ROOT
+    / "data"
+    / "observation_replays"
+    / REPLAY_PACKAGE_ID
+    / REPLAY_PACKAGE_VERSION
+)
+PROPOSED_INACTIVE_PACKET = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "decision-packets"
+    / "0001-flagship-observation-and-scenario.md"
+)
+IMPLEMENTED_REPLAY_DOCUMENTS = (
+    REPOSITORY_ROOT / "README.md",
+    REPOSITORY_ROOT / "data" / "README.md",
+    REPOSITORY_ROOT / "docs" / "README.md",
+    REPOSITORY_ROOT / "docs" / "ARCHITECTURE.md",
+    REPOSITORY_ROOT / "docs" / "FLAGSHIP_FACILITY.md",
+    REPOSITORY_ROOT / "docs" / "PROJECT_STATUS.md",
+    REPOSITORY_ROOT / "docs" / "ROADMAP.md",
+    REPOSITORY_ROOT / "docs" / "decisions" / "README.md",
+    REPOSITORY_ROOT
+    / "docs"
+    / "decisions"
+    / "0005-source-native-and-canonical-observation-semantics.md",
+    REPOSITORY_ROOT
+    / "docs"
+    / "decisions"
+    / "0006-synthetic-flagship-replay-and-topology-evolution.md",
+)
+REMOVED_REPLAY_TERMS = (
+    "E230-RECOVERY-EVALUATION-REQUESTED",
+    "E240-RECOVERY-FINDING-COMPUTED",
+    "E220-RETURN-INDICATION-RECEIVED",
+    "E160-STANDBY-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+    "TRANCHE_BOUNDARY",
+)
+PROHIBITED_REPLAY_OUTCOME_CLAIMS = (
+    "actual equipment state",
+    "fan failed",
+    "fan operating",
+    "standby succeeded",
+    "successful changeover",
+    "airflow sufficient",
+    "containment maintained",
+    "containment lost",
+    "pressure cascade adequate",
+    "cascade restored",
+    "facility safe",
+    "recovery verified",
+    "recovery evaluation requested",
+    "recovery finding computed",
+    "authorized action",
+    "code compliant",
+    "commissioning accepted",
+)
+
+
+def assert_observation_only_replay_surface(test_case, value, *, label):
+    serialized = (
+        value
+        if isinstance(value, str)
+        else json.dumps(value, sort_keys=True)
+    )
+    for term in REMOVED_REPLAY_TERMS:
+        test_case.assertNotIn(term, serialized, f"{label} contains {term}")
+    normalized = serialized.lower()
+    for claim in PROHIBITED_REPLAY_OUTCOME_CLAIMS:
+        test_case.assertNotIn(
+            claim,
+            normalized,
+            f"{label} contains outcome claim {claim!r}",
+        )
 
 
 def request_json_from_asgi_app(app, path, *, method="GET", payload=None):
@@ -500,6 +575,73 @@ class ObservationReplayApiTests(unittest.TestCase):
         self.assertEqual(catalog_status, 200)
         replay_package = catalog["replay_packages"][0]
 
+        package_detail_status, package_detail = request_json_from_asgi_app(
+            backend_main.app,
+            f"{self.api_base}/packages/{replay_package['package_id']}/"
+            f"versions/{replay_package['package_version']}",
+        )
+        self.assertEqual(package_detail_status, 200)
+        package_manifest = json.loads(
+            (REPLAY_PACKAGE_ROOT / "manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        package_narrative = json.loads(
+            (REPLAY_PACKAGE_ROOT / "narrative.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        package_oracle = json.loads(
+            (REPLAY_PACKAGE_ROOT / "oracle.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(package_detail["narrative"], package_narrative)
+        self.assertEqual(package_detail["oracle"], package_oracle)
+        self.assertEqual(
+            package_detail["limitations"],
+            package_manifest["limitations"],
+        )
+        assert_observation_only_replay_surface(
+            self,
+            package_manifest,
+            label="replay package manifest",
+        )
+        assert_observation_only_replay_surface(
+            self,
+            package_narrative,
+            label="replay narrative",
+        )
+        assert_observation_only_replay_surface(
+            self,
+            package_oracle,
+            label="replay structural oracle",
+        )
+        assert_observation_only_replay_surface(
+            self,
+            package_detail,
+            label="replay package-detail API output",
+        )
+        narrative_event_ids = {
+            event["event_id"]
+            for event in package_detail["narrative"]["events"]
+        }
+        self.assertIn(
+            "E160-SHARED-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+            narrative_event_ids,
+        )
+        self.assertIn(
+            "E220-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
+            narrative_event_ids,
+        )
+        self.assertEqual(
+            {
+                event["kind"]
+                for event in package_detail["narrative"]["events"]
+            },
+            {"OBSERVATION_GROUP", "ACTION_CONTEXT"},
+        )
+
         create_status, created = request_json_from_asgi_app(
             backend_main.app,
             f"{self.api_base}/executions",
@@ -557,8 +699,22 @@ class ObservationReplayApiTests(unittest.TestCase):
             manifest["reproducibility_manifest"]["replay_execution_id"],
             REPLAY_EXECUTION_ID,
         )
+        assert_observation_only_replay_surface(
+            self,
+            created,
+            label="replay-execution API output",
+        )
+        assert_observation_only_replay_surface(
+            self,
+            manifest,
+            label="reproducibility-manifest API output",
+        )
 
-        native_record = native_page["source_native_records"][0]
+        native_record = next(
+            record
+            for record in native_page["source_native_records"]
+            if record["delivery_id"] == "DELIVERY-E010-TREATMENT-001"
+        )
         native_detail_status, native_detail = request_json_from_asgi_app(
             backend_main.app,
             f"{run_path}/source-native-records/"
@@ -569,6 +725,57 @@ class ObservationReplayApiTests(unittest.TestCase):
             native_detail["source_native_record"]["source_event_id"],
             native_record["source_event_id"],
         )
+        source_native = native_detail["source_native_record"]
+        self.assertEqual(
+            source_native["payload"],
+            {
+                "availability_reported": True,
+                "permissive_reported": True,
+            },
+        )
+        self.assertEqual(
+            source_native["payload_digest"],
+            "351e8a4cbf1a76aa15098c80806fbfd9b1730b1feb19f8757514b98957081a93",
+        )
+        self.assertEqual(
+            source_native["source_quality"],
+            {
+                "raw_code": "OK",
+                "raw_meaning": "SOURCE_REPORTED_UNINTERPRETED",
+            },
+        )
+        self.assertEqual(
+            source_native["transport_provenance"],
+            {
+                "kind": "REPOSITORY_JSON",
+                "external_connection": False,
+            },
+        )
+        self.assertEqual(
+            source_native["synthetic_provenance"],
+            {
+                "generator_id": (
+                    "facilityops-synthetic-observation-generator"
+                ),
+                "generator_version": "1.0.0",
+                "fictional": True,
+                "synthetic": True,
+                "replay_package_id": REPLAY_PACKAGE_ID,
+                "replay_package_version": REPLAY_PACKAGE_VERSION,
+                "replay_package_digest": replay_package["content_digest"],
+            },
+        )
+        self.assertEqual(source_native["ingestion_ordinal"], 1)
+        self.assertEqual(
+            source_native["original_observed_at_text"],
+            "2026-07-23T17:01:00.000+07:00",
+        )
+        self.assertEqual(source_native["original_timezone_offset"], "+07:00")
+        self.assertEqual(
+            source_native["timestamp_precision"],
+            "FRACTIONAL_SECOND",
+        )
+        self.assertEqual(source_native["fractional_second_digits"], 3)
 
         canonical = canonical_page["canonical_observations"][0]
         lineage_status, lineage = request_json_from_asgi_app(
@@ -661,24 +868,38 @@ class ObservationReplayWorkbenchTests(unittest.TestCase):
         self.assertIn("loadCanonicalLineage", html)
         self.assertIn("loadSourceNativeRecordDetail", html)
 
-        prohibited_claims = (
-            "actual equipment state",
-            "fan failed",
-            "fan operating",
-            "successful changeover",
-            "airflow sufficient",
-            "containment maintained",
-            "containment lost",
-            "pressure cascade adequate",
-            "facility safe",
-            "recovery verified",
-            "authorized action",
-            "code compliant",
-            "commissioning accepted",
+        assert_observation_only_replay_surface(
+            self,
+            html,
+            label="observation replay workbench",
         )
-        normalized_html = html.lower()
-        for claim in prohibited_claims:
-            self.assertNotIn(claim, normalized_html)
+
+    def test_replay_terminology_is_bounded_in_implemented_documentation(self):
+        for document_path in IMPLEMENTED_REPLAY_DOCUMENTS:
+            assert_observation_only_replay_surface(
+                self,
+                document_path.read_text(encoding="utf-8"),
+                label=str(document_path.relative_to(REPOSITORY_ROOT)),
+            )
+
+        proposed_packet = PROPOSED_INACTIVE_PACKET.read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Status: **PROPOSED—INACTIVE**", proposed_packet)
+        self.assertIn(
+            "Normal application loading: **Excluded**",
+            proposed_packet,
+        )
+        self.assertIn(
+            "E230-RECOVERY-EVALUATION-REQUESTED",
+            proposed_packet,
+        )
+        self.assertIn(
+            "E240-RECOVERY-FINDING-COMPUTED",
+            proposed_packet,
+        )
+        for old_event_id in REMOVED_REPLAY_TERMS[2:4]:
+            self.assertNotIn(old_event_id, proposed_packet)
 
     def test_standards_default_remains_separate_from_selected_replay(self):
         html = (

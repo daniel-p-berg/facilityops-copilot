@@ -1,14 +1,6 @@
 {
   "events": [
     {
-      "event_id": "E000-CONTEXT-DECLARED",
-      "order": 0,
-      "label": "Pinned replay context",
-      "kind": "CONTEXT",
-      "description": "Declares the fictional facility, topology, mapping package, canonicalizer, generator, and replay versions. It supplies no physical observation.",
-      "executed": true
-    },
-    {
       "event_id": "E010-BASELINE-DEPENDENCY-INDICATIONS-RECEIVED",
       "order": 10,
       "label": "Initial dependency indications received",
@@ -113,7 +105,7 @@
       "executed": true
     },
     {
-      "event_id": "E160-STANDBY-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+      "event_id": "E160-SHARED-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
       "order": 160,
       "label": "New shared airflow and path indications received",
       "kind": "OBSERVATION_GROUP",
@@ -168,28 +160,12 @@
       "executed": true
     },
     {
-      "event_id": "E220-RETURN-INDICATION-RECEIVED",
+      "event_id": "E220-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
       "order": 220,
-      "label": "Optional return indication received",
+      "label": "New process-permissive indication received",
       "kind": "OBSERVATION_GROUP",
       "description": "Receives one new controller-reported process-permissive indication. FacilityOps records it only as a reported indication; this replay computes no physical recovery or authorization outcome.",
       "executed": true
-    },
-    {
-      "event_id": "E230-RECOVERY-EVALUATION-REQUESTED",
-      "order": 230,
-      "label": "Future recovery-evaluation boundary",
-      "kind": "TRANCHE_BOUNDARY",
-      "description": "Non-executed marker reserved for a future evaluator input. This package creates no evaluation request.",
-      "executed": false
-    },
-    {
-      "event_id": "E240-RECOVERY-FINDING-COMPUTED",
-      "order": 240,
-      "label": "Future recovery-finding boundary",
-      "kind": "TRANCHE_BOUNDARY",
-      "description": "Non-executed marker reserved for a later milestone. This package computes no finding or expected outcome.",
-      "executed": false
     }
   ]
 }

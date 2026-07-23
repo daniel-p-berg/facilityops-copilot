@@ -61,6 +61,7 @@ REGISTERED_REPLAY_PACKAGES = {
 }
 
 MAX_PACKAGE_FILE_BYTES = 1_000_000
+MAX_REPOSITORY_PACKAGE_BYTES = 4_000_000
 MAX_DELIVERIES = 500
 MAX_SOURCE_PAYLOAD_BYTES = 65_536
 MAX_TEXT_LENGTH = 16_384
@@ -96,6 +97,58 @@ _PROHIBITED_PACKAGE_KEYS = {
     "code_compliant",
     "commissioning_accepted",
 }
+_REQUIRED_DEPENDENCY_PROVENANCE_FIELDS = {
+    "controller_logic_origin",
+    "source_device_origin",
+    "gateway_origin",
+    "measurement_chain_origin",
+    "power_origin",
+    "timestamp_origin",
+    "derivation_origin",
+}
+_RECEIVED_INDICATION_EVENT_PATTERN = re.compile(
+    r"^E\d{3}-[A-Z0-9-]+-INDICATIONS?-RECEIVED$"
+)
+_APPROVED_REPLAY_OBSERVATION_EVENT_IDS = {
+    "E010-BASELINE-DEPENDENCY-INDICATIONS-RECEIVED",
+    "E020-BASELINE-PERMISSIVE-INDICATION-RECEIVED",
+    "E025-PROCESS-ENABLED-INDICATION-RECEIVED",
+    "E030-DUTY-REQUEST-INDICATION-RECEIVED",
+    "E040-DUTY-EXECUTION-INDICATION-RECEIVED",
+    "E050-DUTY-DEVICE-INDICATIONS-RECEIVED",
+    "E060-BASELINE-PROCESS-INDICATIONS-RECEIVED",
+    "E100-DUTY-INDICATIONS-RECEIVED",
+    "E110-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+    "E120-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
+    "E130-STANDBY-REQUEST-INDICATION-RECEIVED",
+    "E140-STANDBY-EXECUTION-INDICATION-RECEIVED",
+    "E150-STANDBY-DEVICE-INDICATIONS-RECEIVED",
+    "E160-SHARED-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+    "E170-PRESSURE-INDICATIONS-RECEIVED",
+    "E190-POST-ACTION-DEPENDENCY-INDICATIONS-RECEIVED",
+    "E200-POST-ACTION-FAN-INDICATIONS-RECEIVED",
+    "E210-POST-ACTION-PROCESS-INDICATIONS-RECEIVED",
+    "E220-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
+}
+_PROHIBITED_OUTCOME_PHRASES = (
+    "fan failed",
+    "fan failure",
+    "fan operating",
+    "standby succeeded",
+    "successful changeover",
+    "airflow sufficient",
+    "containment maintained",
+    "containment lost",
+    "pressure cascade adequate",
+    "cascade restored",
+    "facility safe",
+    "recovery verified",
+    "recovery evaluation requested",
+    "recovery finding computed",
+    "authorized action",
+    "code compliant",
+    "commissioning accepted",
+)
 
 
 class ObservationPackageValidationError(ValueError):
@@ -157,7 +210,7 @@ def get_replay_package_detail(
     package_id: str,
     package_version: str,
 ) -> dict[str, Any]:
-    """Return a reviewer-facing detail view of a validated package."""
+    """Return a reviewer-facing detail view of a structurally validated package."""
 
     loaded = load_replay_package(facility_id, package_id, package_version)
     mapping_package = loaded["mapping_package"]
@@ -178,7 +231,7 @@ def load_replay_package(
     package_id: str,
     package_version: str,
 ) -> dict[str, Any]:
-    """Load and fully validate one exact allowlisted repository package."""
+    """Load and structurally validate one exact allowlisted repository package."""
 
     manifest_path = REGISTERED_REPLAY_PACKAGES.get(
         (facility_id, package_id, package_version)
@@ -247,7 +300,11 @@ def load_replay_package(
         events=events,
         mapping_package=mapping_package,
     )
-    _validate_oracle(oracle)
+    _validate_oracle(
+        oracle,
+        deliveries=deliveries,
+        mapping_package=mapping_package,
+    )
 
     return {
         "manifest_path": manifest_path,
@@ -270,7 +327,7 @@ def load_mapping_package(
     package_id: str,
     package_version: str,
 ) -> dict[str, Any]:
-    """Load and fully validate one exact registered mapping package."""
+    """Load and structurally validate one exact registered mapping package."""
 
     manifest_path = REGISTERED_MAPPING_PACKAGES.get((package_id, package_version))
     if manifest_path is None:
@@ -326,6 +383,15 @@ def _read_package(
     expected_files: dict[str, str],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     resolved_manifest = manifest_path.resolve()
+    package_size = _bounded_file_size(
+        resolved_manifest,
+        label="package manifest",
+    )
+    if package_size > MAX_REPOSITORY_PACKAGE_BYTES:
+        raise ObservationPackageValidationError(
+            "Repository package exceeds the "
+            f"{MAX_REPOSITORY_PACKAGE_BYTES}-byte limit"
+        )
     manifest = _read_bounded_json(resolved_manifest, label="package manifest")
     manifest = _require_object(manifest, "package manifest")
     declarations = _require_object(
@@ -353,11 +419,20 @@ def _read_package(
             raise ObservationPackageValidationError(
                 f"Package file role {role!r} escapes its registered directory"
             )
+        package_size += _bounded_file_size(
+            file_path,
+            label=f"{role} file",
+        )
+        if package_size > MAX_REPOSITORY_PACKAGE_BYTES:
+            raise ObservationPackageValidationError(
+                "Repository package exceeds the "
+                f"{MAX_REPOSITORY_PACKAGE_BYTES}-byte limit"
+            )
         files[role] = _read_bounded_json(file_path, label=f"{role} file")
     return manifest, files
 
 
-def _read_bounded_json(path: Path, *, label: str) -> Any:
+def _bounded_file_size(path: Path, *, label: str) -> int:
     try:
         size = path.stat().st_size
     except FileNotFoundError as exc:
@@ -368,6 +443,11 @@ def _read_bounded_json(path: Path, *, label: str) -> Any:
         raise ObservationPackageValidationError(
             f"{label.capitalize()} exceeds the {MAX_PACKAGE_FILE_BYTES}-byte limit"
         )
+    return size
+
+
+def _read_bounded_json(path: Path, *, label: str) -> Any:
+    _bounded_file_size(path, label=label)
     try:
         with path.open("r", encoding="utf-8") as file:
             return json.load(file)
@@ -502,10 +582,19 @@ def _validate_source_bindings(value: dict[str, Any]) -> list[dict[str, Any]]:
             binding.get("dependency_provenance"),
             f"source_bindings[{index}].dependency_provenance",
         )
-        if not dependency:
+        missing_dependency_fields = sorted(
+            _REQUIRED_DEPENDENCY_PROVENANCE_FIELDS - set(dependency)
+        )
+        if missing_dependency_fields:
             raise ObservationPackageValidationError(
-                "Every source binding must preserve dependency provenance or "
-                "explicit UNKNOWN values"
+                f"Source binding {binding_id} must preserve every dependency "
+                "origin or an explicit UNKNOWN value; missing: "
+                + ", ".join(missing_dependency_fields)
+            )
+        for field_name in sorted(_REQUIRED_DEPENDENCY_PROVENANCE_FIELDS):
+            _require_text(
+                dependency[field_name],
+                f"source binding {binding_id} dependency {field_name}",
             )
         binding_version = _require_semver(
             binding.get("source_binding_version"),
@@ -921,19 +1010,33 @@ def _validate_narrative(value: dict[str, Any]) -> dict[str, dict[str, Any]]:
             event.get("description"),
             f"narrative event {event_id} description",
         )
-        if not isinstance(event.get("executed"), bool):
+        if event.get("executed") is not True:
             raise ObservationPackageValidationError(
-                f"Narrative event {event_id} executed must be Boolean"
+                f"Narrative event {event_id} must be an implemented replay entry"
             )
-        if event_id.startswith(("E230-", "E240-")) and (
-            event.get("executed") is not False
-            or event.get("kind") != "TRANCHE_BOUNDARY"
-        ):
+        kind = event.get("kind")
+        if kind == "ACTION_CONTEXT":
+            valid_identity = event_id == "E180-HUMAN-ACTION-RECORDED"
+        elif kind == "OBSERVATION_GROUP":
+            valid_identity = (
+                _RECEIVED_INDICATION_EVENT_PATTERN.fullmatch(event_id)
+                is not None
+                and event_id in _APPROVED_REPLAY_OBSERVATION_EVENT_IDS
+            )
+        else:
+            valid_identity = False
+        if not valid_identity:
             raise ObservationPackageValidationError(
-                f"{event_id} must remain a non-executed tranche boundary"
+                f"Narrative event {event_id} must be the approved "
+                "recorded-action annotation or a received-indication "
+                "observation group"
             )
         events[event_id] = event
         orders.add(order)
+    _reject_prohibited_outcome_phrases(
+        value,
+        label="Replay narrative",
+    )
     return events
 
 
@@ -1083,25 +1186,250 @@ def _validate_source_event(value: dict[str, Any], *, delivery_id: str) -> None:
             )
 
 
-def _validate_oracle(value: dict[str, Any]) -> None:
+def _validate_oracle(
+    value: dict[str, Any],
+    *,
+    deliveries: list[dict[str, Any]],
+    mapping_package: dict[str, Any],
+) -> None:
     if not value:
         raise ObservationPackageValidationError(
             "Replay oracle must describe expected structural behavior"
         )
     _reject_prohibited_keys(value, path="oracle")
-    serialized = canonical_json_text(value).lower()
-    prohibited_phrases = (
-        "fan failed",
-        "standby succeeded",
-        "containment lost",
-        "cascade restored",
-        "recovery verified",
-        "code compliant",
-        "facility safe",
-    )
-    if any(phrase in serialized for phrase in prohibited_phrases):
+    _reject_prohibited_outcome_phrases(value, label="Replay oracle")
+
+    delivery_by_id = {
+        delivery["delivery_id"]: delivery for delivery in deliveries
+    }
+    source_binding_ids = {
+        binding["source_binding_id"]
+        for binding in mapping_package["source_bindings"]
+    }
+    mapping_by_identity = {
+        (mapping["mapping_id"], mapping["mapping_version"]): mapping
+        for mapping in mapping_package["mappings"]
+    }
+    point_ids = _topology_point_ids()
+
+    for index, raw_group in enumerate(value.get("identity_groups", [])):
+        group = _require_object(
+            raw_group,
+            f"oracle identity_groups[{index}]",
+        )
+        delivery_ids = _require_resolved_oracle_delivery_ids(
+            group.get("delivery_ids"),
+            label=f"oracle identity_groups[{index}].delivery_ids",
+            delivery_by_id=delivery_by_id,
+        )
+        binding_id = _require_text(
+            group.get("source_binding_id"),
+            f"oracle identity_groups[{index}].source_binding_id",
+        )
+        if binding_id not in source_binding_ids:
+            raise ObservationPackageValidationError(
+                f"Oracle identity group references unknown source binding "
+                f"{binding_id!r}"
+            )
+        if any(
+            delivery_by_id[delivery_id]["source_binding_id"] != binding_id
+            for delivery_id in delivery_ids
+        ):
+            raise ObservationPackageValidationError(
+                "Oracle identity group source binding does not match its "
+                "deliveries"
+            )
+        declared_event_id = group.get("source_event_id")
+        if declared_event_id is not None:
+            declared_event_id = _require_text(
+                declared_event_id,
+                f"oracle identity_groups[{index}].source_event_id",
+            )
+            if any(
+                delivery_by_id[delivery_id]["source_event"].get("event_id")
+                != declared_event_id
+                for delivery_id in delivery_ids
+            ):
+                raise ObservationPackageValidationError(
+                    "Oracle identity group source event does not match its "
+                    "deliveries"
+                )
+        declared_event_ids = group.get("source_event_ids")
+        if declared_event_ids is not None:
+            if (
+                not isinstance(declared_event_ids, list)
+                or not declared_event_ids
+                or any(
+                    not isinstance(event_id, str) or not event_id
+                    for event_id in declared_event_ids
+                )
+            ):
+                raise ObservationPackageValidationError(
+                    "Oracle identity group source_event_ids must be a "
+                    "non-empty text list"
+                )
+            actual_event_ids = {
+                delivery_by_id[delivery_id]["source_event"].get("event_id")
+                for delivery_id in delivery_ids
+            }
+            if set(declared_event_ids) != actual_event_ids:
+                raise ObservationPackageValidationError(
+                    "Oracle identity group source events do not match its "
+                    "deliveries"
+                )
+
+    for index, raw_lineage in enumerate(value.get("decode_lineage", [])):
+        lineage = _require_object(
+            raw_lineage,
+            f"oracle decode_lineage[{index}]",
+        )
+        _require_resolved_oracle_delivery_ids(
+            lineage.get("source_delivery_ids"),
+            label=f"oracle decode_lineage[{index}].source_delivery_ids",
+            delivery_by_id=delivery_by_id,
+        )
+        target_point_id = _require_text(
+            lineage.get("target_point_id"),
+            f"oracle decode_lineage[{index}].target_point_id",
+        )
+        if target_point_id not in point_ids:
+            raise ObservationPackageValidationError(
+                f"Oracle decode lineage references unknown point "
+                f"{target_point_id!r}"
+            )
+
+    for index, raw_fact in enumerate(value.get("ordering_facts", [])):
+        fact = _require_object(
+            raw_fact,
+            f"oracle ordering_facts[{index}]",
+        )
+        referenced_delivery_ids: list[str] = []
+        for field_name, field_value in fact.items():
+            if (
+                field_name == "delivery_id"
+                or field_name.endswith("_delivery_id")
+            ):
+                referenced_delivery_ids.append(
+                    _require_text(
+                        field_value,
+                        f"oracle ordering_facts[{index}].{field_name}",
+                    )
+                )
+            elif (
+                field_name == "delivery_ids"
+                or field_name.endswith("_delivery_ids")
+            ):
+                if not isinstance(field_value, list):
+                    raise ObservationPackageValidationError(
+                        f"Oracle ordering fact {field_name} must be a list"
+                    )
+                referenced_delivery_ids.extend(field_value)
+        _require_resolved_oracle_delivery_ids(
+            referenced_delivery_ids,
+            label=f"oracle ordering_facts[{index}] delivery references",
+            delivery_by_id=delivery_by_id,
+        )
+        if fact.get("fact_kind") == "MAPPING_VERSION_TRANSITION":
+            mapping_id = _require_text(
+                fact.get("mapping_id"),
+                f"oracle ordering_facts[{index}].mapping_id",
+            )
+            for version_field in ("from_version", "to_version"):
+                mapping_version = _require_semver(
+                    fact.get(version_field),
+                    f"oracle ordering_facts[{index}].{version_field}",
+                )
+                if (mapping_id, mapping_version) not in mapping_by_identity:
+                    raise ObservationPackageValidationError(
+                        "Oracle mapping transition references an unresolved "
+                        f"mapping {mapping_id} {mapping_version}"
+                    )
+
+    for index, raw_expectation in enumerate(
+        value.get("projection_expectations", [])
+    ):
+        expectation = _require_object(
+            raw_expectation,
+            f"oracle projection_expectations[{index}]",
+        )
+        scope = _require_object(
+            expectation.get("scope"),
+            f"oracle projection_expectations[{index}].scope",
+        )
+        binding_id = _require_text(
+            scope.get("source_binding_id"),
+            f"oracle projection_expectations[{index}] source_binding_id",
+        )
+        if binding_id not in source_binding_ids:
+            raise ObservationPackageValidationError(
+                f"Oracle projection references unknown source binding "
+                f"{binding_id!r}"
+            )
+        point_id = _require_text(
+            scope.get("point_id"),
+            f"oracle projection_expectations[{index}] point_id",
+        )
+        if point_id not in point_ids:
+            raise ObservationPackageValidationError(
+                f"Oracle projection references unknown point {point_id!r}"
+            )
+        mapping_id = _require_text(
+            scope.get("mapping_id"),
+            f"oracle projection_expectations[{index}] mapping_id",
+        )
+        mapping_version = _require_semver(
+            scope.get("mapping_version"),
+            f"oracle projection_expectations[{index}] mapping_version",
+        )
+        mapping = mapping_by_identity.get((mapping_id, mapping_version))
+        if mapping is None:
+            raise ObservationPackageValidationError(
+                "Oracle projection references an unresolved mapping "
+                f"{mapping_id} {mapping_version}"
+            )
+        if mapping["source_binding_id"] != binding_id:
+            raise ObservationPackageValidationError(
+                "Oracle projection mapping and source binding differ"
+            )
+
+
+def _require_resolved_oracle_delivery_ids(
+    value: Any,
+    *,
+    label: str,
+    delivery_by_id: dict[str, dict[str, Any]],
+) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(not isinstance(item, str) or not item for item in value)
+    ):
         raise ObservationPackageValidationError(
-            "Replay oracle contains an unapproved physical or acceptance outcome"
+            f"{label} must be a non-empty text list"
+        )
+    missing = sorted(set(value) - set(delivery_by_id))
+    if missing:
+        raise ObservationPackageValidationError(
+            f"{label} contains unresolved delivery references: "
+            + ", ".join(missing)
+        )
+    return value
+
+
+def _reject_prohibited_outcome_phrases(value: Any, *, label: str) -> None:
+    serialized = canonical_json_text(value).lower().replace("-", " ")
+    matched = next(
+        (
+            phrase
+            for phrase in _PROHIBITED_OUTCOME_PHRASES
+            if phrase in serialized
+        ),
+        None,
+    )
+    if matched is not None:
+        raise ObservationPackageValidationError(
+            f"{label} contains an unapproved physical, outcome, conformance, "
+            f"authorization, or recovery claim: {matched!r}"
         )
 
 

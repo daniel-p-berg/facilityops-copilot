@@ -615,6 +615,108 @@ class ObservationStoreTests(unittest.TestCase):
         with self.assertRaises(ImmutableIdentityConflictError):
             persist_replay_execution(self.db_path, second)
 
+    def test_mapping_digest_collision_is_rejected_atomically(self):
+        original = replay_plan()
+        persist_replay_execution(self.db_path, original)
+
+        conflicting = rekey_execution(
+            deepcopy(replay_plan()),
+            "REPLAY-EXECUTION-MAPPING-DIGEST-CONFLICT",
+        )
+        conflicting["request"]["idempotency_key"] = (
+            "REPLAY-REQUEST-KEY-MAPPING-DIGEST-CONFLICT"
+        )
+        conflicting["execution"]["request_digest"] = digest(
+            "request-mapping-digest-conflict"
+        )
+        self.assertEqual(
+            conflicting["mapping_snapshots"][0]["mapping_id"],
+            original["mapping_snapshots"][0]["mapping_id"],
+        )
+        self.assertEqual(
+            conflicting["mapping_snapshots"][0]["mapping_version"],
+            original["mapping_snapshots"][0]["mapping_version"],
+        )
+        conflicting["mapping_snapshots"][0]["content_digest"] = digest(
+            "conflicting-mapping-definition"
+        )
+
+        with self.assertRaisesRegex(
+            ImmutableIdentityConflictError,
+            "mapping_snapshots immutable identity digest mismatch",
+        ):
+            persist_replay_execution(self.db_path, conflicting)
+
+        self.assertEqual(
+            get_replay_execution(self.db_path, FACILITY_ID, EXECUTION_ID)[
+                "record_counts"
+            ],
+            {
+                "deliveries": 4,
+                "source_native_records": 4,
+                "canonical_observations": 2,
+                "decode_issues": 0,
+            },
+        )
+        with self.assertRaises(LookupError):
+            get_replay_execution(
+                self.db_path,
+                FACILITY_ID,
+                "REPLAY-EXECUTION-MAPPING-DIGEST-CONFLICT",
+            )
+
+    def test_replay_package_digest_collision_is_rejected_atomically(self):
+        original = replay_plan()
+        persist_replay_execution(self.db_path, original)
+
+        conflicting = rekey_execution(
+            deepcopy(replay_plan()),
+            "REPLAY-EXECUTION-PACKAGE-DIGEST-CONFLICT",
+        )
+        conflicting["request"]["idempotency_key"] = (
+            "REPLAY-REQUEST-KEY-PACKAGE-DIGEST-CONFLICT"
+        )
+        conflicting["execution"]["request_digest"] = digest(
+            "request-package-digest-conflict"
+        )
+        self.assertEqual(
+            conflicting["package_snapshot"]["package_id"],
+            original["package_snapshot"]["package_id"],
+        )
+        self.assertEqual(
+            conflicting["package_snapshot"]["package_version"],
+            original["package_snapshot"]["package_version"],
+        )
+        conflicting_package_digest = digest("conflicting-replay-package")
+        conflicting["package_snapshot"][
+            "content_digest"
+        ] = conflicting_package_digest
+        conflicting["execution"]["package_digest"] = conflicting_package_digest
+
+        with self.assertRaisesRegex(
+            ImmutableIdentityConflictError,
+            "replay_package_snapshots immutable identity digest mismatch",
+        ):
+            persist_replay_execution(self.db_path, conflicting)
+
+        self.assertEqual(
+            get_replay_execution(self.db_path, FACILITY_ID, EXECUTION_ID)[
+                "record_counts"
+            ],
+            {
+                "deliveries": 4,
+                "source_native_records": 4,
+                "canonical_observations": 2,
+                "decode_issues": 0,
+            },
+        )
+        with self.assertRaises(LookupError):
+            get_replay_execution(
+                self.db_path,
+                FACILITY_ID,
+                "REPLAY-EXECUTION-PACKAGE-DIGEST-CONFLICT",
+            )
+
     def test_lists_are_facility_scoped_bounded_and_deterministically_paged(self):
         persist_replay_execution(self.db_path, replay_plan())
 
@@ -692,7 +794,8 @@ class ObservationStoreTests(unittest.TestCase):
             )
 
     def test_source_native_detail_preserves_source_and_transport_fields(self):
-        persist_replay_execution(self.db_path, replay_plan())
+        plan = replay_plan()
+        persist_replay_execution(self.db_path, plan)
 
         record = get_source_native_record(
             self.db_path,
@@ -701,10 +804,18 @@ class ObservationStoreTests(unittest.TestCase):
         )
         self.assertEqual(record["payload"], {"value": True})
         self.assertEqual(
+            record["payload_digest"],
+            digest(json_text({"value": True})),
+        )
+        self.assertEqual(record["source_quality"], {"raw": "GOOD"})
+        self.assertEqual(record["ingestion_ordinal"], 1)
+        self.assertEqual(
             record["original_observed_at_text"],
             "2026-07-23T17:00:00+07:00",
         )
         self.assertEqual(record["original_timezone_offset"], "+07:00")
+        self.assertEqual(record["timestamp_precision"], "SECOND")
+        self.assertEqual(record["fractional_second_digits"], 0)
         self.assertEqual(record["observed_at_utc"], "2026-07-23T10:00:00Z")
         self.assertEqual(record["identity_kind"], "SOURCE_EVENT_ID")
         self.assertEqual(record["source_event_id"], "EVENT-1")
@@ -712,6 +823,7 @@ class ObservationStoreTests(unittest.TestCase):
             record["transport_provenance"],
             {"transport": "REPOSITORY_REPLAY"},
         )
+        self.assertEqual(record["synthetic_provenance"], {"synthetic": True})
 
     def test_projection_candidates_preserve_scope_time_basis_and_lineage(self):
         plan = replay_plan()

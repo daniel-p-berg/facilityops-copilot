@@ -17,9 +17,12 @@ treatment-availability, and delivered makeup-air evidence categories.
 
 The accepted Milestone 3 standards package identifies those missing or partial
 point-definition representations but remains bound to topology `1.0.0`,
-inactive, and non-executable. The corrected decision packet records a 23-entry
-evidence narrative but intentionally does not authorize equipment-state,
-system-state, facility-state, finding, or recovery computation.
+inactive, and non-executable. The corrected decision packet records a proposed
+23-entry evidence sequence. This decision accepts only its received-indication
+and recorded-action subset for replay; the proposed evaluation and finding
+concepts remain inactive and are not replay events. This decision does not
+authorize equipment-state, system-state, facility-state, finding, or recovery
+computation.
 
 The project-owner directive dated 2026-07-23 approves the minimum additive
 topology, mapping, replay, and reviewer boundaries recorded below. Synthetic
@@ -73,8 +76,10 @@ topology context.
 The version reuses, without duplication:
 
 - `PROCESS-EXHAUST_AIRFLOW` as the shared delivered process-exhaust indication
-  in both duty and standby narrative phases. It is not recast as a per-fan
-  measurement.
+  downstream of the duty/standby arrangements and common path. It is one shared
+  indication, not a per-fan measurement. It must not be attributed
+  independently to the duty fan or standby fan and is not proof that either fan
+  delivered airflow.
 - `SUPPLY-MAKEUP_STATUS` as the makeup-air controller-reported status.
 - The existing run, fault, availability, and speed indications for both fans.
 - The existing shared-path, process-laboratory pressure, and two boundary
@@ -145,16 +150,18 @@ Its manifest pins:
 - Synthetic generator provenance.
 - A human-readable structural oracle.
 
-The package retains the corrected 23-entry narrative:
+The package manifest declares pinned facility, topology, mapping,
+canonicalizer, generator, and replay context separately from narrative events.
+The package retains a corrected 20-entry narrative:
 
-1. `E000` declares pinned context.
-2. `E010` through `E170` receive initial, duty-divergence, standby-related,
+1. `E010` through `E170` receive initial, duty-divergence, standby-related,
    dependency, shared-path, and pressure indications.
-3. `E180` records only an asserted action and actor/authority context. It does
+2. `E180` records only an asserted action and actor/authority context. It does
    not establish authorization, causation, execution, or physical effect.
-4. `E190` through `E220` receive new post-action underlying indications.
-5. `E230` and `E240` remain non-executed tranche-boundary markers. No recovery
-   evaluation request, computed finding, or expected outcome is created.
+3. `E190` through `E220` receive new post-action underlying indications.
+
+Recovery evaluation, findings, and human disposition are later capabilities
+and are not implemented by this package.
 
 The package and focused mutation tests cover exact redelivery, conflicting
 redelivery, equal content under distinct event identities, out-of-order arrival,

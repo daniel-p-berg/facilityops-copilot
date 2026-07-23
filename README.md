@@ -57,7 +57,7 @@ Generated database files are local development artifacts and are ignored by git.
 
 ### Isolated observation replay database
 
-The canonical observation replay uses a separate, lazily initialized local SQLite store at `db/facilityops-observations.sqlite3`. Application import does not create or open this database. It is created only when an explicit synthetic replay executes. The store enables foreign-key enforcement and publishes a completely validated replay execution in one transaction.
+The canonical observation replay uses a separate, lazily initialized local SQLite store at `db/facilityops-observations.sqlite3`. Application import does not create or open this database. It is created only when an explicit synthetic replay executes. The package is structurally validated before replay planning, and the store publishes the complete checked execution plan in one transaction with foreign-key enforcement.
 
 The observation store is append-only after acceptance and is not opened or cleared by `POST /scenario/reset-operational-state`. This protects the new replay evidence from the legacy operational reset, but it is a bounded laboratory retention mechanism rather than the complete incident-retention architecture planned for a later milestone. No destructive observation reset endpoint exists.
 
@@ -366,7 +366,7 @@ The bounded runner invokes the existing standard-library test command without sk
 python -m unittest discover -s tests
 ```
 
-The 2026-07-23 tranche verification ran all 363 discovered tests successfully, including 80 focused canonical-observation, topology, replay, persistence, API, and workbench tests. Exact environment and timing evidence is recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
+The 2026-07-23 observation-and-replay acceptance-correction verification ran all 371 discovered tests successfully, including 88 focused canonical-observation, topology, replay, persistence, API, and workbench tests. Exact environment and timing evidence is recorded in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
 All mutating test cases use isolated temporary SQLite databases. The verification runner and suite do not load, reset, or overwrite the normal `db/facilityops.sqlite3` database or the default `db/facilityops-observations.sqlite3` replay store.
 

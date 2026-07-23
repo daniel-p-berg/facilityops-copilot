@@ -352,7 +352,7 @@
     },
     {
       "delivery_id": "DELIVERY-E160-PROCESS-PATH-001",
-      "narrative_event_id": "E160-STANDBY-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
+      "narrative_event_id": "E160-SHARED-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED",
       "source_binding_id": "SOURCE-BINDING-PROCESS-PATH",
       "mapping": {"mapping_id": "MAPPING-PROCESS-PATH-SNAPSHOT", "mapping_version": "1.0.0", "content_digest": "01ade97c17383e91d463a4fb9d1b310cfa2342ba4c20e4c5df10518915814f2e"},
       "received_at": "2026-07-23T10:16:00.100Z",
@@ -562,7 +562,7 @@
     },
     {
       "delivery_id": "DELIVERY-E220-CONTROLLER-AMBIGUOUS-RESET-001",
-      "narrative_event_id": "E220-RETURN-INDICATION-RECEIVED",
+      "narrative_event_id": "E220-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
       "source_binding_id": "SOURCE-BINDING-EXHAUST-CONTROLLER",
       "mapping": {"mapping_id": "MAPPING-EXHAUST-CONTROLLER-INDICATIONS", "mapping_version": "1.0.0", "content_digest": "77571f5bfc09af2aeca9cd04932b0b9ddf91319e76baa6a707fb7a8735fbf717"},
       "received_at": "2026-07-23T10:22:00.100Z",

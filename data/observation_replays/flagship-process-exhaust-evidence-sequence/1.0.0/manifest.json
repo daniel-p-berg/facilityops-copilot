@@ -3,7 +3,7 @@
   "package_type": "synthetic_observation_replay",
   "package_id": "flagship-process-exhaust-evidence-sequence",
   "package_version": "1.0.0",
-  "content_digest": "f31d10e8866376dc19a87cd99da1732927f9f31388a5158eac1841d4113fa90c",
+  "content_digest": "10ca39fe3d98553ee23fc6da46b4064f696c18e9416a794e7221e8a380f4d103",
   "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
   "topology": {
     "topology_id": "TOPOLOGY-FLAGSHIP-PROCESS-EXHAUST",
@@ -141,7 +141,7 @@
     "Each canonical record is a source-reported indication within the pinned mapping, timing, quality, and provenance limits. It does not independently prove physical equipment, system, pressure-cascade, or facility state.",
     "Dependency provenance may identify declared common origins or UNKNOWN origins. This replay makes no evidence-independence, corroboration-count, weighting, or evidence-sufficiency conclusion.",
     "E180 is assertion-only action context. It does not prove authority, execution, causation, physical effect, restoration, or safety.",
-    "E230 and E240 are non-executed tranche-boundary markers. The replay creates no evaluation request, finding, outcome, recovery determination, or human disposition.",
+    "Recovery evaluation, findings, and human disposition are later capabilities and are not implemented by this package.",
     "The package defines no physical or temporal criterion, alarm, requirement evaluation, conformance result, consequence, safety determination, commissioning acceptance, or operational authorization.",
     "FacilityOps opens no external connection, issues no command, changes no controller configuration, and provides no external write-back path through this package."
   ]

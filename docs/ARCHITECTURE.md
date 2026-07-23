@@ -100,7 +100,7 @@ The canonical observation replay is a second repository-versioned path with a de
 
 ```text
 allowlisted synthetic replay + mapping + topology packages
-→ complete bounded package validation and deterministic canonicalization
+→ complete bounded structural validation and deterministic canonicalization
 → one-transaction publication to db/facilityops-observations.sqlite3
 → immutable source-native, canonical, lineage, conflict, and manifest records
 → bounded facility-aware APIs
@@ -119,9 +119,9 @@ The flagship validator checks manifest/file facility and version agreement, stab
 
 `backend/services/standards_basis_service.py` validates either registered standards-basis version independently of active SQLite state. Version `1.0.0` remains the default historical review package. Version `1.1.0` binds the exact topology `1.1.0` identity and content digest and may differ from `1.0.0` only in the approved point-definition representation and corresponding explanatory text. Both packages retain the same profile, sources, provisional applicability, requirements, inactive/non-executable state, fixed qualitative schema, `NO_NUMERICAL_CRITERIA_APPROVED` parameter status, and `NO_FLAGSHIP_OBSERVATION_BASELINE`. Only a fully valid candidate replaces the in-memory snapshot. Failed reload leaves the prior snapshot exposed, and every read returns a defensive copy.
 
-`backend/services/observation_package_service.py` maintains the exact allowlist for one repository mapping package and one repository synthetic replay package. It resolves only registered manifests, requires the bounded package layout, enforces size and count limits, verifies parsed-content digests and exact topology/mapping/source pins, rejects path escape and prohibited evidentiary claims, and validates the complete narrative, deliveries, and structural oracle before returning a package. There is no arbitrary path, archive, URL, upload, or live-ingestion contract.
+`backend/services/observation_package_service.py` maintains the exact allowlist for one repository mapping package and one repository synthetic replay package. It resolves only registered manifests, requires the bounded package layout, enforces aggregate package, per-file, delivery-count, and per-delivery payload limits, verifies parsed-content digests and exact topology/mapping/source pins, rejects path escape and prohibited evidentiary claims, and structurally validates the complete narrative, deliveries, and structural oracle—including every oracle reference—before returning a package. There is no arbitrary path, archive, URL, upload, or live-ingestion contract.
 
-`backend/services/observation_replay_service.py` converts a validated package into a complete in-memory replay plan before persistence. It classifies source-event identities and redeliveries, preserves temporal and ordering facts, applies only the pinned mapping version, emits typed canonical observations and exact field lineage, builds projection summaries, and computes run-independent semantic digests. It uses fixed package clocks; wall-clock time does not determine replay results.
+`backend/services/observation_replay_service.py` converts a structurally validated package into a complete in-memory replay plan before persistence. It classifies source-event identities and redeliveries, preserves temporal and ordering facts, applies only the pinned mapping version, emits typed canonical observations and exact field lineage, builds projection summaries, and computes run-independent semantic digests. It uses fixed package clocks; wall-clock time does not determine replay results.
 
 Seeded current values create point-sample history and a `current_point_values` latest-value projection. Generated alarms and alarm events begin empty after a full sample-data load. The legacy `alarms` table is created and cleared; the current dashboard uses generated alarms rather than the legacy alarm CSV.
 
@@ -217,7 +217,7 @@ The projection returns no scalar value for a latest conflict, materially differe
 
 The mapping package `MAPPING-PACKAGE-FLAGSHIP-SYNTHETIC-INDICATIONS` version `1.0.0` is bound to the exact topology `1.1.0` digest and canonicalizer `facilityops-canonicalizer/1.0.0`. Source bindings carry declared or `UNKNOWN` controller, gateway, device, measurement-chain, power, timestamp, and derivation origins. The data model makes no evidence-independence conclusion.
 
-The allowlisted `flagship-process-exhaust-evidence-sequence` version `1.0.0` is an observation replay, not an outcome scenario. Its 23 narrative entries include initial, divergent, standby-related, dependency, shared-path, pressure, asserted-action, and post-action reported indications plus two unexecuted boundary markers. Its oracle specifies only structural record counts, identity groups, lineage, ordering facts, and projection dispositions.
+The allowlisted `flagship-process-exhaust-evidence-sequence` version `1.0.0` is an observation replay, not an outcome scenario. Its 20 narrative entries contain received-indication groups and one non-authoritative asserted-action annotation. Package context is pinned separately in the manifest. Its oracle specifies only structural record counts, identity groups, lineage, ordering facts, and projection dispositions. Recovery evaluation, findings, and human disposition are not implemented.
 
 Each execution receives a separate replay-execution ID and per-execution record identities. The request idempotency key is facility-scoped: identical normalized request content returns the accepted execution, while different content under the same key is rejected. Separate executions retain separate records but produce the same normalized semantic digest. The per-execution manifest pins package, topology, mapping, canonicalizer, input, derived-record, duplicate/conflict, and projection facts while excluding random run IDs and non-semantic creation time from its semantic digest.
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from backend.domain.observation_semantics import canonical_json_sha256
+from backend.services import observation_package_service
 from backend.services.facility_package_registry import FLAGSHIP_FACILITY_ID
 from backend.services.observation_package_service import (
     FLAGSHIP_REPLAY_MANIFEST,
@@ -113,6 +114,37 @@ class ObservationReplayTests(unittest.TestCase):
         persist_replay_execution(self.db_path, plan)
         return plan
 
+    def copied_replay_package(self, name, mutator):
+        copied = self.temp_root / name
+        shutil.copytree(FLAGSHIP_REPLAY_MANIFEST.parent, copied)
+        manifest_path = copied / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        files = {
+            role: json.loads(
+                (copied / filename).read_text(encoding="utf-8")
+            )
+            for role, filename in manifest["files"].items()
+        }
+        mutator(manifest, files)
+        for role, filename in manifest["files"].items():
+            (copied / filename).write_text(
+                json.dumps(files[role], indent=2) + "\n",
+                encoding="utf-8",
+            )
+        manifest["content_digest"] = package_content_digest(manifest, files)
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return manifest_path
+
+    def load_copied_replay_package(self, manifest_path):
+        with mock.patch.dict(
+            REGISTERED_REPLAY_PACKAGES,
+            {PACKAGE_KEY: manifest_path},
+        ):
+            return load_replay_package(*PACKAGE_KEY)
+
     def test_allowlisted_catalog_and_detail_pin_exact_package_graph(self):
         catalog = list_replay_packages(FLAGSHIP_FACILITY_ID)
         self.assertEqual(len(catalog["replay_packages"]), 1)
@@ -120,7 +152,7 @@ class ObservationReplayTests(unittest.TestCase):
         self.assertEqual(summary["package_id"], FLAGSHIP_REPLAY_PACKAGE_ID)
         self.assertEqual(
             summary["content_digest"],
-            "f31d10e8866376dc19a87cd99da1732927f9f31388a5158eac1841d4113fa90c",
+            "10ca39fe3d98553ee23fc6da46b4064f696c18e9416a794e7221e8a380f4d103",
         )
         self.assertEqual(summary["topology"]["topology_version"], "1.1.0")
         self.assertEqual(
@@ -133,7 +165,7 @@ class ObservationReplayTests(unittest.TestCase):
         self.assertEqual(detail["delivery_count"], 41)
         self.assertEqual(len(detail["source_bindings"]), 10)
         self.assertEqual(len(detail["mappings"]), 11)
-        self.assertEqual(len(detail["narrative"]["events"]), 23)
+        self.assertEqual(len(detail["narrative"]["events"]), 20)
         self.assertEqual(
             detail["oracle"]["oracle_type"],
             "STRUCTURAL_OBSERVATION_ONLY",
@@ -152,6 +184,257 @@ class ObservationReplayTests(unittest.TestCase):
                 FLAGSHIP_REPLAY_PACKAGE_VERSION,
             )
 
+    def test_narrative_contract_allows_only_received_indications_and_action(self):
+        events = self.loaded["narrative"]["events"]
+        self.assertEqual(len(events), 20)
+        self.assertEqual(
+            [
+                event["event_id"]
+                for event in events
+                if event["kind"] == "ACTION_CONTEXT"
+            ],
+            ["E180-HUMAN-ACTION-RECORDED"],
+        )
+        observation_events = [
+            event for event in events if event["kind"] == "OBSERVATION_GROUP"
+        ]
+        self.assertEqual(len(observation_events), 19)
+        self.assertTrue(
+            all(
+                event["event_id"].endswith(
+                    ("-INDICATION-RECEIVED", "-INDICATIONS-RECEIVED")
+                )
+                for event in observation_events
+            )
+        )
+        self.assertTrue(all(event["executed"] is True for event in events))
+        self.assertIn(
+            "E220-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
+            {event["event_id"] for event in events},
+        )
+
+        def unsupported_kind(_manifest, files):
+            files["narrative"]["events"][0]["kind"] = "RECOVERY_RESULT"
+
+        def outcome_claim(_manifest, files):
+            files["narrative"]["events"][0]["label"] = "Fan failed"
+
+        def unapproved_state_name(_manifest, files):
+            files["narrative"]["events"][0][
+                "event_id"
+            ] = "E010-FAN-RUNNING-INDICATION-RECEIVED"
+
+        def inactive_entry(_manifest, files):
+            files["narrative"]["events"][0]["executed"] = False
+
+        def tranche_boundary(_manifest, files):
+            files["narrative"]["events"].append(
+                {
+                    "event_id": "E230-RECOVERY-EVALUATION-REQUESTED",
+                    "order": 230,
+                    "kind": "TRANCHE_BOUNDARY",
+                    "label": "Later capability",
+                    "description": "Not implemented",
+                    "executed": True,
+                }
+            )
+
+        cases = (
+            ("unsupported-kind", unsupported_kind, "received-indication"),
+            ("outcome-claim", outcome_claim, "unapproved physical"),
+            (
+                "unapproved-state-name",
+                unapproved_state_name,
+                "recorded-action",
+            ),
+            ("inactive-entry", inactive_entry, "implemented replay entry"),
+            ("tranche-boundary", tranche_boundary, "recorded-action"),
+        )
+        for name, mutator, expected_error in cases:
+            with self.subTest(name=name):
+                manifest_path = self.copied_replay_package(name, mutator)
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    self.load_copied_replay_package(manifest_path)
+
+    def test_package_bounds_and_declared_digest_are_enforced(self):
+        with (
+            mock.patch.object(
+                observation_package_service,
+                "MAX_REPOSITORY_PACKAGE_BYTES",
+                1,
+            ),
+            self.assertRaisesRegex(ValueError, "Repository package exceeds"),
+        ):
+            load_replay_package(*PACKAGE_KEY)
+
+        with (
+            mock.patch.object(
+                observation_package_service,
+                "MAX_PACKAGE_FILE_BYTES",
+                1,
+            ),
+            self.assertRaisesRegex(ValueError, "exceeds the 1-byte limit"),
+        ):
+            load_replay_package(*PACKAGE_KEY)
+
+        with (
+            mock.patch.object(
+                observation_package_service,
+                "MAX_SOURCE_PAYLOAD_BYTES",
+                1,
+            ),
+            self.assertRaisesRegex(ValueError, "payload exceeds"),
+        ):
+            load_replay_package(*PACKAGE_KEY)
+
+        manifest_path = self.copied_replay_package(
+            "digest-mismatch",
+            lambda _manifest, _files: None,
+        )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["content_digest"] = "0" * 64
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(ValueError, "content digest mismatch"):
+            self.load_copied_replay_package(manifest_path)
+
+    def test_source_dependency_origins_are_explicit_and_not_sufficiency_claims(self):
+        required_fields = {
+            "controller_logic_origin",
+            "source_device_origin",
+            "gateway_origin",
+            "measurement_chain_origin",
+            "power_origin",
+            "timestamp_origin",
+            "derivation_origin",
+        }
+        dependencies = [
+            binding["dependency_provenance"]
+            for binding in self.loaded["mapping_package"]["source_bindings"]
+        ]
+        self.assertTrue(dependencies)
+        for dependency in dependencies:
+            self.assertEqual(set(dependency), required_fields)
+            self.assertTrue(
+                all(
+                    isinstance(value, str) and value
+                    for value in dependency.values()
+                )
+            )
+            self.assertNotIn("independent", dependency)
+            self.assertNotIn("evidence_sufficient", dependency)
+        self.assertTrue(
+            any("UNKNOWN" in dependency.values() for dependency in dependencies)
+        )
+
+        incomplete = deepcopy(
+            self.loaded["mapping_package"]["source_bindings"]
+        )
+        incomplete[0]["dependency_provenance"].pop("gateway_origin")
+        with self.assertRaisesRegex(ValueError, "explicit UNKNOWN.*missing"):
+            observation_package_service._validate_source_bindings(
+                {"source_bindings": incomplete}
+            )
+
+    def test_every_replay_reference_resolves_before_execution(self):
+        def missing_identity_delivery(_manifest, files):
+            files["oracle"]["identity_groups"][0]["delivery_ids"][
+                0
+            ] = "DELIVERY-NOT-REGISTERED"
+
+        def missing_identity_binding(_manifest, files):
+            files["oracle"]["identity_groups"][0][
+                "source_binding_id"
+            ] = "SOURCE-BINDING-NOT-REGISTERED"
+
+        def mismatched_source_event(_manifest, files):
+            files["oracle"]["identity_groups"][0][
+                "source_event_id"
+            ] = "SOURCE-EVENT-NOT-REGISTERED"
+
+        def missing_decode_delivery(_manifest, files):
+            files["oracle"]["decode_lineage"][0]["source_delivery_ids"][
+                0
+            ] = "DELIVERY-NOT-REGISTERED"
+
+        def missing_decode_point(_manifest, files):
+            files["oracle"]["decode_lineage"][0][
+                "target_point_id"
+            ] = "POINT-NOT-REGISTERED"
+
+        def missing_projection_mapping(_manifest, files):
+            files["oracle"]["projection_expectations"][0]["scope"][
+                "mapping_version"
+            ] = "9.9.9"
+
+        def missing_ordering_delivery(_manifest, files):
+            files["oracle"]["ordering_facts"][0][
+                "older_delivery_id"
+            ] = "DELIVERY-NOT-REGISTERED"
+
+        def missing_narrative_event(_manifest, files):
+            files["deliveries"]["deliveries"][0][
+                "narrative_event_id"
+            ] = "E999-UNKNOWN-INDICATION-RECEIVED"
+
+        def mismatched_topology(manifest, _files):
+            manifest["topology"]["content_digest"] = "0" * 64
+
+        cases = (
+            (
+                "missing-identity-delivery",
+                missing_identity_delivery,
+                "unresolved delivery references",
+            ),
+            (
+                "missing-identity-binding",
+                missing_identity_binding,
+                "unknown source binding",
+            ),
+            (
+                "mismatched-source-event",
+                mismatched_source_event,
+                "source event does not match",
+            ),
+            (
+                "missing-decode-delivery",
+                missing_decode_delivery,
+                "unresolved delivery references",
+            ),
+            (
+                "missing-decode-point",
+                missing_decode_point,
+                "unknown point",
+            ),
+            (
+                "missing-projection-mapping",
+                missing_projection_mapping,
+                "unresolved mapping",
+            ),
+            (
+                "missing-ordering-delivery",
+                missing_ordering_delivery,
+                "unresolved delivery references",
+            ),
+            (
+                "missing-narrative-event",
+                missing_narrative_event,
+                "unknown narrative event",
+            ),
+            (
+                "mismatched-topology",
+                mismatched_topology,
+                "topology binding does not match",
+            ),
+        )
+        for name, mutator, expected_error in cases:
+            with self.subTest(name=name):
+                manifest_path = self.copied_replay_package(name, mutator)
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    self.load_copied_replay_package(manifest_path)
+
     def test_plan_matches_structural_oracle_and_keeps_identity_boundaries(self):
         plan = self.build_plan()
         self.assertEqual(len(plan["deliveries"]), 41)
@@ -160,7 +443,15 @@ class ObservationReplayTests(unittest.TestCase):
         self.assertEqual(len(plan["canonical_observations"]), 76)
         self.assertEqual(len(plan["lineage"]), 82)
         self.assertEqual(plan["decode_issues"], [])
-        self.assertEqual(len(plan["annotations"]), 4)
+        self.assertEqual(len(plan["annotations"]), 1)
+        self.assertEqual(
+            plan["annotations"][0]["narrative_event_id"],
+            "E180-HUMAN-ACTION-RECORDED",
+        )
+        self.assertEqual(
+            plan["annotations"][0]["annotation_kind"],
+            "ASSERTED_ACTION",
+        )
 
         delivery_by_id = {
             delivery["delivery_id"]: delivery for delivery in plan["deliveries"]
@@ -223,6 +514,48 @@ class ObservationReplayTests(unittest.TestCase):
             row["delivery_id"]: row for row in plan["source_native_records"]
         }
         offset_record = by_delivery["DELIVERY-E010-TREATMENT-001"]
+        expected_payload = {
+            "availability_reported": True,
+            "permissive_reported": True,
+        }
+        self.assertEqual(
+            json.loads(offset_record["payload_json"]),
+            expected_payload,
+        )
+        self.assertEqual(
+            offset_record["payload_digest"],
+            canonical_json_sha256(expected_payload),
+        )
+        self.assertEqual(
+            json.loads(offset_record["source_quality_json"]),
+            {
+                "raw_code": "OK",
+                "raw_meaning": "SOURCE_REPORTED_UNINTERPRETED",
+            },
+        )
+        self.assertEqual(
+            json.loads(offset_record["transport_provenance_json"]),
+            {
+                "external_connection": False,
+                "kind": "REPOSITORY_JSON",
+            },
+        )
+        self.assertEqual(
+            json.loads(offset_record["synthetic_provenance_json"])[
+                "replay_package_digest"
+            ],
+            self.loaded["content_digest"],
+        )
+        delivery = next(
+            row
+            for row in plan["deliveries"]
+            if row["delivery_id"] == "DELIVERY-E010-TREATMENT-001"
+        )
+        self.assertEqual(delivery["ingestion_ordinal"], 1)
+        self.assertEqual(
+            offset_record["original_observed_at_text"],
+            "2026-07-23T17:01:00.000+07:00",
+        )
         self.assertEqual(offset_record["original_timezone_offset"], "+07:00")
         self.assertEqual(offset_record["timestamp_precision"], "FRACTIONAL_SECOND")
         self.assertEqual(offset_record["fractional_second_digits"], 3)
@@ -944,7 +1277,7 @@ class ObservationReplayTests(unittest.TestCase):
         )
         self.assertEqual(
             manifest_a["derived"]["normalized_semantic_digest"],
-            "88703f59a062e349b1d3765909275bfebc6062d3f1846c7958677fa808888ec2",
+            "4eab13accadd357deca945d970d53e2d34f97d21719ee1d961617b8be1d81bdd",
         )
         self.assertEqual(
             manifest_a["derived"]["normalized_semantic_digest"],

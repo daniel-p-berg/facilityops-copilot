@@ -203,10 +203,10 @@ conformance, safety, or recovery.
 
 The new observation model uses typed relational SQLite tables with declared and
 enabled foreign keys, uniqueness constraints, bounded payloads, bounded list
-pages, and immutable-record triggers. A replay is completely validated and
-canonicalized before its records become visible. One explicit transaction
-publishes an execution; malformed input or an injected failure exposes no
-partial execution.
+pages, and immutable-record triggers. A replay package is structurally
+validated before its records are canonicalized and its complete in-memory plan
+is checked. One explicit transaction publishes an execution; malformed input
+or an injected failure exposes no partial execution.
 
 The append-only evidence tables use a dedicated local observation-replay
 database rather than the legacy operational database. Application import does

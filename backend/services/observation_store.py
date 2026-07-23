@@ -538,11 +538,7 @@ SCHEMA_STATEMENTS = (
         replay_execution_id TEXT NOT NULL,
         narrative_event_id TEXT NOT NULL,
         annotation_kind TEXT NOT NULL CHECK (
-            annotation_kind IN (
-                'CONTEXT',
-                'ASSERTED_ACTION',
-                'TRANCHE_BOUNDARY'
-            )
+            annotation_kind = 'ASSERTED_ACTION'
         ),
         annotation_json TEXT NOT NULL,
         PRIMARY KEY (replay_execution_id, narrative_event_id),

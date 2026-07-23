@@ -47,6 +47,12 @@ HISTORICAL_STANDARDS_DIGEST = (
 OBSERVATION_TOPOLOGY_DIGEST = (
     "cd6aeddbeaf9756c28b1cd66461b008542c4a5010dd0bcf634e4ffb825a42672"
 )
+ADR_0006_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "docs"
+    / "decisions"
+    / "0006-synthetic-flagship-replay-and-topology-evolution.md"
+)
 
 EXPECTED_ADDED_EQUIPMENT_IDS = {
     "CONTROLLER-PROCESS-EXHAUST",
@@ -233,6 +239,69 @@ class FlagshipObservationTopologyTests(unittest.TestCase):
         self.assertEqual(len(observation["rows"]["equipment"]), 12)
         self.assertEqual(len(historical["rows"]["points"]), 16)
         self.assertEqual(len(observation["rows"]["points"]), 28)
+
+    def test_process_exhaust_airflow_is_one_shared_downstream_indication(self):
+        points = read_csv_rows(FLAGSHIP_OBSERVATION_MANIFEST, "points")
+        airflow_points = [
+            row for row in points if row["id"] == "PROCESS-EXHAUST_AIRFLOW"
+        ]
+        self.assertEqual(len(airflow_points), 1)
+        self.assertEqual(
+            airflow_points[0]["equipment_id"],
+            "SENSOR-EXHAUST-AIRFLOW",
+        )
+        self.assertNotIn(
+            airflow_points[0]["equipment_id"],
+            {"FAN-EXHAUST-DUTY", "FAN-EXHAUST-STANDBY"},
+        )
+        self.assertEqual(
+            [
+                row
+                for row in points
+                if row["equipment_id"]
+                in {"FAN-EXHAUST-DUTY", "FAN-EXHAUST-STANDBY"}
+                and row["point_name"] == "AIRFLOW"
+            ],
+            [],
+        )
+
+        system_bindings = read_csv_rows(
+            FLAGSHIP_OBSERVATION_MANIFEST,
+            "point_system_bindings",
+        )
+        self.assertEqual(
+            [
+                (row["point_id"], row["system_id"])
+                for row in system_bindings
+                if row["point_id"] == "PROCESS-EXHAUST_AIRFLOW"
+            ],
+            [
+                (
+                    "PROCESS-EXHAUST_AIRFLOW",
+                    "SYSTEM-PROCESS-EXHAUST",
+                )
+            ],
+        )
+
+        crosswalk_text = " ".join(
+            ADR_0006_PATH.read_text(encoding="utf-8").lower().split()
+        )
+        self.assertIn(
+            "shared delivered process-exhaust indication downstream",
+            crosswalk_text,
+        )
+        self.assertIn(
+            "it is one shared indication, not a per-fan measurement",
+            crosswalk_text,
+        )
+        self.assertIn(
+            "must not be attributed independently to the duty fan or standby fan",
+            crosswalk_text,
+        )
+        self.assertIn(
+            "is not proof that either fan delivered airflow",
+            crosswalk_text,
+        )
 
     def test_historical_topology_and_standards_packages_remain_byte_exact(self):
         self.assertEqual(FLAGSHIP_FIXTURE_VERSION, "1.0.0")

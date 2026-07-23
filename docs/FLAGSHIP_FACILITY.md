@@ -83,7 +83,7 @@ Source-native records preserve the exact synthetic source payload and digest, so
 
 The reported-observation projection requires explicit event-time and knowledge-time cutoffs. It exposes conflicts, unordered evidence, missing/invalid source time, and out-of-order arrival without choosing a winner, silently falling back to older evidence, merging sources, or using an unapproved lateness threshold.
 
-The allowlisted `flagship-process-exhaust-evidence-sequence` version `1.0.0` converts the corrected 23-entry narrative into a repository-only synthetic observation replay. It includes initial reports, later divergent and standby-related reports, dependency/shared-path/pressure reports, a non-authoritative asserted-action annotation, and new post-action underlying indications. `E230` and `E240` remain unexecuted tranche-boundary markers.
+The allowlisted `flagship-process-exhaust-evidence-sequence` version `1.0.0` contains a 20-entry repository-only synthetic observation replay. Its narrative contains received-indication groups and one non-authoritative asserted-action annotation; package context is pinned separately in the manifest. Recovery evaluation, findings, and human disposition are not implemented.
 
 The replay's structural oracle covers identities, redelivery/conflict groups, decode lineage, ordering facts, and projection dispositions only. It does not determine duty-fan failure, standby-changeover success, process-exhaust or pressure-cascade condition, containment, consequence, conformance, safety, authorization, or recovery.
 
