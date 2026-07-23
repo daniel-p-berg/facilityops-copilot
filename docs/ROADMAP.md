@@ -10,7 +10,7 @@ Milestones are intentionally bounded and do not promise delivery dates. Every mi
 - Implementation that depends on a proposed decision cannot begin until that ADR is explicitly accepted.
 - An accepted ADR authorizes only the stated decision and does not prove implementation.
 - Roadmap completion evidence is project verification evidence. It is not commissioning acceptance, code compliance, authorization for physical operation, or a final human disposition.
-- Deterministic code owns reproducible computation and bounded findings. Qualified personnel retain the authority described in the charter.
+- Deterministic code owns reproducible computation and bounded findings. The authorities listed in ADR 0003—including determinations of physical safety and authorization for operation—remain with persons or organizations that possess the required qualifications and assigned organizational or legal authority.
 
 The 2026-07-22 rebaseline preserves completed Milestones 1 and 2 and restructures planned work after them around one standards-grounded flagship proof.
 
@@ -99,12 +99,13 @@ Establish the minimum controlled basis for one honest synthetic requirement pack
 **Completion evidence**
 
 - ADR 0004 records the project-owner fictional profile and qualitative design intent separately from legal applicability.
-- Package `STANDARDS-BASIS-FLAGSHIP-1.0.0` contains 18 profile facts, 27 controlled sources, 23 provisional, informative, owner/project, or simulation applicability bases, 18 evidence categories, and 12 project-authored synthetic requirements.
+- Package `STANDARDS-BASIS-FLAGSHIP-1.0.0` contains 18 profile facts, 35 controlled sources, 29 provisional, informative, owner/project, or simulation applicability bases, 19 evidence categories, and 12 project-authored synthetic requirements.
 - Ten exact qualitative requirements record the project-owner decision and use `ACCEPTED_FOR_SIMULATION`; two additional drafts remain `DRAFT` and `PROPOSED`.
 - All 12 requirements are `INACTIVE`, `executable=false`, and contain no numerical criteria.
-- Whole-package validation rejects duplicate identifiers, invalid statuses, missing provenance, unresolved references, invalid facility or fixture binding, references outside the bound flagship point catalog, and any attempt to make an unapproved requirement executable.
+- Whole-package validation rejects duplicate identifiers, invalid statuses, missing provenance, invalid multi-source applicability references or basis-category combinations, invalid facility or fixture binding, references outside the bound flagship point-definition catalog, inconsistent evidence representation, altered controlled profile facts, owner-decision provenance chains, or authority notices, and any attempt to make a requirement active or executable.
 - Candidate-before-swap loading is atomic; a malformed reload leaves the prior validated snapshot exposed.
 - Seven read-only API routes and a separate workbench section expose the profile, sources, provisional applicability, requirements, evidence categories, and `controlled source → applicability basis → synthetic requirement → required evidence category` traceability.
+- Evidence records distinguish bound, partial, missing, and non-point-record point-definition representation from observation availability; no flagship baseline observations exist.
 - No protected standards clause text, numerical scenario criterion, evaluation outcome, database migration, topology change, alarm-rule change, external control path, or AI runtime behavior was added.
 
 **Verification**
@@ -301,7 +302,7 @@ Complete the flagship assurance loop by recording qualified human decisions sepa
 
 - Add bounded local records for acknowledgement, verification request, observation, procedure reference, decision, action, mitigation, escalation, waiver, review, and disposition.
 - Record role and authority context without assuming enterprise identity or granting physical authority.
-- Require human response or recorded action to lead to new observations and a separate recovery evaluation.
+- Require new post-action observations and a separate recovery evaluation after a recorded action or response; the record must not establish causation or physical effect.
 - Evaluate successful recovery and incomplete recovery from new evidence; a recorded action alone cannot establish restoration.
 - Reconstruct the scenario timeline from retained observations, inferences, findings, human records, and recovery evidence.
 - Include only the impairment and functional-test concepts necessary for the flagship demonstration.

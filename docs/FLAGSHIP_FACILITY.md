@@ -38,17 +38,17 @@ ADRs 0001 and 0002 define the implemented minimum topology and persistence bound
 - One shared exhaust path.
 - A monitored treatment permissive dependency.
 - A monitored supply or makeup-air dependency.
-- Equipment-owned points and typed bindings for availability, run, fault, speed, airflow, duct static, damper position, treatment, supply/makeup-air, zone pressure, and boundary differential pressure indications.
+- Equipment-owned point definitions and typed bindings for potential availability, run, fault, speed, airflow, duct static, damper position, treatment, supply/makeup-air, zone-pressure, and boundary-differential indications. These definitions are not observations.
 
 The topology represents synthetic project intent. It does not establish a physical design, approved sequence of operation, applicable redundancy requirement, pressure criterion, capacity threshold, controller behavior, or evidence-sufficiency rule. ADR 0004 separately records qualitative inactive design intent; topology alone does not establish it.
 
-The implemented fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no process-enabled operating-context or controller command/request observation and no dedicated VFD or motor electrical corroboration point. Those evidence categories are required by the rebaselined proof, but exact points, relationships, and topology changes require a later ADR and approved roadmap slice.
+The implemented fixture intentionally contains no current-value baseline or golden-scenario observations. It also contains no process-enabled operating-context or controller command/request point definition and no dedicated VFD or motor electrical corroboration point definition. Those evidence categories are required by the rebaselined proof, but exact point definitions, relationships, and topology changes require a later ADR and approved roadmap slice.
 
 ## Implemented Milestone 3 boundary
 
-The separate version `1.0.0` standards-basis package contains 18 profile facts, 27 controlled sources, 23 provisional, informative, owner/project, or simulation applicability bases, 18 evidence categories, and 12 project-authored synthetic requirements.
+The separate version `1.0.0` standards-basis package contains 18 profile facts, 35 controlled sources, 29 provisional, informative, owner/project, or simulation applicability bases, 19 evidence categories, and 12 project-authored synthetic requirements.
 
-Whole-package validation enforces exact flagship and fixture binding, global identifier uniqueness, permitted statuses, provenance, reference resolution, current-point references to the unchanged flagship catalog, the exact ten recorded qualitative requirements, and inactive/non-executable state. A malformed candidate cannot partially replace the prior in-memory snapshot.
+Whole-package validation enforces exact flagship and fixture binding, global identifier uniqueness, permitted statuses, provenance, multi-source reference resolution and basis-category consistency, point-definition references to the unchanged flagship catalog, the exact profile facts and ten recorded qualitative requirements, and inactive/non-executable state. Evidence records separately identify point-definition representation and observation availability; the current package declares no flagship observation baseline. A malformed candidate cannot partially replace the prior in-memory snapshot.
 
 Seven read-only routes and a separate reviewer workbench display the package and the visible chain `controlled source → applicability basis → synthetic requirement → required evidence category`. The package is independent of active SQLite state and adds no database schema or topology change.
 
@@ -134,10 +134,10 @@ The working external outcomes are `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`
 5. **Dependency response:** Treatment, shared-path, damper, and supply/makeup-air evidence are evaluated.
 6. **Pressure-cascade degradation:** Boundary and zone observations support a bounded inference of degradation, loss, or uncertainty.
 7. **Facility consequence and uncertainty:** Deterministic rules compute affected scope, consequence, uncertainty, and required verification without determining safety or authorizing action.
-8. **Human verification and response:** Qualified personnel review evidence and record decisions or actions separately from computed findings.
-9. **Recovery observations:** Human action leads to new source observations. The record of action alone does not prove physical effect.
+8. **Human verification and response:** Persons or organizations that possess the required qualifications and assigned organizational or legal authority review evidence and record decisions or actions separately from computed findings.
+9. **Recovery observations:** After a recorded action or response, FacilityOps may receive new observations. The action or response record does not establish causation or physical effect.
 10. **Recovery evaluation:** New evidence is evaluated against the controlled synthetic recovery requirements.
-11. **Human disposition:** Qualified personnel review the recovery finding, unresolved evidence, and any incomplete remainder.
+11. **Human disposition:** Persons or organizations that possess the required qualifications and assigned organizational or legal authority review the recovery finding, unresolved evidence, and any incomplete remainder.
 12. **Incident reconstruction:** Retained versions, observations, mappings, inferences, findings, human records, and recovery evidence reproduce the event.
 
 ## Parameter and source basis
@@ -160,7 +160,7 @@ Until a later qualified decision establishes another basis, duty/standby redunda
 
 Deterministic code may compute point conditions, inferred states, timing results, evaluations, and bounded findings reproducibly. Determinism does not make the requirement, mapping, evidence, inference, or finding automatically valid.
 
-Qualified personnel retain authority for applicability, requirement approval, test authorization, operational action, commissioning acceptance, waivers, safety decisions, and final disposition. FacilityOps must not command equipment, certify commissioning, authorize physical testing, independently determine safety, or treat a recorded action as proof of restoration.
+The following authorities remain with persons or organizations that possess the required qualifications and assigned organizational or legal authority: applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, final disposition, determinations of physical safety, and authorization for operation. FacilityOps must not command equipment, certify commissioning, authorize physical testing, independently determine safety, or treat a recorded action as proof of restoration.
 
 ## Broader facility context
 

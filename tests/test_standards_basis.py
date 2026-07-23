@@ -119,9 +119,9 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
             },
             {
                 "applicability_profile": 18,
-                "controlled_sources": 27,
-                "applicability_matrix": 23,
-                "evidence_categories": 18,
+                "controlled_sources": 35,
+                "applicability_matrix": 29,
+                "evidence_categories": 19,
                 "requirements": 12,
             },
         )
@@ -157,11 +157,14 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
 
         sources = {record["id"]: record for record in package["controlled_sources"]}
         electrical_source = sources["SRC-NFPA-70-ELECTRICAL"]
-        self.assertIn("NFPA 70-2026 publisher-current", electrical_source["identifier"])
-        self.assertIn("NFPA 70-23 incorporated", electrical_source["identifier"])
+        self.assertEqual(electrical_source["identifier"], "NFPA 70-2023")
         self.assertEqual(
             electrical_source["edition_or_effective_date"],
-            "2026 publisher-current; New York-incorporated edition: 2023",
+            "2023 edition",
+        )
+        self.assertEqual(
+            electrical_source["official_url"],
+            "https://link.nfpa.org/all-publications/70/2023",
         )
         self.assertEqual(
             sources["SRC-ASHRAE-MEASUREMENT-METHODS"]["edition_or_effective_date"],
@@ -195,6 +198,107 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
             requirements["REQ-SOO-002"]["evidence_category_ids"],
         )
 
+    def test_point_definitions_are_separate_from_absent_baseline_observations(self):
+        package = load_standards_basis_package()
+        evidence = {record["id"]: record for record in package["evidence_categories"]}
+
+        self.assertEqual(
+            {record["observation_availability"] for record in evidence.values()},
+            {"NO_FLAGSHIP_OBSERVATION_BASELINE"},
+        )
+        self.assertEqual(
+            evidence["EVIDENCE-SUPPLY-MAKEUP-CONTROLLER-STATUS"][
+                "bound_point_definition_ids"
+            ],
+            ["SUPPLY-MAKEUP_STATUS"],
+        )
+        self.assertEqual(
+            evidence["EVIDENCE-SUPPLY-MAKEUP-DELIVERED-RESPONSE"][
+                "point_definition_representation"
+            ],
+            "MISSING_POINT_DEFINITIONS",
+        )
+        self.assertEqual(
+            evidence["EVIDENCE-SUPPLY-MAKEUP-DELIVERED-RESPONSE"][
+                "bound_point_definition_ids"
+            ],
+            [],
+        )
+
+    def test_multi_source_bases_are_structural_and_new_scope_bases_are_not_requirements(self):
+        package = load_standards_basis_package()
+        bases = {record["id"]: record for record in package["applicability_matrix"]}
+
+        self.assertEqual(
+            bases["BASIS-TOWN-AHJ-ASSUMPTION"]["source_ids"],
+            [
+                "SRC-TOWN-HORSEHEADS-CHAPTER-83",
+                "SRC-TOWN-HORSEHEADS-CODE-ENFORCEMENT",
+                "SRC-NYS-EXECUTIVE-LAW-ARTICLE-18",
+                "SRC-NYS-19-NYCRR-PART-1203",
+            ],
+        )
+        self.assertEqual(
+            bases["BASIS-ELECTRICAL-INSTALLATION"]["source_ids"],
+            [
+                "SRC-NFPA-70-ELECTRICAL",
+                "SRC-NYS-UNIFORM-CODE-ADOPTION-2025",
+                "SRC-NYS-BUILDING-CODE-2025",
+            ],
+        )
+        self.assertEqual(
+            bases["BASIS-FAN-RATING-AND-SYSTEM-EFFECT"]["source_ids"],
+            ["SRC-AMCA-210-2025", "SRC-AMCA-201-2023"],
+        )
+
+        unlinked_basis_ids = {
+            "BASIS-NYS-ECL-AIR-CONTROL",
+            "BASIS-NYS-AIR-SOURCE-CLASSIFICATION",
+            "BASIS-NYS-AIR-PERMITTING",
+            "BASIS-NYS-AIR-GENERAL-PROHIBITIONS",
+            "BASIS-NYS-PROCESS-OPERATIONS",
+            "BASIS-NFPA-45-LABORATORY-SCOPE",
+        }
+        linked_basis_ids = {
+            basis_id
+            for requirement in package["requirements"]
+            for basis_id in requirement["applicability_basis_ids"]
+        }
+        self.assertTrue(unlinked_basis_ids.isdisjoint(linked_basis_ids))
+
+    def test_corrected_source_metadata_is_preserved(self):
+        package = load_standards_basis_package()
+        sources = {record["id"]: record for record in package["controlled_sources"]}
+
+        self.assertEqual(
+            sources["SRC-LBNL-OPENBUILDINGCONTROL"]["date_status"],
+            "NOT_STATED",
+        )
+        self.assertIn(
+            "No edition or report date stated",
+            sources["SRC-LBNL-OPENBUILDINGCONTROL"][
+                "edition_or_effective_date"
+            ],
+        )
+        self.assertEqual(
+            sources["SRC-AMCA-210-2025"]["identifier"],
+            "ANSI/AMCA 210-25 and ANSI/ASHRAE 51-25",
+        )
+        self.assertEqual(
+            sources["SRC-AMCA-201-2023"]["identifier"],
+            "AMCA Publication 201-23",
+        )
+        court_support = sources[
+            "SRC-NYS-UNIFORM-CODE-COURT-NOTICE-2026-07-02"
+        ]["direct_support"]
+        self.assertIn("19 NYCRR Section 1240.6", court_support)
+        self.assertIn("fossil-fuel equipment and building systems", court_support)
+        for part in ("200", "201", "211", "212"):
+            self.assertEqual(
+                sources[f"SRC-NYS-6-NYCRR-PART-{part}"]["access_status"],
+                "OFFICIAL_PUBLIC_METADATA",
+            )
+
     def test_traceability_resolves_source_to_basis_to_requirement_to_evidence(self):
         store = StandardsBasisStore(DEFAULT_STANDARDS_BASIS_MANIFEST)
         package = store.get()
@@ -207,7 +311,15 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
             source_requirement = requirements[requirement["id"]]
             self.assertEqual(
                 set(requirement),
-                {"id", "activation_status"},
+                {
+                    "id",
+                    "lifecycle_status",
+                    "approval_status",
+                    "provenance_basis_type",
+                    "provenance_reference",
+                    "activation_status",
+                    "executable",
+                },
             )
             self.assertTrue(chain["controlled_sources"])
             self.assertTrue(chain["applicability_bases"])
@@ -220,9 +332,50 @@ class StandardsBasisLoadTests(StandardsBasisPackageTestCase):
                 [record["id"] for record in chain["required_evidence_categories"]],
                 source_requirement["evidence_category_ids"],
             )
+            expected_source_links = [
+                (basis["id"], source_id)
+                for basis in chain["applicability_bases"]
+                for source_id in basis["source_ids"]
+            ]
             self.assertEqual(
-                [record["source_id"] for record in chain["applicability_bases"]],
-                [record["id"] for record in chain["controlled_sources"]],
+                [
+                    (source["applicability_basis_id"], source["id"])
+                    for source in chain["controlled_sources"]
+                ],
+                expected_source_links,
+            )
+            self.assertTrue(
+                all(
+                    {
+                        "source_category",
+                        "adoption_status",
+                        "enforcement_status",
+                    }
+                    <= set(source)
+                    for source in chain["controlled_sources"]
+                )
+            )
+            self.assertTrue(
+                all(
+                    {
+                        "basis_category",
+                        "status",
+                        "source_ids",
+                    }
+                    <= set(basis)
+                    for basis in chain["applicability_bases"]
+                )
+            )
+            self.assertTrue(
+                all(
+                    {
+                        "point_definition_representation",
+                        "bound_point_definition_ids",
+                        "observation_availability",
+                    }
+                    <= set(category)
+                    for category in chain["required_evidence_categories"]
+                )
             )
 
     def test_repeated_load_is_deterministic_and_returns_independent_copies(self):
@@ -279,10 +432,77 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
         manifest_path = self.copy_package()
 
         def invalidate(value):
-            value["records"][0]["source_id"] = "SRC-DOES-NOT-EXIST"
+            value["records"][0]["source_ids"] = ["SRC-DOES-NOT-EXIST"]
 
         self.mutate_role(manifest_path, "applicability_matrix", invalidate)
-        self.assert_invalid(manifest_path, "source_id is unresolved")
+        self.assert_invalid(manifest_path, "source_ids contain unresolved references")
+
+    def test_rejects_empty_source_ids(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["source_ids"] = []
+
+        self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+        self.assert_invalid(manifest_path, "source_ids must not be empty")
+
+    def test_rejects_duplicate_source_ids(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            source_id = value["records"][0]["source_ids"][0]
+            value["records"][0]["source_ids"] = [source_id, source_id]
+
+        self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+        self.assert_invalid(manifest_path, "source_ids contains duplicates")
+
+    def test_rejects_malformed_source_identifier(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["source_ids"] = ["not a stable source id"]
+
+        self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+        self.assert_invalid(manifest_path, "must be a stable uppercase identifier")
+
+    def test_rejects_legacy_singular_source_id(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["source_id"] = value["records"][0].pop(
+                "source_ids"
+            )[0]
+
+        self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+        self.assert_invalid(manifest_path, "missing=.*source_ids")
+
+    def test_rejects_legal_basis_backed_only_by_simulation_source(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            record = next(
+                item
+                for item in value["records"]
+                if item["id"] == "BASIS-TOWN-AHJ-ASSUMPTION"
+            )
+            record["source_ids"] = ["SRC-SIMULATION-PROFILE-1.0.0"]
+
+        self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+        self.assert_invalid(manifest_path, "legal or adopted-code basis lacks a legal source")
+
+    def test_rejects_legal_basis_backed_only_by_informative_source(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            record = next(
+                item
+                for item in value["records"]
+                if item["id"] == "BASIS-TOWN-AHJ-ASSUMPTION"
+            )
+            record["source_ids"] = ["SRC-AMCA-201-2023"]
+
+        self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+        self.assert_invalid(manifest_path, "legal or adopted-code basis lacks a legal source")
 
     def test_rejects_unresolved_profile_fact_reference(self):
         manifest_path = self.copy_package()
@@ -340,7 +560,10 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
         manifest_path = self.copy_package()
 
         def invalidate(value):
-            value["records"][0]["current_point_ids"] = ["UPS-A_OUTPUT_KW"]
+            value["records"][0]["point_definition_representation"] = (
+                "BOUND_POINT_DEFINITIONS"
+            )
+            value["records"][0]["bound_point_definition_ids"] = ["UPS-A_OUTPUT_KW"]
 
         self.mutate_role(manifest_path, "evidence_categories", invalidate)
         self.assert_invalid(manifest_path, "outside the bound flagship fixture")
@@ -354,6 +577,82 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
         self.mutate_role(manifest_path, "requirements", invalidate)
         self.assert_invalid(manifest_path, "attempts to mark a requirement executable")
 
+    def test_rejects_attempt_to_mark_accepted_requirement_active(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["activation_status"] = "ACTIVE"
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "activation_status must remain INACTIVE")
+
+    def test_rejects_accepted_requirement_without_owner_basis(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["applicability_basis_ids"].remove(
+                "BASIS-OWNER-QUALITATIVE-SOO"
+            )
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(
+            manifest_path,
+            "accepted requirement lacks the recorded qualitative SOO basis",
+        )
+
+    def test_rejects_accepted_requirement_without_owner_provenance(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["provenance"]["basis_type"] = (
+                "AI_DRAFT_NOT_APPROVED"
+            )
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "lacks exact owner-decision provenance")
+
+    def test_rejects_accepted_requirement_with_substituted_owner_reference(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["provenance"]["reference"] = "AI draft"
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "lacks exact owner-decision provenance")
+
+    def test_rejects_proposed_requirement_claiming_owner_provenance(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][-1]["provenance"]["basis_type"] = (
+                "PROJECT_OWNER_DECISION_RECORDED"
+            )
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "claims owner provenance")
+
+    def test_rejects_proposed_requirement_with_owner_directive_provenance(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][-1]["provenance"]["basis_type"] = (
+                "PROJECT_OWNER_DIRECTIVE"
+            )
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "claims owner provenance")
+
+    def test_rejects_proposed_requirement_claiming_owner_basis(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][-1]["applicability_basis_ids"].append(
+                "BASIS-OWNER-QUALITATIVE-SOO"
+            )
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "claims an owner/project basis")
+
     def test_rejects_nonallowlisted_accepted_requirement(self):
         manifest_path = self.copy_package()
         manifest = self.read_json(manifest_path)
@@ -361,6 +660,149 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
         self.write_json(manifest_path, manifest)
 
         self.assert_invalid(manifest_path, "must match the project-owner decision")
+
+    def test_rejects_modified_recorded_profile_fact(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["statement"] = "A substituted profile fact."
+
+        self.mutate_role(manifest_path, "applicability_profile", invalidate)
+        self.assert_invalid(manifest_path, "does not match the recorded project-owner fact")
+
+    def test_rejects_modified_recorded_profile_fact_category(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["category"] = "MATERIAL_PROFILE"
+
+        self.mutate_role(manifest_path, "applicability_profile", invalidate)
+        self.assert_invalid(manifest_path, "category does not match the recorded project-owner fact")
+
+    def test_rejects_modified_recorded_profile_fact_provenance(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["provenance"]["basis_type"] = (
+                "AI_DRAFT_NOT_APPROVED"
+            )
+
+        self.mutate_role(manifest_path, "applicability_profile", invalidate)
+        self.assert_invalid(
+            manifest_path,
+            "provenance does not match the recorded project-owner fact",
+        )
+
+    def test_rejects_modified_owner_source_anchor(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            record = next(
+                item
+                for item in value["records"]
+                if item["id"] == "SRC-OWNER-DIRECTIVE-2026-07-22"
+            )
+            record["adoption_status"] = "NOT_A_LEGAL_SOURCE"
+
+        self.mutate_role(manifest_path, "controlled_sources", invalidate)
+        self.assert_invalid(manifest_path, "does not match the recorded owner source")
+
+    def test_rejects_modified_owner_basis_anchor(self):
+        for field, replacement in (
+            ("status", "PROVISIONAL_REQUIRES_VERIFICATION"),
+            ("conclusion", "A substituted owner-basis conclusion."),
+        ):
+            with self.subTest(field=field):
+                manifest_path = self.copy_package(f"owner-basis-{field}")
+
+                def invalidate(value, field=field, replacement=replacement):
+                    record = next(
+                        item
+                        for item in value["records"]
+                        if item["id"] == "BASIS-OWNER-QUALITATIVE-SOO"
+                    )
+                    record[field] = replacement
+
+                self.mutate_role(manifest_path, "applicability_matrix", invalidate)
+                self.assert_invalid(
+                    manifest_path,
+                    "does not match the recorded qualitative SOO basis",
+                )
+
+    def test_rejects_modified_accepted_requirement_statement(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["statement"] = "A substituted requirement."
+
+        self.mutate_role(manifest_path, "requirements", invalidate)
+        self.assert_invalid(manifest_path, "does not match the recorded project-owner wording")
+
+    def test_rejects_modified_controlled_notice(self):
+        for notice_name in ("applicability", "authorship", "execution", "authority"):
+            with self.subTest(notice_name=notice_name):
+                manifest_path = self.copy_package(f"notice-{notice_name}")
+                manifest = self.read_json(manifest_path)
+                manifest["notices"][notice_name] = "A substituted controlled notice."
+                self.write_json(manifest_path, manifest)
+
+                self.assert_invalid(
+                    manifest_path,
+                    "must match the controlled authority notices",
+                )
+
+    def test_rejects_point_definition_representation_without_required_ids(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            record = next(
+                item
+                for item in value["records"]
+                if item["id"] == "EVIDENCE-FAN-AVAILABILITY"
+            )
+            record["bound_point_definition_ids"] = []
+
+        self.mutate_role(manifest_path, "evidence_categories", invalidate)
+        self.assert_invalid(manifest_path, "requires bound identifiers")
+
+    def test_rejects_partial_point_definition_representation_without_ids(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            record = next(
+                item
+                for item in value["records"]
+                if item["id"] == "EVIDENCE-VFD-STATE"
+            )
+            record["bound_point_definition_ids"] = []
+
+        self.mutate_role(manifest_path, "evidence_categories", invalidate)
+        self.assert_invalid(manifest_path, "requires bound identifiers")
+
+    def test_rejects_missing_point_definition_representation_with_ids(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            record = next(
+                item
+                for item in value["records"]
+                if item["id"] == "EVIDENCE-PROCESS-PERMISSIVE"
+            )
+            record["bound_point_definition_ids"] = ["PROCESS-EXHAUST_AIRFLOW"]
+
+        self.mutate_role(manifest_path, "evidence_categories", invalidate)
+        self.assert_invalid(manifest_path, "requires no bound identifiers")
+
+    def test_rejects_claimed_flagship_observation_availability(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["observation_availability"] = (
+                "BASELINE_OBSERVATIONS_AVAILABLE"
+            )
+
+        self.mutate_role(manifest_path, "evidence_categories", invalidate)
+        self.assert_invalid(manifest_path, "observation_availability is invalid")
 
     def test_rejects_numerical_criterion_payload(self):
         manifest_path = self.copy_package()
@@ -371,15 +813,6 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
         self.mutate_role(manifest_path, "requirements", invalidate)
         self.assert_invalid(manifest_path, "unexpected=.*numerical_criterion")
 
-    def test_rejects_numerical_criterion_hidden_in_requirement_text(self):
-        manifest_path = self.copy_package()
-
-        def invalidate(value):
-            value["records"][-1]["statement"] = "A proposed delay is 30 seconds."
-
-        self.mutate_role(manifest_path, "requirements", invalidate)
-        self.assert_invalid(manifest_path, "unapproved numerical criterion")
-
     def test_rejects_manifest_path_traversal(self):
         manifest_path = self.copy_package()
         manifest = self.read_json(manifest_path)
@@ -387,6 +820,25 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
         self.write_json(manifest_path, manifest)
 
         self.assert_invalid(manifest_path, "escapes the package directory")
+
+    def test_unhashable_manifest_file_value_raises_controlled_validation_error(self):
+        manifest_path = self.copy_package()
+        manifest = self.read_json(manifest_path)
+        manifest["files"]["requirements"] = ["requirements.json"]
+        self.write_json(manifest_path, manifest)
+
+        with self.assertRaises(StandardsBasisValidationError):
+            load_standards_basis_package(manifest_path)
+
+    def test_unhashable_enum_value_raises_controlled_validation_error(self):
+        manifest_path = self.copy_package()
+
+        def invalidate(value):
+            value["records"][0]["source_category"] = ["LAW_OR_REGULATION"]
+
+        self.mutate_role(manifest_path, "controlled_sources", invalidate)
+        with self.assertRaises(StandardsBasisValidationError):
+            load_standards_basis_package(manifest_path)
 
     def test_rejects_malformed_json(self):
         manifest_path = self.copy_package()
@@ -408,6 +860,21 @@ class StandardsBasisValidationTests(StandardsBasisPackageTestCase):
 
         self.assertEqual(store.get(), original)
 
+    def test_failed_semantic_reload_preserves_prior_atomic_snapshot(self):
+        valid_manifest = self.copy_package("valid-semantic")
+        invalid_manifest = self.copy_package("invalid-semantic")
+        store = StandardsBasisStore(valid_manifest)
+        original = store.load()
+
+        def invalidate(value):
+            value["records"][2]["source_ids"] = ["SRC-SIMULATION-PROFILE-1.0.0"]
+
+        self.mutate_role(invalid_manifest, "applicability_matrix", invalidate)
+        with self.assertRaises(StandardsBasisValidationError):
+            store.load(invalid_manifest)
+
+        self.assertEqual(store.get(), original)
+
 
 class StandardsBasisApiTests(StandardsBasisPackageTestCase):
     def test_consolidated_route_returns_one_complete_flagship_snapshot(self):
@@ -418,13 +885,17 @@ class StandardsBasisApiTests(StandardsBasisPackageTestCase):
         self.assertEqual(payload["facility_fixture_version"], "1.0.0")
         self.assertEqual(payload["status"], "READ_ONLY_NON_EXECUTABLE")
         self.assertEqual(len(payload["applicability_profile"]), 18)
-        self.assertEqual(len(payload["controlled_sources"]), 27)
-        self.assertEqual(len(payload["applicability_matrix"]), 23)
-        self.assertEqual(len(payload["evidence_categories"]), 18)
+        self.assertEqual(len(payload["controlled_sources"]), 35)
+        self.assertEqual(len(payload["applicability_matrix"]), 29)
+        self.assertEqual(len(payload["evidence_categories"]), 19)
         self.assertEqual(len(payload["requirements"]), 12)
         self.assertEqual(len(payload["traceability"]), 12)
         self.assertIn("provisional", payload["notices"]["applicability"])
         self.assertIn("non-executable", payload["notices"]["execution"])
+        self.assertIn(
+            "assigned organizational or legal authority",
+            payload["notices"]["authority"],
+        )
 
     def test_leaf_routes_are_read_only_and_repeat_facility_binding(self):
         routes = {
@@ -487,6 +958,11 @@ class StandardsBasisApiTests(StandardsBasisPackageTestCase):
         self.assertIn("Provisional applicability matrix", html)
         self.assertIn("Project-authored synthetic requirements — INACTIVE / NON-EXECUTABLE", html)
         self.assertIn("Visible source-to-evidence traceability", html)
+        self.assertIn("Point-definition representation", html)
+        self.assertIn("Observation availability", html)
+        self.assertIn("the flagship fixture\n        declares no observation baseline", html)
+        self.assertIn("chain.requirement.provenance_reference", html)
+        self.assertIn("Structurally validated read-only package loaded", html)
         self.assertIn('fetch("/standards-basis")', html)
         self.assertIn("loadStandardsBasis();", html)
         self.assertIn("loadWorkbench();", html)

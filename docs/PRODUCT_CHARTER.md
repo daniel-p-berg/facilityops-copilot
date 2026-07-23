@@ -64,7 +64,7 @@ source artifact or stream
 
 A canonical observation remains a reported indication from an identified source within its stated quality, timing, mapping, and transformation limits. It does not independently prove the physical state of equipment, a system, or the facility.
 
-Human response or operational action must lead to new observations and a separate recovery evaluation. A recorded action, acknowledgement, controller command/request indication, or work record does not prove that its intended physical effect occurred.
+After a recorded action or response, FacilityOps may receive new observations. The action or response record does not establish causation or physical effect. Recovery requires new post-action observations and a separate evaluation. An acknowledgement, controller command/request indication, or work record likewise does not prove that its intended physical effect occurred.
 
 ## Standards and assurance lifecycle
 
@@ -112,7 +112,7 @@ This charter does not select a requirement schema, field set, or single status-t
 
 ## Deterministic computation and human authority
 
-Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
+Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. The following authorities remain with persons or organizations that possess the required qualifications and assigned organizational or legal authority: applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, final disposition, determinations of physical safety, and authorization for operation.
 
 Deterministic evaluation must preserve insufficient-evidence behavior. Missing, stale, suspect, overridden, late, or conflicting evidence must be capable of producing an `INDETERMINATE` result rather than a forced binary result. The working external outcome set is `CONFORMING`, `NONCONFORMING`, `INDETERMINATE`, and `NOT_APPLICABLE`; the internal separation between applicability and evaluation results remains a later architecture decision.
 

@@ -38,6 +38,7 @@ SOURCE_CATEGORIES = {
     "LAW_OR_REGULATION",
     "ADOPTED_CODE",
     "LOCAL_GOVERNMENT_SOURCE",
+    "OFFICIAL_GOVERNMENT_NOTICE",
     "FORMAL_STANDARD",
     "INFORMATIVE_ENGINEERING_GUIDANCE",
     "RESEARCH_SPECIFICATION",
@@ -53,6 +54,8 @@ SOURCE_ADOPTION_STATUSES = {
     "NOT_ESTABLISHED_FOR_FLAGSHIP",
     "NOT_A_LEGAL_SOURCE",
     "PROJECT_OWNER_DECISION_RECORDED",
+    "OFFICIAL_STATUS_NOTICE",
+    "NEW_YORK_STATE_PUBLIC_SECTOR_PROGRAM",
 }
 SOURCE_ENFORCEMENT_STATUSES = {
     "GENERALLY_IN_FORCE_SUBJECT_TO_SCOPE",
@@ -61,6 +64,7 @@ SOURCE_ENFORCEMENT_STATUSES = {
     "NOT_ESTABLISHED_FOR_FLAGSHIP",
     "NOT_ENFORCEABLE_AS_LAW_BY_ITSELF",
     "PROJECT_ONLY",
+    "LIMITED_PROVISIONS_SUSPENDED_BY_COURT_ORDER",
 }
 SOURCE_ACCESS_STATUSES = {
     "OFFICIAL_PUBLIC_FULL_TEXT",
@@ -84,14 +88,197 @@ BASIS_CATEGORIES = {
     "RESEARCH_METHOD",
     "PURE_SIMULATION_ASSUMPTION",
 }
-EVIDENCE_IMPLEMENTATION_STATUSES = {
-    "AVAILABLE_IN_FLAGSHIP_TOPOLOGY",
-    "PARTIALLY_AVAILABLE_IN_FLAGSHIP_TOPOLOGY",
-    "MISSING_REQUIRES_FUTURE_DECISION",
-    "FUTURE_RECORD_SET",
+EVIDENCE_POINT_DEFINITION_REPRESENTATIONS = {
+    "BOUND_POINT_DEFINITIONS",
+    "PARTIAL_BOUND_POINT_DEFINITIONS",
+    "MISSING_POINT_DEFINITIONS",
+    "NON_POINT_RECORD_DEFINITION",
 }
+EVIDENCE_OBSERVATION_AVAILABILITIES = {"NO_FLAGSHIP_OBSERVATION_BASELINE"}
 REQUIREMENT_LIFECYCLE_STATUSES = {"ACCEPTED_FOR_SIMULATION", "DRAFT"}
 REQUIREMENT_APPROVAL_STATUSES = {"PROJECT_OWNER_DECISION_RECORDED", "PROPOSED"}
+
+EXPECTED_PROFILE_FACT_STATEMENTS = {
+    "PROFILE-FACILITY-CONSTRUCTION": (
+        "The fictional facility is new, privately operated, one story, and sprinklered."
+    ),
+    "PROFILE-FACILITY-LOCATION": (
+        "The fictional facility is in the Town of Horseheads, Chemung County, New York, "
+        "outside every incorporated village and outside New York City."
+    ),
+    "PROFILE-AHJ-ASSUMPTION": (
+        "For this laboratory exercise, the Town code-enforcement authority is the "
+        "assumed local authority having jurisdiction."
+    ),
+    "PROFILE-RESEARCH-USE": (
+        "The flagship space is a research laboratory and is not healthcare, "
+        "pharmaceutical compounding, semiconductor production, pilot manufacturing, "
+        "or full production."
+    ),
+    "PROFILE-GROUP-B-ASSUMPTION": (
+        "The intended fictional occupancy assumption is Group B research-laboratory use."
+    ),
+    "PROFILE-MATERIAL-AND-ACTIVITIES": (
+        "The process uses bench-scale alumina-based ceramic powder and sintered ceramic "
+        "specimens for weighing, wet mixing, preparation, and characterization."
+    ),
+    "PROFILE-OPEN-BATCH-BOUND": "The maximum open powder batch is 250 g.",
+    "PROFILE-INVENTORY-BOUND": (
+        "The maximum powder inventory in the laboratory is 5 kg in closed containers."
+    ),
+    "PROFILE-MATERIAL-HAZARD-BOUNDARY": (
+        "The scoped material is noncombustible and nonreactive but presents a particulate "
+        "inhalation and contamination concern."
+    ),
+    "PROFILE-EXCLUDED-HAZARDS": (
+        "The proof excludes combustible dust, flammable-gas processes, flammable-liquid "
+        "processes, explosives, pyrophoric materials, water-reactive materials, oxidizers, "
+        "highly toxic gases, radioactive materials, biological agents, classified "
+        "electrical locations, and quantities intended to produce a high-hazard occupancy."
+    ),
+    "PROFILE-ZONES": (
+        "The scoped zones are the corridor, transition or airlock, and process laboratory "
+        "already represented by the flagship topology."
+    ),
+    "PROFILE-PRESSURE-DIRECTION": (
+        "The intended pressure direction is corridor to transition or airlock to process "
+        "laboratory."
+    ),
+    "PROFILE-PROCESS-EXHAUST": (
+        "A dedicated process-exhaust system serves the process enclosure and laboratory."
+    ),
+    "PROFILE-TREATMENT": (
+        "Exhaust passes through monitored particulate treatment before outdoor discharge."
+    ),
+    "PROFILE-FAN-PAIR": (
+        "Two VFD-driven fans form a duty and standby pair, and either fan can provide the "
+        "intended normal duty."
+    ),
+    "PROFILE-COMMON-DEPENDENCIES": (
+        "The shared exhaust path and treatment unit are common dependencies that a standby "
+        "fan cannot replace."
+    ),
+    "PROFILE-SUPPLY-MAKEUP": (
+        "A supply or makeup-air subsystem supports the intended pressure cascade."
+    ),
+    "PROFILE-READ-ONLY-BOUNDARY": (
+        "FacilityOps remains read-only toward external systems and must never issue a "
+        "command or configure a controller."
+    ),
+}
+
+EXPECTED_PROFILE_FACT_CATEGORIES = {
+    "PROFILE-FACILITY-CONSTRUCTION": "FACILITY_CONTEXT",
+    "PROFILE-FACILITY-LOCATION": "FACILITY_CONTEXT",
+    "PROFILE-AHJ-ASSUMPTION": "JURISDICTION_ASSUMPTION",
+    "PROFILE-RESEARCH-USE": "USE_AND_OCCUPANCY_ASSUMPTION",
+    "PROFILE-GROUP-B-ASSUMPTION": "USE_AND_OCCUPANCY_ASSUMPTION",
+    "PROFILE-MATERIAL-AND-ACTIVITIES": "MATERIAL_PROFILE",
+    "PROFILE-OPEN-BATCH-BOUND": "SIMULATION_INVENTORY_BOUND",
+    "PROFILE-INVENTORY-BOUND": "SIMULATION_INVENTORY_BOUND",
+    "PROFILE-MATERIAL-HAZARD-BOUNDARY": "MATERIAL_PROFILE",
+    "PROFILE-EXCLUDED-HAZARDS": "SCOPE_EXCLUSION",
+    "PROFILE-ZONES": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-PRESSURE-DIRECTION": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-PROCESS-EXHAUST": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-TREATMENT": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-FAN-PAIR": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-COMMON-DEPENDENCIES": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-SUPPLY-MAKEUP": "OWNER_PROJECT_DESIGN_INTENT",
+    "PROFILE-READ-ONLY-BOUNDARY": "EXTERNAL_CONTROL_BOUNDARY",
+}
+
+EXPECTED_PROFILE_PROVENANCE_REFERENCES = {
+    **{identifier: "ADR 0004" for identifier in EXPECTED_PROFILE_FACT_STATEMENTS},
+    "PROFILE-ZONES": "ADR 0004 and ADR 0001",
+    "PROFILE-PRESSURE-DIRECTION": "ADR 0004 and ADR 0001",
+    "PROFILE-READ-ONLY-BOUNDARY": "ADR 0004 and ADR 0003",
+}
+
+EXPECTED_OWNER_SOURCE_ANCHOR = {
+    "issuer": "Daniel Berg, Project Owner",
+    "identifier": "OWNER-DIRECTIVE-2026-07-22",
+    "source_category": "OWNER_PROJECT_DECISION",
+    "repository_reference": "docs/decisions/0004-flagship-fictional-applicability-profile.md",
+    "adoption_status": "PROJECT_OWNER_DECISION_RECORDED",
+    "enforcement_status": "PROJECT_ONLY",
+    "access_status": "PROJECT_RECORD",
+    "provenance": {
+        "basis_type": "PROJECT_OWNER_DIRECTIVE",
+        "reference": "ADR 0004",
+        "recorded_on": "2026-07-22",
+    },
+}
+
+EXPECTED_OWNER_BASIS_ANCHOR = {
+    "source_ids": ["SRC-OWNER-DIRECTIVE-2026-07-22"],
+    "status": "OWNER_PROJECT_BASIS",
+    "basis_category": "OWNER_PROJECT_REQUIREMENT",
+    "trigger": (
+        "Use of the ten recorded qualitative design-intent statements in the fictional "
+        "flagship laboratory."
+    ),
+    "profile_fact_ids": [
+        "PROFILE-PROCESS-EXHAUST",
+        "PROFILE-TREATMENT",
+        "PROFILE-FAN-PAIR",
+        "PROFILE-COMMON-DEPENDENCIES",
+        "PROFILE-SUPPLY-MAKEUP",
+        "PROFILE-PRESSURE-DIRECTION",
+        "PROFILE-READ-ONLY-BOUNDARY",
+    ],
+    "conclusion": (
+        "This is the direct project basis for the accepted qualitative synthetic "
+        "requirements; each remains inactive and non-executable."
+    ),
+    "uncertainty": (
+        "No numerical parameters, detailed sequence, evaluation rule, physical "
+        "authorization, or legal applicability follows from this basis."
+    ),
+    "future_verification": (
+        "Obtain project-owner approval for any future parameter, mapping, activation, or "
+        "executable rule and the applicable qualified technical review."
+    ),
+    "provenance": {
+        "basis_type": "PROJECT_OWNER_DECISION_RECORD",
+        "reference": "ADR 0004",
+        "recorded_on": "2026-07-22",
+    },
+}
+
+EXPECTED_ACCEPTED_REQUIREMENT_PROVENANCE = {
+    "basis_type": "PROJECT_OWNER_DECISION_RECORDED",
+    "reference": "ADR 0004 qualitative requirement",
+    "recorded_on": "2026-07-22",
+}
+
+EXPECTED_PROPOSED_REQUIREMENT_PROVENANCE = {
+    "basis_type": "AI_DRAFT_NOT_APPROVED",
+    "reference": "Milestone decision-packet preparation",
+    "recorded_on": "2026-07-22",
+}
+
+EXPECTED_MANIFEST_NOTICES = {
+    "applicability": (
+        "The applicability matrix is provisional and requires controlled-source "
+        "verification plus review by persons or organizations that possess the required "
+        "qualifications and assigned organizational or legal authority."
+    ),
+    "authorship": (
+        "The requirements are project-authored synthetic sequence-of-operation "
+        "requirements; external sources are provisional or informative influences unless "
+        "stated otherwise."
+    ),
+    "execution": (
+        "Every requirement in this package is inactive and non-executable during this tranche."
+    ),
+    "authority": (
+        "FacilityOps does not establish code compliance, commissioning acceptance, physical "
+        "safety, operability, or authorization for operation. Human authority belongs only "
+        "to persons or organizations that possess the required qualifications and assigned "
+        "organizational or legal authority."
+    ),
+}
 
 APPROVED_QUALITATIVE_REQUIREMENTS = {
     "REQ-SOO-001": (
@@ -195,6 +382,11 @@ def _require_string_list(value, context, allow_empty=False):
     for index, item in enumerate(value):
         _require_nonblank(item, f"{context}[{index}]")
     _require(len(value) == len(set(value)), f"{context} contains duplicates")
+
+
+def _require_enum(value, allowed_values, context):
+    _require_nonblank(value, context)
+    _require(value in allowed_values, f"{context} is invalid")
 
 
 def _require_provenance(value, context):
@@ -334,6 +526,8 @@ def _validate_manifest(manifest):
     )
 
     _require_exact_keys(manifest["files"], EXPECTED_FILE_ROLES, "manifest.files")
+    for role, relative_path in manifest["files"].items():
+        _require_nonblank(relative_path, f"manifest.files.{role}")
     _require(
         len(set(manifest["files"].values())) == len(EXPECTED_FILE_ROLES),
         "manifest.files must use one distinct file per role",
@@ -360,6 +554,10 @@ def _validate_manifest(manifest):
     )
     for key, value in manifest["notices"].items():
         _require_nonblank(value, f"manifest.notices.{key}")
+    _require(
+        manifest["notices"] == EXPECTED_MANIFEST_NOTICES,
+        "manifest.notices must match the controlled authority notices",
+    )
 
     _require_exact_keys(
         manifest["provenance"],
@@ -455,14 +653,37 @@ def _validate_profile(records, facility_id):
         context = f"applicability_profile.{record['id']}"
         _require_exact_keys(record, expected_keys, context)
         _validate_record_facility(record, facility_id, context)
-        _require(record["category"] in PROFILE_FACT_CATEGORIES, f"{context}.category is invalid")
+        _require_enum(record["category"], PROFILE_FACT_CATEGORIES, f"{context}.category")
+        _require(
+            EXPECTED_PROFILE_FACT_CATEGORIES.get(record["id"]) == record["category"],
+            f"{context}.category does not match the recorded project-owner fact",
+        )
         _require(
             record["status"] == "PROJECT_OWNER_DECISION_RECORDED",
             f"{context}.status is invalid",
         )
         _require_nonblank(record["statement"], f"{context}.statement")
+        _require(
+            EXPECTED_PROFILE_FACT_STATEMENTS.get(record["id"])
+            == record["statement"],
+            f"{context}.statement does not match the recorded project-owner fact",
+        )
         _require_nonblank(record["limitations"], f"{context}.limitations")
         _require_provenance(record["provenance"], f"{context}.provenance")
+        expected_provenance = {
+            "basis_type": "PROJECT_OWNER_DIRECTIVE",
+            "reference": EXPECTED_PROFILE_PROVENANCE_REFERENCES[record["id"]],
+            "recorded_on": "2026-07-22",
+        }
+        _require(
+            record["provenance"] == expected_provenance,
+            f"{context}.provenance does not match the recorded project-owner fact",
+        )
+
+    _require(
+        {record["id"] for record in records} == set(EXPECTED_PROFILE_FACT_STATEMENTS),
+        "applicability_profile must contain the exact recorded project-owner facts",
+    )
 
 
 def _validate_sources(records, facility_id, profile_fact_ids):
@@ -501,11 +722,27 @@ def _validate_sources(records, facility_id, profile_fact_ids):
             "uncertainty",
         ):
             _require_nonblank(record[key], f"{context}.{key}")
-        _require(record["date_status"] in SOURCE_DATE_STATUSES, f"{context}.date_status is invalid")
-        _require(record["source_category"] in SOURCE_CATEGORIES, f"{context}.source_category is invalid")
-        _require(record["adoption_status"] in SOURCE_ADOPTION_STATUSES, f"{context}.adoption_status is invalid")
-        _require(record["enforcement_status"] in SOURCE_ENFORCEMENT_STATUSES, f"{context}.enforcement_status is invalid")
-        _require(record["access_status"] in SOURCE_ACCESS_STATUSES, f"{context}.access_status is invalid")
+        _require_enum(record["date_status"], SOURCE_DATE_STATUSES, f"{context}.date_status")
+        _require_enum(
+            record["source_category"],
+            SOURCE_CATEGORIES,
+            f"{context}.source_category",
+        )
+        _require_enum(
+            record["adoption_status"],
+            SOURCE_ADOPTION_STATUSES,
+            f"{context}.adoption_status",
+        )
+        _require_enum(
+            record["enforcement_status"],
+            SOURCE_ENFORCEMENT_STATUSES,
+            f"{context}.enforcement_status",
+        )
+        _require_enum(
+            record["access_status"],
+            SOURCE_ACCESS_STATUSES,
+            f"{context}.access_status",
+        )
         _require_date(record["accessed_on"], f"{context}.accessed_on")
         official_url = record["official_url"]
         repository_reference = record["repository_reference"]
@@ -528,13 +765,19 @@ def _validate_sources(records, facility_id, profile_fact_ids):
         missing_facts = sorted(set(record["profile_fact_ids"]) - profile_fact_ids)
         _require(not missing_facts, f"{context} references unknown profile facts: {missing_facts}")
         _require_provenance(record["provenance"], f"{context}.provenance")
+        if record["id"] == "SRC-OWNER-DIRECTIVE-2026-07-22":
+            for field, expected_value in EXPECTED_OWNER_SOURCE_ANCHOR.items():
+                _require(
+                    record[field] == expected_value,
+                    f"{context}.{field} does not match the recorded owner source",
+                )
 
 
-def _validate_applicability(records, facility_id, source_ids, profile_fact_ids):
+def _validate_applicability(records, facility_id, sources, profile_fact_ids):
     expected_keys = {
         "id",
         "facility_id",
-        "source_id",
+        "source_ids",
         "status",
         "basis_category",
         "trigger",
@@ -548,15 +791,53 @@ def _validate_applicability(records, facility_id, source_ids, profile_fact_ids):
         context = f"applicability_matrix.{record['id']}"
         _require_exact_keys(record, expected_keys, context)
         _validate_record_facility(record, facility_id, context)
-        _require(record["source_id"] in source_ids, f"{context}.source_id is unresolved")
-        _require(record["status"] in APPLICABILITY_STATUSES, f"{context}.status is invalid")
-        _require(record["basis_category"] in BASIS_CATEGORIES, f"{context}.basis_category is invalid")
+        _require_string_list(record["source_ids"], f"{context}.source_ids")
+        for index, source_id in enumerate(record["source_ids"]):
+            _require_identifier(source_id, f"{context}.source_ids[{index}]")
+        missing_sources = sorted(set(record["source_ids"]) - set(sources))
+        _require(
+            not missing_sources,
+            f"{context}.source_ids contain unresolved references: {missing_sources}",
+        )
+        _require_enum(record["status"], APPLICABILITY_STATUSES, f"{context}.status")
+        _require_enum(
+            record["basis_category"],
+            BASIS_CATEGORIES,
+            f"{context}.basis_category",
+        )
         for key in ("trigger", "conclusion", "uncertainty", "future_verification"):
             _require_nonblank(record[key], f"{context}.{key}")
         _require_string_list(record["profile_fact_ids"], f"{context}.profile_fact_ids")
         missing_facts = sorted(set(record["profile_fact_ids"]) - profile_fact_ids)
         _require(not missing_facts, f"{context} references unknown profile facts: {missing_facts}")
         _require_provenance(record["provenance"], f"{context}.provenance")
+
+        source_categories = {
+            sources[source_id]["source_category"]
+            for source_id in record["source_ids"]
+        }
+        if record["basis_category"] in {"LEGAL_OR_REGULATORY", "ADOPTED_CODE"}:
+            _require(
+                source_categories
+                & {"LAW_OR_REGULATION", "ADOPTED_CODE", "LOCAL_GOVERNMENT_SOURCE"},
+                f"{context} legal or adopted-code basis lacks a legal source",
+            )
+        if record["basis_category"] == "OWNER_PROJECT_REQUIREMENT":
+            _require(
+                "OWNER_PROJECT_DECISION" in source_categories,
+                f"{context} owner/project basis lacks an owner decision source",
+            )
+        if record["basis_category"] == "PURE_SIMULATION_ASSUMPTION":
+            _require(
+                "SIMULATION_ASSUMPTION" in source_categories,
+                f"{context} simulation basis lacks a simulation source",
+            )
+        if record["id"] == "BASIS-OWNER-QUALITATIVE-SOO":
+            for field, expected_value in EXPECTED_OWNER_BASIS_ANCHOR.items():
+                _require(
+                    record[field] == expected_value,
+                    f"{context}.{field} does not match the recorded qualitative SOO basis",
+                )
 
 
 def _validate_evidence_categories(records, facility_id, bound_point_ids):
@@ -566,8 +847,9 @@ def _validate_evidence_categories(records, facility_id, bound_point_ids):
         "label",
         "evidence_kind",
         "status",
-        "implementation_status",
-        "current_point_ids",
+        "point_definition_representation",
+        "bound_point_definition_ids",
+        "observation_availability",
         "description",
         "provenance_consideration",
         "limitations",
@@ -589,19 +871,40 @@ def _validate_evidence_categories(records, facility_id, bound_point_ids):
             record["status"] == "DEFINED_FOR_NON_EXECUTABLE_TRACEABILITY",
             f"{context}.status is invalid",
         )
-        _require(
-            record["implementation_status"] in EVIDENCE_IMPLEMENTATION_STATUSES,
-            f"{context}.implementation_status is invalid",
+        _require_enum(
+            record["point_definition_representation"],
+            EVIDENCE_POINT_DEFINITION_REPRESENTATIONS,
+            f"{context}.point_definition_representation",
+        )
+        _require_enum(
+            record["observation_availability"],
+            EVIDENCE_OBSERVATION_AVAILABILITIES,
+            f"{context}.observation_availability",
         )
         _require_string_list(
-            record["current_point_ids"],
-            f"{context}.current_point_ids",
+            record["bound_point_definition_ids"],
+            f"{context}.bound_point_definition_ids",
             allow_empty=True,
         )
-        missing_points = sorted(set(record["current_point_ids"]) - bound_point_ids)
+        point_definition_ids = record["bound_point_definition_ids"]
+        representation = record["point_definition_representation"]
+        if representation in {
+            "BOUND_POINT_DEFINITIONS",
+            "PARTIAL_BOUND_POINT_DEFINITIONS",
+        }:
+            _require(
+                point_definition_ids,
+                f"{context} point-definition representation requires bound identifiers",
+            )
+        else:
+            _require(
+                not point_definition_ids,
+                f"{context} point-definition representation requires no bound identifiers",
+            )
+        missing_points = sorted(set(point_definition_ids) - bound_point_ids)
         _require(
             not missing_points,
-            f"{context} references points outside the bound flagship fixture: "
+            f"{context} references point definitions outside the bound flagship fixture: "
             f"{missing_points}",
         )
         _require_provenance(record["provenance"], f"{context}.provenance")
@@ -611,7 +914,7 @@ def _validate_requirements(
     records,
     facility_id,
     approved_requirement_ids,
-    applicability_ids,
+    applicability,
     evidence_category_ids,
 ):
     expected_keys = {
@@ -653,13 +956,15 @@ def _validate_requirements(
             record["requirement_type"] == "PROJECT_AUTHORED_SYNTHETIC_SOO",
             f"{context}.requirement_type is invalid",
         )
-        _require(
-            record["lifecycle_status"] in REQUIREMENT_LIFECYCLE_STATUSES,
-            f"{context}.lifecycle_status is invalid",
+        _require_enum(
+            record["lifecycle_status"],
+            REQUIREMENT_LIFECYCLE_STATUSES,
+            f"{context}.lifecycle_status",
         )
-        _require(
-            record["approval_status"] in REQUIREMENT_APPROVAL_STATUSES,
-            f"{context}.approval_status is invalid",
+        _require_enum(
+            record["approval_status"],
+            REQUIREMENT_APPROVAL_STATUSES,
+            f"{context}.approval_status",
         )
         _require(
             record["activation_status"] == "INACTIVE",
@@ -698,22 +1003,37 @@ def _validate_requirements(
             f"{context}.evidence_category_ids",
         )
         _require_nonblank(record["rationale"], f"{context}.rationale")
-        missing_basis = sorted(set(record["applicability_basis_ids"]) - applicability_ids)
+        missing_basis = sorted(set(record["applicability_basis_ids"]) - set(applicability))
         missing_evidence = sorted(set(record["evidence_category_ids"]) - evidence_category_ids)
         _require(not missing_basis, f"{context} references unknown applicability bases: {missing_basis}")
         _require(not missing_evidence, f"{context} references unknown evidence categories: {missing_evidence}")
         _require_string_list(record["assumptions"], f"{context}.assumptions", allow_empty=True)
         _require_string_list(record["limitations"], f"{context}.limitations")
         _require_provenance(record["provenance"], f"{context}.provenance")
-        for text in (
-            record["statement"],
-            record["rationale"],
-            *record["assumptions"],
-            *record["limitations"],
-        ):
+        owner_basis_ids = {
+            basis_id
+            for basis_id in record["applicability_basis_ids"]
+            if applicability[basis_id]["basis_category"]
+            == "OWNER_PROJECT_REQUIREMENT"
+        }
+        if record["approval_status"] == "PROJECT_OWNER_DECISION_RECORDED":
             _require(
-                re.search(r"\d", text) is None,
-                f"{context} contains an unapproved numerical criterion",
+                "BASIS-OWNER-QUALITATIVE-SOO" in owner_basis_ids,
+                f"{context} accepted requirement lacks the recorded qualitative SOO basis",
+            )
+            _require(
+                record["provenance"] == EXPECTED_ACCEPTED_REQUIREMENT_PROVENANCE,
+                f"{context} accepted requirement lacks exact owner-decision provenance",
+            )
+        else:
+            _require(
+                not owner_basis_ids,
+                f"{context} proposed requirement claims an owner/project basis",
+            )
+            _require(
+                record["provenance"] == EXPECTED_PROPOSED_REQUIREMENT_PROVENANCE,
+                f"{context} proposed requirement claims owner provenance or lacks exact "
+                "draft provenance",
             )
 
     _require(
@@ -744,8 +1064,6 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
     facility_id = manifest["facility"]["facility_id"]
     bound_point_ids = _load_bound_flagship_point_ids()
     profile_fact_ids = set(indexes["applicability_profile"])
-    source_ids = set(indexes["controlled_sources"])
-    applicability_ids = set(indexes["applicability_matrix"])
     evidence_category_ids = set(indexes["evidence_categories"])
 
     _validate_profile(documents["applicability_profile"]["records"], facility_id)
@@ -757,7 +1075,7 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
     _validate_applicability(
         documents["applicability_matrix"]["records"],
         facility_id,
-        source_ids,
+        indexes["controlled_sources"],
         profile_fact_ids,
     )
     _validate_evidence_categories(
@@ -769,7 +1087,7 @@ def load_standards_basis_package(manifest_path=DEFAULT_STANDARDS_BASIS_MANIFEST)
         documents["requirements"]["records"],
         facility_id,
         manifest["accepted_qualitative_requirement_ids"],
-        applicability_ids,
+        indexes["applicability_matrix"],
         evidence_category_ids,
     )
 
@@ -887,33 +1205,55 @@ def _build_traceability(package):
             applicability[basis_id]
             for basis_id in requirement["applicability_basis_ids"]
         ]
+        basis_entries = []
+        source_entries = []
+        for basis in bases:
+            basis_entries.append(
+                {
+                    "id": basis["id"],
+                    "basis_category": basis["basis_category"],
+                    "status": basis["status"],
+                    "source_ids": basis["source_ids"],
+                }
+            )
+            for source_id in basis["source_ids"]:
+                source = sources[source_id]
+                source_entries.append(
+                    {
+                        "id": source["id"],
+                        "applicability_basis_id": basis["id"],
+                        "source_category": source["source_category"],
+                        "adoption_status": source["adoption_status"],
+                        "enforcement_status": source["enforcement_status"],
+                    }
+                )
+
         chains.append(
             {
                 "requirement": {
                     "id": requirement["id"],
+                    "lifecycle_status": requirement["lifecycle_status"],
+                    "approval_status": requirement["approval_status"],
+                    "provenance_basis_type": requirement["provenance"]["basis_type"],
+                    "provenance_reference": requirement["provenance"]["reference"],
                     "activation_status": requirement["activation_status"],
+                    "executable": requirement["executable"],
                 },
-                "applicability_bases": [
-                    {
-                        "id": basis["id"],
-                        "status": basis["status"],
-                        "source_id": basis["source_id"],
-                    }
-                    for basis in bases
-                ],
-                "controlled_sources": [
-                    {
-                        "id": sources[basis["source_id"]]["id"],
-                        "source_category": sources[basis["source_id"]][
-                            "source_category"
-                        ],
-                    }
-                    for basis in bases
-                ],
+                "applicability_bases": basis_entries,
+                "controlled_sources": source_entries,
                 "required_evidence_categories": [
                     {
                         "id": evidence[evidence_id]["id"],
                         "status": evidence[evidence_id]["status"],
+                        "point_definition_representation": evidence[evidence_id][
+                            "point_definition_representation"
+                        ],
+                        "bound_point_definition_ids": evidence[evidence_id][
+                            "bound_point_definition_ids"
+                        ],
+                        "observation_availability": evidence[evidence_id][
+                            "observation_availability"
+                        ],
                     }
                     for evidence_id in requirement["evidence_category_ids"]
                 ],

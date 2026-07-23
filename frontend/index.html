@@ -543,6 +543,8 @@
       <div class="note">
         Repository-versioned reviewer material for the flagship facility. This package is
         separate from the active SQLite facility and contains no executable evaluation.
+        Bound point definitions are topology records, not observations; the flagship fixture
+        declares no observation baseline.
       </div>
       <div id="standardsBasisMetadata" class="summary-fields"></div>
       <ul id="standardsBasisNotices" class="standards-notices"></ul>
@@ -592,7 +594,7 @@
             <thead>
               <tr>
                 <th>Basis</th>
-                <th>Source</th>
+                <th>Sources</th>
                 <th>Status</th>
                 <th>Category</th>
                 <th>Trigger</th>
@@ -631,8 +633,9 @@
             <thead>
               <tr>
                 <th>Evidence category</th>
-                <th>Implementation status</th>
-                <th>Current point context</th>
+                <th>Point-definition representation</th>
+                <th>Bound point definitions</th>
+                <th>Observation availability</th>
                 <th>Description</th>
                 <th>Provenance boundary</th>
                 <th>Limitations</th>
@@ -1224,7 +1227,7 @@
       (data.applicability_matrix || []).forEach((basis) => {
         const row = document.createElement("tr");
         appendCell(row, basis.id);
-        appendCell(row, basis.source_id);
+        appendCell(row, basis.source_ids.join("\n"));
         appendCell(row, basis.status);
         appendCell(row, basis.basis_category);
         appendCell(row, basis.trigger);
@@ -1258,33 +1261,60 @@
       (data.evidence_categories || []).forEach((category) => {
         const row = document.createElement("tr");
         appendCell(row, `${category.id}\n${category.label}`);
-        appendCell(row, category.implementation_status);
-        appendCell(row, category.current_point_ids.join("\n"), "mono");
+        appendCell(row, category.point_definition_representation);
+        appendCell(row, category.bound_point_definition_ids.join("\n") || "None", "mono");
+        appendCell(row, category.observation_availability);
         appendCell(row, category.description);
         appendCell(row, category.provenance_consideration);
         appendCell(row, category.limitations);
         evidenceCategoryRowsEl.appendChild(row);
       });
       if ((data.evidence_categories || []).length === 0) {
-        renderEmptyRow(evidenceCategoryRowsEl, 6, "No evidence categories found.");
+        renderEmptyRow(evidenceCategoryRowsEl, 7, "No evidence categories found.");
       }
 
       standardsTraceabilityRowsEl.innerHTML = "";
       (data.traceability || []).forEach((chain) => {
         const row = document.createElement("tr");
-        appendCell(row, chain.controlled_sources.map((source) => source.id).join("\n"));
+        appendCell(
+          row,
+          chain.controlled_sources
+            .map(
+              (source) =>
+                `${source.id} → ${source.applicability_basis_id}\n` +
+                `${source.source_category}\n${source.adoption_status}\n${source.enforcement_status}`,
+            )
+            .join("\n\n"),
+        );
         appendCell(
           row,
           chain.applicability_bases
-            .map((basis) => `${basis.id} [${basis.status}]`)
-            .join("\n"),
+            .map(
+              (basis) =>
+                `${basis.id}\n${basis.basis_category}\n${basis.status}\n` +
+                `Sources: ${basis.source_ids.join(", ")}`,
+            )
+            .join("\n\n"),
         );
-        appendCell(row, `${chain.requirement.id}\n${chain.requirement.activation_status}`);
+        appendCell(
+          row,
+          `${chain.requirement.id}\n${chain.requirement.lifecycle_status}\n` +
+            `${chain.requirement.approval_status}\n${chain.requirement.provenance_basis_type}\n` +
+            `${chain.requirement.provenance_reference}\n` +
+            `${chain.requirement.activation_status}\n` +
+            `Executable: ${chain.requirement.executable}`,
+        );
         appendCell(
           row,
           chain.required_evidence_categories
-            .map((category) => category.id)
-            .join("\n"),
+            .map(
+              (category) =>
+                `${category.id}\n${category.status}\n` +
+                `${category.point_definition_representation}\n` +
+                `Definitions: ${category.bound_point_definition_ids.join(", ") || "None"}\n` +
+                category.observation_availability,
+            )
+            .join("\n\n"),
         );
         standardsTraceabilityRowsEl.appendChild(row);
       });
@@ -1292,7 +1322,7 @@
         renderEmptyRow(standardsTraceabilityRowsEl, 4, "No traceability chains found.");
       }
 
-      standardsBasisStatusEl.textContent = "Validated read-only package loaded";
+      standardsBasisStatusEl.textContent = "Structurally validated read-only package loaded";
     }
 
     function renderCounts(container, counts) {

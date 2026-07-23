@@ -17,7 +17,7 @@ This packet is subordinate to [ADR 0001](../decisions/0001-minimum-flagship-topo
 
 - A source-native or canonical observation is a reported indication within its quality, timing, mapping, and transformation limits. It does not independently prove physical state.
 - A controller request or controller-reported execution indication is evidence only. FacilityOps does not issue the request or command.
-- A recorded human action is not evidence of its physical effect. Recovery requires new post-action observations and a separate evaluation.
+- After a recorded action or response, FacilityOps may receive new observations. The action or response record does not establish causation or physical effect. Recovery requires new post-action observations and a separate evaluation.
 - The current Northstar arrival-order projection is a preserved compatibility behavior, not the proposed flagship observation model.
 - The ten qualitative flagship requirements remain `ACCEPTED_FOR_SIMULATION`, `INACTIVE`, and non-executable. The two additional requirements remain `DRAFT`, approval status `PROPOSED`, activation status `INACTIVE`, and non-executable.
 
@@ -30,9 +30,10 @@ A source-native observation should be immutable and retain the source representa
 - Source artifact or stream identifier and version.
 - Source point, address, register, field, or object reference.
 - Raw value, raw type, raw quality or status, raw unit where present, and raw timestamp representation.
-- Source event identifier or sequence, sequence scope, and source epoch where supplied.
-- First `received_at` assigned by FacilityOps.
-- Protocol or adapter identity and version.
+- Source event identifier or sequence, source-event identity scope, sequence scope, and source epoch where supplied.
+- A FacilityOps-assigned delivery identifier for each received delivery, including retransmissions.
+- A delivery-specific `received_at` assigned by FacilityOps.
+- Protocol, adapter identity and version, connection or adapter-session identity, and available transport-delivery metadata.
 - Payload hash for conflict detection, not as the sole observation identity.
 - Synthetic lineage when the record was generated or replayed.
 
@@ -40,21 +41,21 @@ The source-native record should not silently repair units, timestamps, quality, 
 
 ### Canonical observation
 
-A canonical observation should be an immutable, reproducible derivation linked to exactly one source-native observation. It should retain:
+A canonical observation should be an immutable, reproducible derivation linked to one or more exact source-native records. One record is the normal case. Multiple records are permitted only when a declared decode or normalization mapping consumes multiple raw fields or registers to form one source-reported value. It should retain:
 
 - Canonical point identifier.
 - Mapping identifier, version, and content hash.
 - Normalized value, quantity kind, unit, and explicit quality flags.
 - `observed_at`, `received_at`, clock basis, and known time uncertainty.
 - Transformation steps and synthetic provenance.
-- A direct reference to the source-native record.
+- Direct references to every source-native record consumed by the declared mapping.
 
-Normalization may perform a declared type conversion, unit conversion, quality mapping, or sign/orientation mapping. Computation that combines multiple observations belongs in a later point-condition or inference layer, not canonical normalization.
+Normalization may perform a declared type conversion, unit conversion, quality mapping, sign/orientation mapping, or multi-field/register decode that is part of the source representation. Combining separately meaningful source-reported observations to determine condition, corroboration, sufficiency, equipment response, or facility consequence belongs in a later point-condition or inference layer, not canonical normalization. A multi-field decode therefore does not authorize multi-observation inference at the canonical layer.
 
 ## Proposed temporal semantics
 
 - `observed_at` is the source's claim for when the indication applied. It may be null or uncertain. FacilityOps should preserve the raw source timestamp, clock identifier, timezone or offset, precision, and uncertainty rather than inventing event time.
-- `received_at` is the time FacilityOps first accepts the complete source-native record. FacilityOps assigns it; it must not be copied from `observed_at`.
+- `received_at` is the time FacilityOps accepts one complete delivery. FacilityOps assigns it per delivery; it must not be copied from `observed_at`. Retransmission of one source event creates a separate delivery record and `received_at`, even when source-event idempotency prevents duplicate canonicalization.
 - `evaluation_at` is a separate deterministic computation time and must not overwrite either observation timestamp.
 - Synthetic replay should use a declared deterministic virtual clock and must remain labeled synthetic.
 - Serialized timestamps should use timezone-aware RFC 3339 values, normally normalized to UTC while preserving raw source representation.
@@ -64,7 +65,7 @@ No allowed-lateness, staleness, persistence, or recovery interval is proposed in
 
 ## Proposed identity, duplicate, late, and out-of-order handling
 
-### Idempotency identity
+### Source-event idempotency identity
 
 The preferred identity order is:
 
@@ -72,12 +73,12 @@ The preferred identity order is:
 2. `(source_stream_id, source_epoch, source_sequence)` when the stream defines epoch and sequence semantics.
 3. `(scenario_package_id, replay_run_id, event_id)` for deterministic synthetic replay.
 
-If a source provides no stable identity, FacilityOps should retain separate deliveries. Identical content alone must not be treated as proof that two deliveries represent one source event.
+This identity determines whether deliveries assert the same source event; it is distinct from the FacilityOps delivery identifier. If a source provides no stable source-event identity, FacilityOps should retain separate source events and deliveries. Identical content alone must not be treated as proof that two deliveries represent one source event.
 
 ### Duplicate and identity conflict
 
-- Same idempotency key and identical source payload: retain duplicate-delivery metadata, do not create another canonical observation, and do not update the current-value projection.
-- Same idempotency key and different payload: quarantine as an identity conflict, preserve both deliveries for review, expose the conflict on any current projection that references that identity, and make source selection and evidentiary support unresolved until the conflict is dispositioned. Do not project either conflicting replacement automatically.
+- Same source-event idempotency key and identical source payload: retain every delivery record and its delivery-specific `received_at`; the approved idempotency rule may avoid another canonical derivation and current-projection update.
+- Same source-event idempotency key and different payload: quarantine as an identity conflict, preserve every delivery and payload for review, expose the conflict on any current projection that references that identity, and make source selection and evidentiary support unresolved. Human disposition alone cannot make either payload a valid source event. Eligibility requires controlled resolution evidence or an approved deterministic selection rule; neither is defined here. Do not project either conflicting replacement automatically.
 - A payload hash may detect equality or conflict but does not replace the scoped idempotency identity.
 
 ### Sequence, lateness, and ordering
@@ -91,11 +92,11 @@ If a source provides no stable identity, FacilityOps should retain separate deli
 ## Proposed mapping version and synthetic provenance
 
 - Mapping changes apply prospectively and never rewrite source-native history.
-- Re-normalization under a new mapping creates a new canonical derivation linked to the same source-native observation.
+- Re-normalization under a new mapping creates a new canonical derivation linked to the same source-native record or record set.
 - A mapping record should identify source schema or profile version, source field, target point, transformation version, source and target units, sign/orientation, quality mapping, effective interval, review status, and content hash.
 - Synthetic records should identify generator ID and version, scenario ID and version, event ID, replay-run ID, source fixture version, mapping version, and random seed if randomness is later permitted.
 - Synthetic evidence must never be presented as received field evidence.
-- An AI-drafted mapping remains proposed and inactive until a qualified person and the project owner complete the required review and approval.
+- An AI-drafted mapping remains proposed and inactive until the project owner and a person or organization that possesses the required qualifications and assigned organizational or legal authority complete the required review and approval.
 
 ## Proposed current-value projection rules
 
@@ -104,7 +105,7 @@ The current-value projection should be rebuildable convenience state, not durabl
 - The projection references the selected canonical observation; it does not copy away provenance.
 - Each mapping declares one ordering mode: `SOURCE_SEQUENCE`, `OBSERVED_AT`, or `RECEIVED_AT`.
 - There is no implicit fallback between incomparable time or sequence bases.
-- Duplicate, conflicting, or older out-of-order observations do not replace the selected current observation. A selected observation whose identity becomes conflicted cannot silently remain eligible to support a conclusion.
+- Duplicate, conflicting, or older out-of-order observations do not replace the selected current observation. A selected observation whose identity becomes conflicted cannot silently remain eligible to support a conclusion. Human review or disposition does not itself resolve source identity; controlled resolution evidence or an approved deterministic selection rule is required while the full conflicting history remains retained.
 - Quality, suspect, override, out-of-service, late, stale, duplicate, and identity-conflict conditions remain visible on the selected indication. An older good-quality value must not silently replace a newer insufficient indication.
 - Staleness is computed at evaluation time from an approved category-specific limit and declared time basis.
 - Multiple sources mapped to one point require an explicit selection or precedence rule. Without one, projection is unresolved.
@@ -125,48 +126,49 @@ The current-value projection should be rebuildable convenience state, not durabl
 
 Candidate provenance fields are `source_device_id`, `measurement_chain_id`, `controller_logic_origin_id`, `mapping_id`, `lineage_root_ids`, and `independence_group_ids`. These fields and their vocabularies remain proposed and inactive.
 
-## Exact flagship point and evidence gaps
+## Exact flagship point-definition and observation gaps
 
-All candidate points below are proposed and inactive. Adding them requires a later accepted topology ADR and a new prospective fixture version. Existing points remain unchanged.
+All candidate point definitions below are proposed and inactive. Adding them requires a later accepted topology ADR and a new prospective fixture version. Existing point definitions remain unchanged. The current fixture declares no observation baseline, so an existing point definition is not evidence that an observation exists.
 
-| Evidence category | Current fixture evidence | Proposed exact missing point ID or record | Candidate type / unit | Boundary and unresolved work |
-| --- | --- | --- | --- | --- |
-| Process permissive | None | `PROCESS_PERMISSIVE_STATUS` | Boolean controller-reported indication | Requires a future owner/binding and source mapping. FacilityOps does not control the permissive. |
-| Process-enabled operating context | None | `PROCESS_ENABLED_STATUS` | Boolean controller-reported indication | Permission and enabled context are separate. This indication does not prove process operation and need not be independent of the controller request. |
-| Controller request | None | `FAN-EXHAUST-DUTY_REQUEST`; `FAN-EXHAUST-STANDBY_REQUEST` | Boolean controller-request indications | Provenance must identify the external controller and request semantics. |
-| Controller-reported execution | None | `FAN-EXHAUST-DUTY_CONTROLLER_EXECUTION_STATUS`; `FAN-EXHAUST-STANDBY_CONTROLLER_EXECUTION_STATUS` | Status indication; vocabulary TBD | Request and execution remain separate; no state vocabulary is approved. |
-| VFD state | Duty and standby speed-feedback points only | `FAN-EXHAUST-DUTY_VFD_STATE`; `FAN-EXHAUST-STANDBY_VFD_STATE` | Status indication; vocabulary TBD | Speed feedback is separate evidence and does not establish fan operation. |
-| Motor/electrical response | None | `FAN-EXHAUST-DUTY_MOTOR_CURRENT`; `FAN-EXHAUST-STANDBY_MOTOR_CURRENT` | Analog, `A` | Current is a candidate measurement only. Source design determines whether it is independent of VFD telemetry. |
-| Delivered airflow | `PROCESS-EXHAUST_AIRFLOW` | No additional point proposed | Existing analog, `m3/s` | Source identity, sensor location, calibration, uncertainty, and sufficiency criterion are missing. |
-| Treatment availability | `TREATMENT_PERMISSIVE_STATUS` only | `TREATMENT_AVAILABILITY_STATUS` | Boolean or status indication; vocabulary TBD | Availability is a reported indication and does not prove treatment performance or efficiency. |
-| Makeup-air response | `SUPPLY-MAKEUP_STATUS` only | `SUPPLY-MAKEUP_AIRFLOW` | Analog, `m3/s` | Status and delivered response are separate categories; measurement basis is missing. |
-| Zone differential pressure | `CORRIDOR-TRANSITION_DIFFERENTIAL_PRESSURE`, `TRANSITION-LAB_DIFFERENTIAL_PRESSURE`, and `PROCESS-LAB_ZONE_PRESSURE` | No additional point proposed | Existing analog, `Pa` | Sign/orientation mapping, sensor metadata, uncertainty, and criteria are missing. A candidate upstream-minus-downstream sign convention remains inactive. |
-| Post-action recovery | Existing category `EVIDENCE-POST-ACTION-OBSERVATIONS`; no observation-set instance | Proposed `POST-ACTION-OBSERVATION-SET` record type with `post_action_observation_set_id`; no recovery point | Time-bounded evidence-set record | The existing identifier is an evidence-category definition, not an observation-set instance. A recovered flag would collapse observations and evaluation. Recovery must reuse new post-action observations. |
+| Evidence category | Current topology point-definition representation | Baseline observations | Proposed exact missing point ID or record | Candidate type / unit | Boundary and unresolved work |
+| --- | --- | --- | --- | --- | --- |
+| Process permissive | None | None — the flagship fixture declares no observation baseline | `PROCESS_PERMISSIVE_STATUS` | Boolean controller-reported indication | Requires a future owner, binding, and source mapping. FacilityOps does not control the permissive. |
+| Process-enabled operating context | None | None — the flagship fixture declares no observation baseline | `PROCESS_ENABLED_STATUS` | Boolean controller-reported indication | Permission and enabled context are separate. This indication does not prove process operation and need not be independent of the controller request. |
+| Controller request | None | None — the flagship fixture declares no observation baseline | `FAN-EXHAUST-DUTY_REQUEST`; `FAN-EXHAUST-STANDBY_REQUEST` | Boolean controller-request indications | Provenance must identify the external controller and request semantics. |
+| Controller-reported execution | None | None — the flagship fixture declares no observation baseline | `FAN-EXHAUST-DUTY_CONTROLLER_EXECUTION_STATUS`; `FAN-EXHAUST-STANDBY_CONTROLLER_EXECUTION_STATUS` | Status indication; vocabulary TBD | Request and execution remain separate; no state vocabulary is approved. |
+| VFD state | Duty and standby speed-feedback point definitions only | None — the flagship fixture declares no observation baseline | `FAN-EXHAUST-DUTY_VFD_STATE`; `FAN-EXHAUST-STANDBY_VFD_STATE` | Status indication; vocabulary TBD | Speed feedback is separate evidence and does not establish fan operation. |
+| Motor/electrical response | None | None — the flagship fixture declares no observation baseline | `FAN-EXHAUST-DUTY_MOTOR_CURRENT`; `FAN-EXHAUST-STANDBY_MOTOR_CURRENT` | Analog, `A` | Current is a candidate measurement only. Source design determines whether it is independent of VFD telemetry. |
+| Delivered airflow | Existing `PROCESS-EXHAUST_AIRFLOW` point definition | None — the flagship fixture declares no observation baseline | No additional point definition proposed | Existing analog, `m3/s` | Source identity, sensor location, calibration, uncertainty, and sufficiency criterion are missing. |
+| Treatment availability | Existing `TREATMENT_PERMISSIVE_STATUS` point definition only | None — the flagship fixture declares no observation baseline | `TREATMENT_AVAILABILITY_STATUS` | Boolean or status indication; vocabulary TBD | Availability is a reported indication and does not prove treatment performance or efficiency. |
+| Makeup-air controller status | Existing `SUPPLY-MAKEUP_STATUS` point definition | None — the flagship fixture declares no observation baseline | No additional point definition proposed | Existing Boolean status indication | Source identity, controller semantics, mapping, and provenance are missing. Controller status does not establish delivered makeup-air response. |
+| Makeup-air delivered response | None | None — the flagship fixture declares no observation baseline | `SUPPLY-MAKEUP_AIRFLOW` | Analog, `m3/s` | Delivered response is separate from controller status; measurement location, basis, calibration, uncertainty, and criteria are missing. |
+| Zone differential pressure | Existing `CORRIDOR-TRANSITION_DIFFERENTIAL_PRESSURE`, `TRANSITION-LAB_DIFFERENTIAL_PRESSURE`, and `PROCESS-LAB_ZONE_PRESSURE` point definitions | None — the flagship fixture declares no observation baseline | No additional point definition proposed | Existing analog, `Pa` | Sign/orientation mapping, sensor metadata, uncertainty, and criteria are missing. A candidate upstream-minus-downstream sign convention remains inactive. |
+| Post-action recovery | Existing non-point evidence-category definition `EVIDENCE-POST-ACTION-OBSERVATIONS`; no observation-set instance | None — the flagship fixture declares no observation baseline | Proposed `POST-ACTION-OBSERVATION-SET` record type with `post_action_observation_set_id`; no recovery point | Time-bounded evidence-set record | The existing identifier is an evidence-category definition, not an observation-set instance. A recovered flag would collapse observations and evaluation. Recovery must reuse new post-action observations. |
 
 ## Proposed golden-scenario event sequence
 
-Event IDs are stable scenario ordinals, not timestamps or evaluation criteria. Each event records an indication; none assigns a physical-state conclusion.
+Event IDs are stable scenario ordinals, not timestamps or evaluation criteria. Events whose IDs end in `RECEIVED` describe receipt of source indications only; they do not assign a physical-state conclusion. `E000` is declared context, `E180` is a non-observational human-action record, `E230` is an evaluation request, and `E240` is a reserved computation record. Those four events are not observations.
 
 1. `E000-CONTEXT-DECLARED` — Pin facility profile, topology fixture, requirement set, mapping, generator, and scenario versions.
-2. `E010-BASELINE-DEPENDENCIES-RECEIVED` — Receive treatment, makeup-air, shared-damper, and shared-path indications.
-3. `E020-BASELINE-PERMISSIVE-RECEIVED` — Receive the external controller's process-permissive indication.
-4. `E025-PROCESS-ENABLED-RECEIVED` — Receive a controller-reported process-enabled operating-context indication separately from the permissive; it does not prove process operation.
-5. `E030-DUTY-REQUEST-RECEIVED` — Receive the external controller's duty-fan request indication.
-6. `E040-DUTY-EXECUTION-RECEIVED` — Receive controller-reported execution separately from request.
-7. `E050-DUTY-DEVICE-EVIDENCE-RECEIVED` — Receive duty availability, run, fault, dedicated VFD state, speed feedback, and motor-current indications as separate fields.
-8. `E060-BASELINE-PROCESS-EVIDENCE-RECEIVED` — Receive delivered airflow, duct static, zone pressure, and both boundary differential indications.
-9. `E100-DUTY-LOSS-EVIDENCE-RECEIVED` — Receive new fault, availability, run, VFD, and electrical indications that may later support a bounded duty-loss inference.
-10. `E110-AIRFLOW-CHANGE-RECEIVED` — Receive new delivered-airflow and shared-path indications without assigning an inference.
-11. `E120-PROCESS-PERMISSIVE-WITHHELD-RECEIVED` — Receive the external controller's indication that the process permissive is removed or withheld.
-12. `E130-STANDBY-REQUEST-RECEIVED` — Receive the external controller's standby-fan request indication.
-13. `E140-STANDBY-EXECUTION-RECEIVED` — Receive controller-reported standby execution separately from request.
-14. `E150-STANDBY-DEVICE-EVIDENCE-RECEIVED` — Receive standby availability, run, fault, dedicated VFD state, speed feedback, and motor-current indications as separate fields.
-15. `E160-STANDBY-PROCESS-RESPONSE-RECEIVED` — Receive new shared airflow, duct-static, and damper indications. A standby request alone cannot satisfy this step.
-16. `E170-PRESSURE-RESPONSE-RECEIVED` — Receive new process-laboratory pressure and both boundary differential indications.
-17. `E180-HUMAN-ACTION-RECORDED` — Record a fictional authorized review or action outside FacilityOps. The record supplies no evidence of physical effect.
-18. `E190-POST-ACTION-DEPENDENCY-EVIDENCE-RECEIVED` — Receive new treatment and makeup-air observations whose source event times are after the recorded action where time semantics support that comparison.
-19. `E200-POST-ACTION-FAN-EVIDENCE-RECEIVED` — Receive new request, execution, run, VFD, electrical, fault, and availability indications.
-20. `E210-POST-ACTION-PROCESS-EVIDENCE-RECEIVED` — Receive new airflow, duct-static, zone-pressure, and both boundary observations.
+2. `E010-BASELINE-DEPENDENCY-INDICATIONS-RECEIVED` — Receive treatment, makeup-air controller-status, makeup-air delivered-response, shared-damper, and shared-path indications.
+3. `E020-BASELINE-PERMISSIVE-INDICATION-RECEIVED` — Receive the external controller's process-permissive indication.
+4. `E025-PROCESS-ENABLED-INDICATION-RECEIVED` — Receive a controller-reported process-enabled operating-context indication separately from the permissive; it does not prove process operation.
+5. `E030-DUTY-REQUEST-INDICATION-RECEIVED` — Receive the external controller's duty-fan request indication.
+6. `E040-DUTY-EXECUTION-INDICATION-RECEIVED` — Receive controller-reported execution separately from request.
+7. `E050-DUTY-DEVICE-INDICATIONS-RECEIVED` — Receive duty availability, run, fault, dedicated VFD state, speed feedback, and motor-current indications as separate fields.
+8. `E060-BASELINE-PROCESS-INDICATIONS-RECEIVED` — Receive delivered airflow, duct static, zone pressure, and both boundary differential indications.
+9. `E100-DUTY-INDICATIONS-RECEIVED` — Receive new fault, availability, run, VFD, and electrical indications that may later support a bounded duty-loss inference.
+10. `E110-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED` — Receive new delivered-airflow and shared-path indications without assigning an airflow-change or system-response inference.
+11. `E120-PROCESS-PERMISSIVE-INDICATION-RECEIVED` — Receive a new external-controller process-permissive indication without naming its physical or control consequence in the event identity.
+12. `E130-STANDBY-REQUEST-INDICATION-RECEIVED` — Receive the external controller's standby-fan request indication.
+13. `E140-STANDBY-EXECUTION-INDICATION-RECEIVED` — Receive controller-reported standby execution separately from request.
+14. `E150-STANDBY-DEVICE-INDICATIONS-RECEIVED` — Receive standby availability, run, fault, dedicated VFD state, speed feedback, and motor-current indications as separate fields.
+15. `E160-STANDBY-AIRFLOW-AND-PATH-INDICATIONS-RECEIVED` — Receive new shared-airflow, duct-static, and damper indications without assigning a standby-response inference. A standby request alone cannot satisfy a future delivered-response requirement.
+16. `E170-PRESSURE-INDICATIONS-RECEIVED` — Receive new process-laboratory pressure and both boundary differential indications without assigning a pressure-response or containment inference.
+17. `E180-HUMAN-ACTION-RECORDED` — Record a fictional action outside FacilityOps together with the asserted actor, role, and authority context. FacilityOps does not establish that the actor possessed the required qualifications or assigned organizational or legal authority, and the record supplies no evidence of causation or physical effect.
+18. `E190-POST-ACTION-DEPENDENCY-INDICATIONS-RECEIVED` — Receive new treatment-availability, makeup-air controller-status, and separate makeup-air delivered-response indications. Any comparison with the recorded action uses later approved time and cutoff semantics and does not establish that the action caused the indications.
+19. `E200-POST-ACTION-FAN-INDICATIONS-RECEIVED` — Receive new request, execution, run, VFD, electrical, fault, and availability indications.
+20. `E210-POST-ACTION-PROCESS-INDICATIONS-RECEIVED` — Receive new airflow, duct-static, zone-pressure, and both boundary observations.
 21. `E220-RETURN-INDICATION-RECEIVED` — Optionally receive a permissive or return-to-normal indication; explicitly insufficient by itself.
 22. `E230-RECOVERY-EVALUATION-REQUESTED` — Reserve a future evaluator input containing the controlled post-action evidence set, its non-evidentiary link to the recorded action and cutoff, the declared baseline and operating context, mappings, requirements, parameters, and evidence-health context. The action record is context, not proof of effect.
 23. `E240-RECOVERY-FINDING-COMPUTED` — Reserve a later milestone event. No expected outcome is assigned until the evaluation rule and parameters are approved.
@@ -195,7 +197,7 @@ Unless a future approved basis states otherwise, candidate time-based quantities
 | Execution-to-electrical-response delay | TBD—no value recommended; inactive | Project electrical measurement and motor/VFD behavior basis | `s`; current sensor range, accuracy, sampling, calibration, and clock assumptions TBD | Delay/persistence TBD | Inrush, unloaded current, VFD-derived current, sensor noise, scan time | Execution plus independently sourced motor/electrical evidence; electrical and controls review |
 | Standby delivered-airflow response delay | TBD—no value recommended; inactive | Project sequence, installed system response, and verified test basis | `s`; airflow sensor dynamics and system-volume response assumptions TBD | Delay, persistence, and airflow hysteresis TBD | VFD ramp, duct storage, damper motion, sensor lag, common-path fault | Standby request/execution, device, airflow, shared-path, and pressure evidence; multidisciplinary review |
 | Treatment-availability persistence | TBD—no value recommended; inactive | Project treatment definition, selected equipment documentation, and verified applicability basis | Status semantics and supporting measurements TBD | Persistence and on/off delay TBD | Latched permissive, controller-derived status, bypass, fouling, sensor or switch fault | Treatment availability, health, and source provenance; process, industrial-hygiene, controls, and commissioning review |
-| Makeup-air response threshold | TBD—no value recommended; inactive | Project air-balance and pressure-control design basis | `m3/s` or approved response quantity; measurement location, accuracy, calibration, and variability TBD | Threshold, delay, persistence, and hysteresis TBD | Command versus flow, damper leakage, wind, door state, sensor lag | Makeup status/airflow and pressure evidence; mechanical, controls, and commissioning review |
+| Makeup-air delivered-response threshold | TBD—no value recommended; inactive | Project air-balance and pressure-control design basis | `m3/s` or approved response quantity; measurement location, accuracy, calibration, and variability TBD | Threshold, delay, persistence, and hysteresis TBD | Controller status versus delivered flow, damper leakage, wind, door state, sensor lag | Separate makeup controller-status and delivered-airflow evidence plus pressure evidence; mechanical, controls, and commissioning review |
 | Controller evidence staleness | TBD—no value recommended; inactive | Source contract, scan/update behavior, communications SLA, and scenario timing basis | `s`; clock synchronization, precision, and receive-time uncertainty TBD | Category-specific limit TBD | Update-on-change, batching, repeated values, communications outage | Controller request/execution plus health/timing evidence; controls and data review |
 | VFD/electrical evidence staleness | TBD—no value recommended; inactive | Source and instrument update behavior plus intended inference timing | `s`; sampling, scan, timestamp, and calibration assumptions TBD | Category-specific limits TBD | Cached registers, derived fields, slow polling, clock mismatch | VFD and electrical evidence with provenance; electrical, controls, and data review |
 | Airflow/pressure evidence staleness | TBD—no value recommended; inactive | Instrument response, acquisition contract, physical transient, and evaluation basis | `s`; response time, sampling, filtering, precision, and clock uncertainty TBD | Separate category limits and persistence TBD | Filter lag, communications batching, transient doors/wind, cached values | Airflow, pressure, health, and timing evidence; mechanical, controls, and commissioning review |

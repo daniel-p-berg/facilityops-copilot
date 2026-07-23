@@ -130,7 +130,7 @@ The internal separation of applicability decisions from evaluation results remai
 
 Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity.
 
-Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition. AI may assist with drafting and explanation but must not approve its own output or serve as the safety authority.
+The following authorities remain with persons or organizations that possess the required qualifications and assigned organizational or legal authority: applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, final disposition, determinations of physical safety, and authorization for operation. AI may assist with drafting and explanation but must not approve its own output or serve as the safety authority.
 
 ## Source access and protected text
 

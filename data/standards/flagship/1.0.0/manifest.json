@@ -29,10 +29,10 @@
     "REQ-SOO-010"
   ],
   "notices": {
-    "applicability": "The applicability matrix is provisional and requires controlled-source and qualified human verification.",
+    "applicability": "The applicability matrix is provisional and requires controlled-source verification plus review by persons or organizations that possess the required qualifications and assigned organizational or legal authority.",
     "authorship": "The requirements are project-authored synthetic sequence-of-operation requirements; external sources are provisional or informative influences unless stated otherwise.",
     "execution": "Every requirement in this package is inactive and non-executable during this tranche.",
-    "authority": "FacilityOps does not establish code compliance, commissioning acceptance, physical safety, operability, or authorization for operation."
+    "authority": "FacilityOps does not establish code compliance, commissioning acceptance, physical safety, operability, or authorization for operation. Human authority belongs only to persons or organizations that possess the required qualifications and assigned organizational or legal authority."
   },
   "provenance": {
     "recorded_on": "2026-07-22",

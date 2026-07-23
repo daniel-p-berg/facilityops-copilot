@@ -2,7 +2,7 @@
 
 ## Document basis
 
-This document describes the verified implementation through commit `bf46e3f`, built on the Milestone 2 base commit `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`, and separately identifies planned direction. The implemented section is descriptive, not aspirational. Product identity and authority are governed by [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md), standards policy is summarized in [`STANDARDS_POSITION.md`](STANDARDS_POSITION.md), and verification status is tracked in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+This document describes the verified implementation through the Milestone 3 acceptance-correction state based on pre-correction HEAD `df83a1fe1a932c6d5194765674fe18799d9c73f6`, built on the Milestone 2 base commit `f37f2da01cfe88f38f1f70ea54f98ef51dde44ab`, and separately identifies planned direction. The implemented section is descriptive, not aspirational. Product identity and authority are governed by [`PRODUCT_CHARTER.md`](PRODUCT_CHARTER.md), standards policy is summarized in [`STANDARDS_POSITION.md`](STANDARDS_POSITION.md), and verification status is tracked in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Target conceptual architecture
 
@@ -41,9 +41,9 @@ Reference sources, applicability bases, synthetic requirements, executable evalu
 
 ### Computation and human authority
 
-Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. Qualified personnel retain authority for applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, and final disposition.
+Deterministic code owns reproducible computation. It produces computed point conditions, inferred states, timing results, replay outputs, evaluations, and bounded findings under identified inputs, assumptions, configuration, and rules. Determinism provides reproducibility, not automatic validity. The following authorities remain with persons or organizations that possess the required qualifications and assigned organizational or legal authority: applicability decisions, requirement approval, test authorization, operational action, commissioning acceptance, waivers, final disposition, determinations of physical safety, and authorization for operation.
 
-Human response must lead to new source observations and a separate recovery evaluation. A recorded acknowledgement, decision, action, or work record does not prove its physical effect.
+After a recorded action or response, FacilityOps may receive new observations. The action or response record does not establish causation or physical effect. Recovery requires new post-action observations and a separate evaluation.
 
 Missing, stale, suspect, overridden, late, or conflicting required evidence must be capable of producing an `INDETERMINATE` result. The working external presentation also includes `CONFORMING`, `NONCONFORMING`, and `NOT_APPLICABLE`; internal applicability/result structure remains unresolved.
 
@@ -92,7 +92,7 @@ versioned flagship standards-basis JSON package
 
 The flagship validator checks manifest/file facility and version agreement, stable and unique identifiers, mandatory point-to-equipment ownership, typed endpoint existence, relationship uniqueness, constrained duty/standby roles, explicit pressure direction, a connected acyclic two-boundary cascade, one primary topology binding per point, and the complete ADR 0001 inventory. Post-load validation re-queries stored rows and bindings and runs `PRAGMA foreign_key_check` without globally enabling SQLite foreign keys.
 
-`backend/services/standards_basis_service.py` loads `data/standards/flagship/1.0.0/manifest.json` independently of the active database. It reads every declared document into a candidate snapshot, validates exact facility and fixture identity, whole-package identifier uniqueness, statuses, provenance, references, the exact recorded qualitative requirements, inactive/non-executable state, absence of numerical criteria, and evidence-point references against the unchanged flagship `1.0.0` catalog. Only a fully valid candidate replaces the in-memory snapshot. Failed reload leaves the previous snapshot exposed, and every read returns a defensive copy.
+`backend/services/standards_basis_service.py` loads `data/standards/flagship/1.0.0/manifest.json` independently of the active database. It reads every declared document into a candidate snapshot, validates exact facility and fixture identity, whole-package identifier uniqueness, statuses, provenance, multi-source applicability references and basis-category consistency, the exact recorded profile facts, owner source/basis/requirement provenance chain, and qualitative requirements, inactive/non-executable state, the fixed requirement schema and `NO_NUMERICAL_CRITERIA_APPROVED` parameter status, and evidence point-definition references against the unchanged flagship `1.0.0` catalog. It does not claim to identify every numerical criterion in arbitrary prose. Evidence records separately declare point-definition representation and the absence of a flagship observation baseline. Only a fully valid candidate replaces the in-memory snapshot. Failed reload leaves the previous snapshot exposed, and every read returns a defensive copy.
 
 Seeded current values create point-sample history and a `current_point_values` latest-value projection. Generated alarms and alarm events begin empty after a full sample-data load. The legacy `alarms` table is created and cleared; the current dashboard uses generated alarms rather than the legacy alarm CSV.
 
@@ -203,7 +203,7 @@ The current implementation does not include:
 - A canonical hierarchy from computed point condition to equipment, system, and facility inference.
 - Deterministic consequence computation from that hierarchy.
 - Numerical or state-determining process-exhaust and pressure-cascade behavior.
-- A process-enabled operating-context point, read-only or synthetic controller command/request observation, or dedicated VFD/motor electrical corroboration point.
+- A process-enabled operating-context, read-only or synthetic controller command/request, or dedicated VFD/motor electrical corroboration point definition. The existing flagship point definitions have no observation baseline.
 - The flagship golden scenario or any broader flagship topology beyond the accepted minimum.
 - A generalized standards database, persistent applicability workflow, executable requirement pack, requirement status-transition engine, or licensed standards text.
 - Evidence-sufficiency rules, bounded findings, the working four-outcome presentation, or qualified human disposition records.

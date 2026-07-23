@@ -7,7 +7,7 @@
     {
       "id": "BASIS-OWNER-QUALITATIVE-SOO",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-OWNER-DIRECTIVE-2026-07-22",
+      "source_ids": ["SRC-OWNER-DIRECTIVE-2026-07-22"],
       "status": "OWNER_PROJECT_BASIS",
       "basis_category": "OWNER_PROJECT_REQUIREMENT",
       "trigger": "Use of the ten recorded qualitative design-intent statements in the fictional flagship laboratory.",
@@ -20,7 +20,7 @@
     {
       "id": "BASIS-SIMULATION-PROFILE",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-SIMULATION-PROFILE-1.0.0",
+      "source_ids": ["SRC-SIMULATION-PROFILE-1.0.0"],
       "status": "SIMULATION_ASSUMPTION",
       "basis_category": "PURE_SIMULATION_ASSUMPTION",
       "trigger": "Execution of a future fictional scenario using the versioned flagship profile.",
@@ -33,20 +33,28 @@
     {
       "id": "BASIS-NYS-UNIFORM-CODE",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-NYS-UNIFORM-CODE-ADOPTION-2025",
+      "source_ids": [
+        "SRC-NYS-UNIFORM-CODE-ADOPTION-2025",
+        "SRC-NYS-UNIFORM-CODE-COURT-NOTICE-2026-07-02"
+      ],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "ADOPTED_CODE",
-      "trigger": "Regulated new construction or occupancy in New York outside New York City after the recorded effective date.",
+      "trigger": "A building-permit application submitted on or after 2025-12-31, or other verified project facts that make the 2025 Uniform Code project-effective.",
       "profile_fact_ids": ["PROFILE-FACILITY-CONSTRUCTION", "PROFILE-FACILITY-LOCATION"],
-      "conclusion": "The 2025 New York Uniform Code is the adopted jurisdictional reference set for the fictional profile, but section-level applicability is not determined.",
-      "uncertainty": "A fictional profile cannot establish permit date, site facts, amendments, variances, enforcement actions, or legal applicability.",
+      "conclusion": "The 2025 New York Uniform Code is the current adopted State code set as of the catalog access date. The fictional profile does not establish which code edition would govern a permit or construction project.",
+      "uncertainty": "No building-permit application, permit issuance or amendment, plan-review, construction-start, or occupancy date is recorded. Site facts, local amendments, variances, enforcement actions, and project-effective code treatment remain unverified. The Department's July 2, 2026 notice is limited to 19 NYCRR Section 1240.6 and Subpart 1229-2.",
       "future_verification": "Confirm the exact project-effective code set, permit facts, local amendments, and enforcement status with the actual authority for any real project.",
-      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-UNIFORM-CODE-ADOPTION-2025", "recorded_on": "2026-07-22"}
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-UNIFORM-CODE-ADOPTION-2025 and SRC-NYS-UNIFORM-CODE-COURT-NOTICE-2026-07-02", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-TOWN-AHJ-ASSUMPTION",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-TOWN-HORSEHEADS-CHAPTER-83",
+      "source_ids": [
+        "SRC-TOWN-HORSEHEADS-CHAPTER-83",
+        "SRC-TOWN-HORSEHEADS-CODE-ENFORCEMENT",
+        "SRC-NYS-EXECUTIVE-LAW-ARTICLE-18",
+        "SRC-NYS-19-NYCRR-PART-1203"
+      ],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "LEGAL_OR_REGULATORY",
       "trigger": "A parcel within Town enforcement territory and outside incorporated villages.",
@@ -54,64 +62,67 @@
       "conclusion": "Town sources support the project-owner assumption that the Town code-enforcement authority is the fictional local AHJ reference.",
       "uncertainty": "The project has no real parcel, and agreements, opt-out status, local-law currency, amendments, and permit responsibility remain unverified.",
       "future_verification": "Verify parcel jurisdiction, the current Town program, State records, intermunicipal agreements, local amendments, and permit responsibilities.",
-      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-TOWN-HORSEHEADS-CHAPTER-83 and SRC-NYS-EXECUTIVE-LAW-ARTICLE-18", "recorded_on": "2026-07-22"}
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-EXECUTIVE-LAW-ARTICLE-18, SRC-NYS-19-NYCRR-PART-1203, SRC-TOWN-HORSEHEADS-CHAPTER-83, and SRC-TOWN-HORSEHEADS-CODE-ENFORCEMENT", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-GROUP-B-ASSUMPTION",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-NYS-BUILDING-CODE-2025",
+      "source_ids": ["SRC-NYS-BUILDING-CODE-2025"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "ADOPTED_CODE",
       "trigger": "Classification of the fictional new research laboratory after its full use and hazard facts are declared.",
       "profile_fact_ids": ["PROFILE-RESEARCH-USE", "PROFILE-GROUP-B-ASSUMPTION", "PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-EXCLUDED-HAZARDS"],
       "conclusion": "Group B is a plausible fictional assumption for the stated testing and research use; FacilityOps does not determine the legal occupancy classification.",
-      "uncertainty": "Hazards, quantities, control areas, fire areas, incidental uses, and complete building configuration remain unresolved.",
+      "uncertainty": "The project-effective code edition is unresolved because permit and construction timing are absent. Hazards, quantities, control areas, fire areas, incidental uses, and complete building configuration remain unresolved.",
       "future_verification": "Complete a qualified occupancy and hazardous-material classification review using official or licensed code text and the final fictional profile.",
       "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-BUILDING-CODE-2025", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-NYS-MECHANICAL-EXHAUST",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-NYS-MECHANICAL-CODE-2025",
+      "source_ids": ["SRC-NYS-MECHANICAL-CODE-2025"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "ADOPTED_CODE",
       "trigger": "A process satisfying the adopted contaminant-exhaust or hazardous-exhaust conditions.",
       "profile_fact_ids": ["PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-PROCESS-EXHAUST", "PROFILE-FAN-PAIR", "PROFILE-SUPPLY-MAKEUP"],
       "conclusion": "The source is technically relevant to the exhaust and makeup-air profile, but it does not directly require the project-selected fan pair, treatment dependency, pressure direction, or sequence on the current facts.",
-      "uncertainty": "The hazardous-exhaust trigger, fire-area facts, material ratings, airborne concentration, and use of any laboratory-manifold provision are not established.",
+      "uncertainty": "The project-effective code edition is unresolved because permit and construction timing are absent. The hazardous-exhaust trigger, fire-area facts, material ratings, airborne concentration, and use of any laboratory-manifold provision are not established.",
       "future_verification": "Review exact licensed code provisions against the final SDS, process, quantities, air path, fire-area, and AHJ determinations.",
       "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-MECHANICAL-CODE-2025", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-NYS-FIRE-MATERIAL",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-NYS-FIRE-CODE-2025",
+      "source_ids": ["SRC-NYS-FIRE-CODE-2025"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "ADOPTED_CODE",
       "trigger": "A material category, quantity, use, storage, process, or permit condition within the adopted Fire Code.",
       "profile_fact_ids": ["PROFILE-OPEN-BATCH-BOUND", "PROFILE-INVENTORY-BOUND", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-EXCLUDED-HAZARDS"],
       "conclusion": "The source governs the future classification process, but the simulation quantities do not establish a threshold or permit conclusion.",
-      "uncertainty": "The exact SDS, composition, hazard categories, aggregate quantities, control areas, and AHJ interpretation are absent.",
+      "uncertainty": "The project-effective code edition is unresolved because permit and construction timing are absent. The exact SDS, composition, hazard categories, aggregate quantities, control areas, and AHJ interpretation are absent.",
       "future_verification": "Obtain the product SDS and complete a qualified material, quantity, use, storage, control-area, and permit review.",
       "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-FIRE-CODE-2025", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-OSHA-PRIVATE-SECTOR",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-OSHA-NEW-YORK-STATE-PLAN",
+      "source_ids": [
+        "SRC-OSHA-NEW-YORK-STATE-PLAN",
+        "SRC-NYS-DOL-PESH-COVERAGE"
+      ],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "LEGAL_OR_REGULATORY",
       "trigger": "A private-sector employer with covered employees performing the fictional activities in New York.",
       "profile_fact_ids": ["PROFILE-FACILITY-CONSTRUCTION", "PROFILE-RESEARCH-USE"],
-      "conclusion": "Federal OSHA is the appropriate regulator reference for the fictional private-sector profile, subject to actual employer and worker facts.",
+      "conclusion": "Federal OSHA is the provisional regulator reference for the fictional private-sector profile; New York PESH covers State and local government workers rather than the stated private operation. Actual employer and worker facts remain required.",
       "uncertainty": "No actual employer, employee, exposure, or covered work activity exists in the repository.",
       "future_verification": "For any real use, verify the employer, employment relationship, work activity, and the current federal and State enforcement allocation.",
-      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-OSHA-NEW-YORK-STATE-PLAN", "recorded_on": "2026-07-22"}
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-OSHA-NEW-YORK-STATE-PLAN and SRC-NYS-DOL-PESH-COVERAGE", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-OSHA-LABORATORY-STANDARD",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-OSHA-1910.1450",
+      "source_ids": ["SRC-OSHA-1910.1450"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "LEGAL_OR_REGULATORY",
       "trigger": "Covered laboratory use of a hazardous chemical with potential employee exposure.",
@@ -124,7 +135,7 @@
     {
       "id": "BASIS-OSHA-ALUMINA-EXPOSURE",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-OSHA-1910.1000-Z1",
+      "source_ids": ["SRC-OSHA-1910.1000-Z1"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "LEGAL_OR_REGULATORY",
       "trigger": "Covered employee exposure to the exact listed alumina substance or another regulated particulate.",
@@ -137,7 +148,7 @@
     {
       "id": "BASIS-OSHA-SDS-PROVENANCE",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-OSHA-1910.1200",
+      "source_ids": ["SRC-OSHA-1910.1200"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "LEGAL_OR_REGULATORY",
       "trigger": "A known workplace chemical for which covered employees may be exposed.",
@@ -150,7 +161,7 @@
     {
       "id": "BASIS-Z9.5-LAB-VENTILATION",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ANSI-ASSP-Z9.5-2022",
+      "source_ids": ["SRC-ANSI-ASSP-Z9.5-2022"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Project selection of laboratory-ventilation practice after licensed and domain review.",
@@ -163,7 +174,7 @@
     {
       "id": "BASIS-Z9.2-LOCAL-EXHAUST",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ANSI-ASSP-Z9.2-2018",
+      "source_ids": ["SRC-ANSI-ASSP-Z9.2-2018"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Project selection of local-exhaust practice after licensed and domain review.",
@@ -176,7 +187,7 @@
     {
       "id": "BASIS-NFPA-91-PARTICULATE-EXHAUST",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-NFPA-91-2026",
+      "source_ids": ["SRC-NFPA-91-2026"],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "An exhaust system and material within the standard's fire or explosion protection scope.",
@@ -189,20 +200,24 @@
     {
       "id": "BASIS-ELECTRICAL-INSTALLATION",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-NFPA-70-ELECTRICAL",
+      "source_ids": [
+        "SRC-NFPA-70-ELECTRICAL",
+        "SRC-NYS-UNIFORM-CODE-ADOPTION-2025",
+        "SRC-NYS-BUILDING-CODE-2025"
+      ],
       "status": "PROVISIONAL_REQUIRES_VERIFICATION",
       "basis_category": "ADOPTED_CODE",
       "trigger": "Electrical installation of the VFDs, motors, controls, and instrumentation under an adopted edition.",
       "profile_fact_ids": ["PROFILE-FACILITY-CONSTRUCTION", "PROFILE-FAN-PAIR"],
       "conclusion": "Electrical installation has a controlled code basis, but installation conformance and operational evidence are separate questions.",
-      "uncertainty": "The publisher-current edition differs from the New York adopted edition, and no actual installation design exists.",
-      "future_verification": "Pin the New York incorporated edition, exact installation scope, design documents, equipment instructions, inspection evidence, and qualified electrical review.",
-      "provenance": {"basis_type": "STANDARDS_DEVELOPER_AND_ADOPTION_RESEARCH", "reference": "SRC-NFPA-70-ELECTRICAL and SRC-NYS-UNIFORM-CODE-ADOPTION-2025", "recorded_on": "2026-07-22"}
+      "uncertainty": "The official New York sources identify the 2023 edition within the current 2025 code-book reference framework, but the fictional profile does not provide permit timing, an electrical design, or facts sufficient to establish project- or section-level applicability.",
+      "future_verification": "Verify permit and construction timing, identify the exact code-book and 19 NYCRR provisions reaching the proposed electrical work, and review the final design, equipment instructions, inspection evidence, and section-level applicability with persons or organizations possessing the required qualifications and assigned organizational or legal authority.",
+      "provenance": {"basis_type": "STANDARDS_DEVELOPER_AND_ADOPTION_RESEARCH", "reference": "SRC-NFPA-70-ELECTRICAL, SRC-NYS-UNIFORM-CODE-ADOPTION-2025, and SRC-NYS-BUILDING-CODE-2025", "recorded_on": "2026-07-22"}
     },
     {
       "id": "BASIS-FAN-RATING-AND-SYSTEM-EFFECT",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-AMCA-210-2025",
+      "source_ids": ["SRC-AMCA-210-2025", "SRC-AMCA-201-2023"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Interpretation of rated fan capability versus installed system response.",
@@ -215,7 +230,7 @@
     {
       "id": "BASIS-MEASUREMENT-METHODS",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ASHRAE-MEASUREMENT-METHODS",
+      "source_ids": ["SRC-ASHRAE-MEASUREMENT-METHODS"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Future measured airflow, differential pressure, or electrical power evidence.",
@@ -228,7 +243,7 @@
     {
       "id": "BASIS-FIELD-TAB-EVIDENCE",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ASHRAE-111-2024",
+      "source_ids": ["SRC-ASHRAE-111-2024"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Future use of field airflow, pressure, or balancing evidence.",
@@ -241,7 +256,7 @@
     {
       "id": "BASIS-COMMISSIONING-PROCESS",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ASHRAE-202-2024",
+      "source_ids": ["SRC-ASHRAE-202-2024"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Use of commissioning-process concepts for future requirements, verification, issues, records, and disposition separation.",
@@ -254,7 +269,7 @@
     {
       "id": "BASIS-GUIDELINE-36-REPRESENTATION",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ASHRAE-GUIDELINE-36-2024",
+      "source_ids": ["SRC-ASHRAE-GUIDELINE-36-2024"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
       "trigger": "Study of structured sequence representation and testable control intent.",
@@ -267,7 +282,7 @@
     {
       "id": "BASIS-CDL-REPRESENTATION",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ASHRAE-231-2026-CDL",
+      "source_ids": ["SRC-ASHRAE-231-2026-CDL"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "RESEARCH_METHOD",
       "trigger": "A later approved comparison of one bounded controller sequence representation.",
@@ -280,7 +295,7 @@
     {
       "id": "BASIS-OBC-REPLAY-METHOD",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-LBNL-OPENBUILDINGCONTROL",
+      "source_ids": ["SRC-LBNL-OPENBUILDINGCONTROL"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "RESEARCH_METHOD",
       "trigger": "Design of later reproducible replay, mapping, unit, parameter, and comparison records.",
@@ -293,7 +308,7 @@
     {
       "id": "BASIS-236P-MONITOR",
       "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
-      "source_id": "SRC-ASHRAE-236P",
+      "source_ids": ["SRC-ASHRAE-236P"],
       "status": "INFORMATIVE_INFLUENCE_ONLY",
       "basis_category": "RESEARCH_METHOD",
       "trigger": "Future publication and review of bounded controller-program conformance scripts.",
@@ -302,6 +317,84 @@
       "uncertainty": "No published standard or final scripts exist, and bench controller-program testing excludes physical sensors and devices.",
       "future_verification": "Monitor publication status and review exact final text before any future project dependency or comparison.",
       "provenance": {"basis_type": "STANDARDS_DEVELOPER_METADATA_RESEARCH", "reference": "SRC-ASHRAE-236P", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "BASIS-NYS-ECL-AIR-CONTROL",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "source_ids": ["SRC-NYS-ECL-ARTICLE-19"],
+      "status": "PROVISIONAL_REQUIRES_VERIFICATION",
+      "basis_category": "LEGAL_OR_REGULATORY",
+      "trigger": "A New York air contamination source or air cleaning installation associated with the fictional outdoor particulate discharge.",
+      "profile_fact_ids": ["PROFILE-FACILITY-LOCATION", "PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-PROCESS-EXHAUST", "PROFILE-TREATMENT"],
+      "conclusion": "Article 19 is a candidate statutory framework for future scope review. The outdoor-discharge fact does not establish a permit, exemption, emission limit, treatment requirement, or violation.",
+      "uncertainty": "The repository does not provide a complete emissions profile, regulatory process classification, emission quantity or potential-to-emit analysis, treatment or control-device performance information, or exemption and trivial-activity analysis.",
+      "future_verification": "Prepare a controlled emissions, process, and control-device profile, then obtain qualified regulatory review before making any permit, registration, exemption, limit, control, or violation conclusion.",
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-ECL-ARTICLE-19", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "BASIS-NYS-AIR-SOURCE-CLASSIFICATION",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "source_ids": ["SRC-NYS-ECL-ARTICLE-19", "SRC-NYS-6-NYCRR-PART-200"],
+      "status": "PROVISIONAL_REQUIRES_VERIFICATION",
+      "basis_category": "LEGAL_OR_REGULATORY",
+      "trigger": "Use of New York air-resource definitions and general provisions to classify the fictional exhaust and treatment arrangement.",
+      "profile_fact_ids": ["PROFILE-FACILITY-LOCATION", "PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-PROCESS-EXHAUST", "PROFILE-TREATMENT"],
+      "conclusion": "Part 200 informs future terminology and source-classification review; the repository lacks the facts needed to classify the source or determine substantive requirements.",
+      "uncertainty": "The repository does not provide a complete emissions profile, regulatory process classification, emission quantity or potential-to-emit analysis, treatment or control-device performance information, or exemption and trivial-activity analysis.",
+      "future_verification": "Prepare a controlled emissions, process, and control-device profile and verify current official text before a qualified source-classification review.",
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-ECL-ARTICLE-19 and SRC-NYS-6-NYCRR-PART-200", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "BASIS-NYS-AIR-PERMITTING",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "source_ids": ["SRC-NYS-ECL-ARTICLE-19", "SRC-NYS-6-NYCRR-PART-200", "SRC-NYS-6-NYCRR-PART-201"],
+      "status": "PROVISIONAL_REQUIRES_VERIFICATION",
+      "basis_category": "LEGAL_OR_REGULATORY",
+      "trigger": "Construction or operation of an air contamination source within a Part 201 permit or registration pathway and outside a verified exception.",
+      "profile_fact_ids": ["PROFILE-FACILITY-CONSTRUCTION", "PROFILE-FACILITY-LOCATION", "PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-PROCESS-EXHAUST", "PROFILE-TREATMENT"],
+      "conclusion": "Part 201 warrants future review. No permit, registration, exempt activity, trivial activity, or other pathway is established.",
+      "uncertainty": "The repository does not provide a complete emissions profile, regulatory process classification, emission quantity or potential-to-emit analysis, treatment or control-device performance information, or exemption and trivial-activity analysis.",
+      "future_verification": "Prepare a controlled emissions, process, and control-device profile and complete a qualified Part 201 pathway and exemption review using current official text.",
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-ECL-ARTICLE-19, SRC-NYS-6-NYCRR-PART-200, and SRC-NYS-6-NYCRR-PART-201", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "BASIS-NYS-AIR-GENERAL-PROHIBITIONS",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "source_ids": ["SRC-NYS-ECL-ARTICLE-19", "SRC-NYS-6-NYCRR-PART-200", "SRC-NYS-6-NYCRR-PART-211"],
+      "status": "PROVISIONAL_REQUIRES_VERIFICATION",
+      "basis_category": "LEGAL_OR_REGULATORY",
+      "trigger": "Emission of an air contaminant from the fictional process exhaust under facts within Part 211's scope.",
+      "profile_fact_ids": ["PROFILE-FACILITY-LOCATION", "PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-PROCESS-EXHAUST", "PROFILE-TREATMENT"],
+      "conclusion": "Part 211 is part of the potential regulatory scope review. No particular prohibition, nuisance, or violation is established.",
+      "uncertainty": "The repository does not provide a complete emissions profile, regulatory process classification, emission quantity or potential-to-emit analysis, treatment or control-device performance information, or exemption and trivial-activity analysis.",
+      "future_verification": "Prepare a controlled emissions, process, and control-device profile and obtain qualified review of current Part 211 text before any substantive conclusion.",
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-ECL-ARTICLE-19, SRC-NYS-6-NYCRR-PART-200, and SRC-NYS-6-NYCRR-PART-211", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "BASIS-NYS-PROCESS-OPERATIONS",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "source_ids": ["SRC-NYS-ECL-ARTICLE-19", "SRC-NYS-6-NYCRR-PART-200", "SRC-NYS-6-NYCRR-PART-212"],
+      "status": "PROVISIONAL_REQUIRES_VERIFICATION",
+      "basis_category": "LEGAL_OR_REGULATORY",
+      "trigger": "A process operation and air contaminant discharge within Part 212's scope.",
+      "profile_fact_ids": ["PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-PROCESS-EXHAUST", "PROFILE-TREATMENT"],
+      "conclusion": "The process and outdoor particulate exhaust warrant future Part 212 scope review. No process classification, allowable-emission requirement, control requirement, or major-facility status is established.",
+      "uncertainty": "The repository does not provide a complete emissions profile, regulatory process classification, emission quantity or potential-to-emit analysis, treatment or control-device performance information, or exemption and trivial-activity analysis.",
+      "future_verification": "Prepare a controlled emissions, process, and control-device profile and obtain qualified review of current Part 212 text and any relevant guidance.",
+      "provenance": {"basis_type": "OFFICIAL_SOURCE_RESEARCH", "reference": "SRC-NYS-ECL-ARTICLE-19, SRC-NYS-6-NYCRR-PART-200, and SRC-NYS-6-NYCRR-PART-212", "recorded_on": "2026-07-22"}
+    },
+    {
+      "id": "BASIS-NFPA-45-LABORATORY-SCOPE",
+      "facility_id": "FACILITY-ADVANCED-MATERIALS-RESEARCH",
+      "source_ids": ["SRC-NFPA-45-2024"],
+      "status": "PROVISIONAL_REQUIRES_VERIFICATION",
+      "basis_category": "INFORMATIVE_ENGINEERING_GUIDANCE",
+      "trigger": "A laboratory and material-use profile within the licensed standard's scope.",
+      "profile_fact_ids": ["PROFILE-RESEARCH-USE", "PROFILE-MATERIAL-AND-ACTIVITIES", "PROFILE-OPEN-BATCH-BOUND", "PROFILE-INVENTORY-BOUND", "PROFILE-MATERIAL-HAZARD-BOUNDARY", "PROFILE-EXCLUDED-HAZARDS"],
+      "conclusion": "NFPA 45-2024 is a relevant scope-review candidate because the facility is a research laboratory, but neither applicability nor a project requirement is established.",
+      "uncertainty": "The laboratory label does not establish scope. Exact chemical identity, hazard characteristics, quantities, fire profile, adoption, contractual selection, and licensed scope text remain unresolved.",
+      "future_verification": "Obtain licensed scope text and complete a qualified review against the finalized fictional material, quantity, fire-hazard, use, and adoption facts before any applicability or requirement decision.",
+      "provenance": {"basis_type": "STANDARDS_DEVELOPER_METADATA_RESEARCH", "reference": "SRC-NFPA-45-2024", "recorded_on": "2026-07-22"}
     }
   ]
 }
