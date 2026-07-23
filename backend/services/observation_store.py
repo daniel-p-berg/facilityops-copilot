@@ -31,6 +31,7 @@ SCHEMA_VERSION = 1
 MAX_PAGE_SIZE = 100
 DEFAULT_PAGE_SIZE = 50
 MAX_JSON_TEXT_BYTES = 1_048_576
+_SQLITE_MAX_INTEGER = (1 << 63) - 1
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OBSERVATION_DATABASE_FILE = (
     PROJECT_ROOT / "db" / "facilityops-observations.sqlite3"
@@ -627,6 +628,92 @@ VALIDATION_TRIGGER_STATEMENTS = (
         SELECT RAISE(
             ABORT,
             'canonical lineage crosses replay, facility, source, mapping, or event scope'
+        );
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS validate_source_native_mapping_scope
+    BEFORE INSERT ON source_native_records
+    WHEN NOT EXISTS (
+        SELECT 1
+        FROM replay_executions AS execution
+        JOIN mapping_snapshots AS mapping
+          ON mapping.facility_id = execution.facility_id
+         AND mapping.topology_id = execution.topology_id
+         AND mapping.topology_version = execution.topology_version
+         AND mapping.topology_digest = execution.topology_digest
+        WHERE execution.replay_execution_id = NEW.replay_execution_id
+          AND execution.facility_id = NEW.facility_id
+          AND mapping.mapping_id = NEW.mapping_id
+          AND mapping.mapping_version = NEW.mapping_version
+          AND mapping.content_digest = NEW.mapping_digest
+          AND mapping.source_binding_id = NEW.source_binding_id
+    )
+    BEGIN
+        SELECT RAISE(
+            ABORT,
+            'source-native mapping crosses replay topology, facility, or source-binding scope'
+        );
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS validate_canonical_mapping_scope
+    BEFORE INSERT ON canonical_observations
+    WHEN NOT EXISTS (
+        SELECT 1
+        FROM replay_executions AS execution
+        JOIN mapping_snapshots AS mapping
+          ON mapping.facility_id = execution.facility_id
+         AND mapping.topology_id = execution.topology_id
+         AND mapping.topology_version = execution.topology_version
+         AND mapping.topology_digest = execution.topology_digest
+        WHERE execution.replay_execution_id = NEW.replay_execution_id
+          AND execution.facility_id = NEW.facility_id
+          AND mapping.mapping_id = NEW.mapping_id
+          AND mapping.mapping_version = NEW.mapping_version
+          AND mapping.content_digest = NEW.mapping_digest
+          AND mapping.source_binding_id = NEW.source_binding_id
+    )
+    BEGIN
+        SELECT RAISE(
+            ABORT,
+            'canonical mapping crosses replay topology, facility, or source-binding scope'
+        );
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS validate_canonical_decode_issue_scope
+    BEFORE INSERT ON canonical_decode_issues
+    WHEN NOT EXISTS (
+        SELECT 1
+        FROM replay_executions AS execution
+        JOIN mapping_snapshots AS mapping
+          ON mapping.facility_id = execution.facility_id
+         AND mapping.topology_id = execution.topology_id
+         AND mapping.topology_version = execution.topology_version
+         AND mapping.topology_digest = execution.topology_digest
+        WHERE execution.replay_execution_id = NEW.replay_execution_id
+          AND mapping.mapping_id = NEW.mapping_id
+          AND mapping.mapping_version = NEW.mapping_version
+          AND (
+                NEW.source_native_record_id IS NULL
+                OR EXISTS (
+                    SELECT 1
+                    FROM source_native_records AS native
+                    WHERE native.source_native_record_id =
+                            NEW.source_native_record_id
+                      AND native.replay_execution_id =
+                            NEW.replay_execution_id
+                      AND native.facility_id = execution.facility_id
+                      AND native.mapping_id = NEW.mapping_id
+                      AND native.mapping_version = NEW.mapping_version
+                )
+          )
+    )
+    BEGIN
+        SELECT RAISE(
+            ABORT,
+            'canonical decode issue crosses replay, topology, facility, mapping, or source-native scope'
         );
     END
     """,
@@ -2113,7 +2200,10 @@ def _page_values(page: int, page_size: int) -> tuple[int, int, int]:
         raise ValueError(
             f"page_size must be an integer from 1 through {MAX_PAGE_SIZE}"
         )
-    return page, page_size, (page - 1) * page_size
+    offset = (page - 1) * page_size
+    if offset > _SQLITE_MAX_INTEGER:
+        raise ValueError("page is too large for the bounded SQLite query")
+    return page, page_size, offset
 
 
 def _page_result(

@@ -2,6 +2,7 @@ import math
 import unittest
 from copy import deepcopy
 from decimal import Decimal
+from itertools import permutations
 
 from backend.domain.observation_semantics import (
     ORDER_AFTER,
@@ -642,6 +643,73 @@ class ReportedObservationProjectionTests(unittest.TestCase):
             ]
         )
 
+    def test_sequence_time_disagreement_cannot_be_bridged_out_of_frontier(self):
+        first = canonical_candidate(
+            "CANONICAL-A",
+            observed_at="2026-07-23T10:00:00Z",
+            sequence=1,
+            value="1.00",
+        )
+        bridge = canonical_candidate(
+            "CANONICAL-B",
+            observed_at="2026-07-23T10:01:00Z",
+            sequence=None,
+            value="2.00",
+        )
+        same_sequence_later_time = canonical_candidate(
+            "CANONICAL-C",
+            observed_at="2026-07-23T10:02:00Z",
+            sequence=1,
+            value="3.00",
+        )
+
+        projection = self.project([first, bridge, same_sequence_later_time])
+
+        self.assertEqual(projection["disposition"], UNORDERED)
+        self.assertIsNone(projection["selected_candidate"])
+        self.assertIsNone(projection["selected_value"])
+        self.assertTrue(
+            any(
+                facts["sequence_time_disagreement"]
+                for facts in projection["ordering_facts"]
+            )
+        )
+        for reordered in permutations(
+            [first, bridge, same_sequence_later_time]
+        ):
+            self.assertEqual(self.project(reordered), projection)
+
+    def test_resolved_older_disagreement_does_not_poison_clear_newer_report(self):
+        older_by_time = canonical_candidate(
+            "CANONICAL-A",
+            observed_at="2026-07-23T10:00:00Z",
+            sequence=2,
+            value="1.00",
+        )
+        newer_by_time = canonical_candidate(
+            "CANONICAL-B",
+            observed_at="2026-07-23T10:01:00Z",
+            sequence=1,
+            value="2.00",
+        )
+        clear_newest = canonical_candidate(
+            "CANONICAL-C",
+            observed_at="2026-07-23T10:02:00Z",
+            sequence=3,
+            value="3.00",
+        )
+
+        projection = self.project(
+            [older_by_time, newer_by_time, clear_newest]
+        )
+
+        self.assertEqual(projection["disposition"], REPORTED)
+        self.assertEqual(
+            projection["selected_candidate"]["canonical_observation_id"],
+            "CANONICAL-C",
+        )
+        self.assertEqual(projection["selected_value"]["value"], "3.00")
+
     def test_ambiguous_reset_is_unordered_but_declared_epoch_reset_is_not(self):
         before_reset = canonical_candidate(
             "CANONICAL-A",
@@ -734,6 +802,34 @@ class ReportedObservationProjectionTests(unittest.TestCase):
                 for facts in projection["ordering_facts"]
             )
         )
+
+    def test_same_declared_sequence_without_valid_time_blocks_fallback(self):
+        valid = canonical_candidate(
+            "CANONICAL-VALID",
+            sequence=4,
+            value="4.00",
+        )
+        missing_same_sequence = canonical_candidate(
+            "CANONICAL-MISSING",
+            observed_at_status=TIMESTAMP_MISSING,
+            sequence=4,
+            value="5.00",
+        )
+
+        projection = self.project([valid, missing_same_sequence])
+
+        self.assertEqual(projection["disposition"], UNORDERED)
+        self.assertIsNone(projection["selected_candidate"])
+        self.assertIsNone(projection["selected_value"])
+        self.assertTrue(
+            any(
+                facts.get("issue")
+                == "SAME_SEQUENCE_HAS_NO_VALID_OBSERVED_AT"
+                for facts in projection["ordering_facts"]
+            )
+        )
+        for reordered in permutations([valid, missing_same_sequence]):
+            self.assertEqual(self.project(reordered), projection)
 
     def test_projection_rebuild_is_input_order_independent(self):
         candidates = [

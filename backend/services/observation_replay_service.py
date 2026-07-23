@@ -14,6 +14,7 @@ from backend.domain.observation_semantics import (
     ORDER_AFTER,
     ORDER_BEFORE,
     ORDER_EQUAL,
+    ORDER_UNORDERED,
     canonical_json_sha256,
     canonical_json_text,
     compare_rfc3339_instants,
@@ -170,7 +171,7 @@ def build_replay_plan(
         binding_by_id=binding_by_id,
         oracle=loaded["oracle"],
     )
-    _validate_structural_oracle_counts(
+    _validate_structural_oracle_against_plan(
         loaded=loaded,
         event_groups=event_groups,
         deliveries=deliveries,
@@ -833,6 +834,41 @@ def _canonicalize_register_pair(
                 role: variant["representative"]
                 for role, variant in selected_variants.items()
             }
+            source_session_epochs = {
+                role: context["native_row"]["source_session_epoch"]
+                for role, context in selected.items()
+            }
+            declared_source_epochs = {
+                epoch
+                for epoch in source_session_epochs.values()
+                if epoch is not None
+            }
+            if len(declared_source_epochs) > 1:
+                decode_issues.append(
+                    _decode_issue_row(
+                        replay_execution_id=replay_execution_id,
+                        issue_number=len(decode_issues) + 1,
+                        source_native_record_id=selected[
+                            required_roles[0]
+                        ]["native_row"]["source_native_record_id"],
+                        mapping=mapping,
+                        issue_code="REGISTER_PAIR_SOURCE_EPOCH_MISMATCH",
+                        detail={
+                            "decode_group_id": decode_group_id,
+                            "component_logical_keys": {
+                                role: list(variant["logical_key"])
+                                for role, variant in sorted(
+                                    selected_variants.items()
+                                )
+                            },
+                            "source_session_epochs": dict(
+                                sorted(source_session_epochs.items())
+                            ),
+                        },
+                    )
+                )
+                continue
+
             temporal_signatures = {
                 (
                     context["native_row"]["observed_at_status"],
@@ -1495,6 +1531,633 @@ def _projection_summary(
     }
 
 
+def _validate_structural_oracle_against_plan(
+    *,
+    loaded: dict[str, Any],
+    event_groups: list[dict[str, Any]],
+    deliveries: list[dict[str, Any]],
+    native_contexts: list[dict[str, Any]],
+    canonical_rows: list[dict[str, Any]],
+    lineage_rows: list[dict[str, Any]],
+) -> None:
+    """Validate every semantic oracle declaration against derived plan rows."""
+
+    _validate_oracle_identity_groups(
+        loaded["oracle"],
+        deliveries=deliveries,
+        native_contexts=native_contexts,
+        canonical_rows=canonical_rows,
+    )
+    _validate_oracle_decode_lineage(
+        loaded["oracle"],
+        native_contexts=native_contexts,
+        canonical_rows=canonical_rows,
+        lineage_rows=lineage_rows,
+    )
+    _validate_oracle_ordering_facts(
+        loaded["oracle"],
+        native_contexts=native_contexts,
+        canonical_rows=canonical_rows,
+        lineage_rows=lineage_rows,
+    )
+    _validate_structural_oracle_counts(
+        loaded=loaded,
+        event_groups=event_groups,
+        deliveries=deliveries,
+        native_contexts=native_contexts,
+        canonical_rows=canonical_rows,
+        lineage_rows=lineage_rows,
+    )
+
+
+def _validate_oracle_identity_groups(
+    oracle: dict[str, Any],
+    *,
+    deliveries: list[dict[str, Any]],
+    native_contexts: list[dict[str, Any]],
+    canonical_rows: list[dict[str, Any]],
+) -> None:
+    delivery_by_id = {
+        delivery["delivery_id"]: delivery for delivery in deliveries
+    }
+    context_by_delivery_id = {
+        context["native_row"]["delivery_id"]: context
+        for context in native_contexts
+    }
+    delivery_ids_by_group: dict[str, set[str]] = defaultdict(set)
+    for delivery in deliveries:
+        delivery_ids_by_group[
+            delivery["source_event_group_key"]
+        ].add(delivery["delivery_id"])
+    canonical_ids_by_group: dict[str, set[str]] = defaultdict(set)
+    for row in canonical_rows:
+        group_key = row["source_event_group_key"]
+        if group_key is not None:
+            canonical_ids_by_group[group_key].add(
+                row["canonical_observation_id"]
+            )
+
+    for index, group in enumerate(oracle["identity_groups"]):
+        label = (
+            "Replay structural oracle identity-group mismatch at "
+            f"identity_groups[{index}]"
+        )
+        group_kind = group["group_kind"]
+        expected_delivery_ids = set(group["delivery_ids"])
+        contexts = [
+            context_by_delivery_id[delivery_id]
+            for delivery_id in group["delivery_ids"]
+        ]
+        group_keys = {
+            context["native_row"]["source_event_group_key"]
+            for context in contexts
+        }
+
+        if group_kind in {
+            "EXACT_REDELIVERY",
+            "CONFLICTING_REDELIVERY",
+        }:
+            if len(group_keys) != 1:
+                raise ValueError(
+                    f"{label}: referenced deliveries do not share one "
+                    "derived source-event group"
+                )
+            group_key = next(iter(group_keys))
+            if delivery_ids_by_group[group_key] != expected_delivery_ids:
+                raise ValueError(
+                    f"{label}: delivery_ids do not describe the complete "
+                    "derived source-event group"
+                )
+            variants = {
+                context["native_row"]["source_event_variant_digest"]
+                for context in contexts
+            }
+            derived_kind = (
+                "EXACT_REDELIVERY"
+                if len(contexts) > 1 and len(variants) == 1
+                else (
+                    "CONFLICTING_REDELIVERY"
+                    if len(variants) > 1
+                    else "NOT_A_REDELIVERY_GROUP"
+                )
+            )
+            if derived_kind != group_kind:
+                raise ValueError(
+                    f"{label}: expected {group_kind}, derived "
+                    f"{derived_kind}"
+                )
+            derived_source_event_ids = {
+                context["source_event"].get("event_id")
+                for context in contexts
+            }
+            if derived_source_event_ids != {group["source_event_id"]}:
+                raise ValueError(
+                    f"{label}: declared source_event_id differs from the "
+                    "prepared plan"
+                )
+            actual_counts = {
+                "expected_source_native_records": len(contexts),
+                "expected_logical_variants": len(variants),
+                "expected_canonical_observations": len(
+                    canonical_ids_by_group[group_key]
+                ),
+            }
+        elif group_kind == "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS":
+            declared_source_event_ids = set(group["source_event_ids"])
+            source_event_ids_by_group: dict[str, set[str | None]] = (
+                defaultdict(set)
+            )
+            for context in contexts:
+                source_event_ids_by_group[
+                    context["native_row"]["source_event_group_key"]
+                ].add(context["source_event"].get("event_id"))
+            if (
+                len(source_event_ids_by_group) < 2
+                or len(source_event_ids_by_group)
+                != len(declared_source_event_ids)
+                or any(
+                    len(source_event_ids) != 1
+                    for source_event_ids in source_event_ids_by_group.values()
+                )
+                or {
+                    next(iter(source_event_ids))
+                    for source_event_ids in source_event_ids_by_group.values()
+                }
+                != declared_source_event_ids
+            ):
+                raise ValueError(
+                    f"{label}: declared source events do not map one-to-one "
+                    "to distinct source-event groups"
+                )
+            if any(
+                context["identity_kind"] == "NO_STABLE_ID"
+                for context in contexts
+            ):
+                raise ValueError(
+                    f"{label}: an equal-payload declaration uses a delivery "
+                    "without stable source identity"
+                )
+            complete_group_delivery_ids = set().union(
+                *(delivery_ids_by_group[group_key] for group_key in group_keys)
+            )
+            if complete_group_delivery_ids != expected_delivery_ids:
+                raise ValueError(
+                    f"{label}: delivery_ids do not describe the complete "
+                    "derived source-event groups"
+                )
+            payload_digests = {
+                context["native_row"]["payload_digest"]
+                for context in contexts
+            }
+            if len(payload_digests) != 1:
+                raise ValueError(
+                    f"{label}: referenced source-event groups do not have "
+                    "equal payloads"
+                )
+            actual_counts = {
+                "expected_source_event_groups": len(group_keys),
+                "expected_canonical_observations": len(
+                    set().union(
+                        *(
+                            canonical_ids_by_group[group_key]
+                            for group_key in group_keys
+                        )
+                    )
+                ),
+            }
+        else:  # package validation guards this
+            raise ValueError(
+                f"{label}: unsupported group_kind {group_kind!r}"
+            )
+
+        _require_matching_oracle_counts(
+            label,
+            expected=group,
+            actual=actual_counts,
+        )
+        if any(
+            delivery_by_id[delivery_id]["source_binding_id"]
+            != group["source_binding_id"]
+            for delivery_id in expected_delivery_ids
+        ):
+            raise ValueError(
+                f"{label}: source binding differs from the prepared plan"
+            )
+
+
+def _validate_oracle_decode_lineage(
+    oracle: dict[str, Any],
+    *,
+    native_contexts: list[dict[str, Any]],
+    canonical_rows: list[dict[str, Any]],
+    lineage_rows: list[dict[str, Any]],
+) -> None:
+    context_by_delivery_id = {
+        context["native_row"]["delivery_id"]: context
+        for context in native_contexts
+    }
+    row_by_observation_id = {
+        row["canonical_observation_id"]: row for row in canonical_rows
+    }
+    lineage_by_observation_id: dict[str, list[dict[str, Any]]] = (
+        defaultdict(list)
+    )
+    for edge in lineage_rows:
+        lineage_by_observation_id[edge["canonical_observation_id"]].append(
+            edge
+        )
+
+    for index, expectation in enumerate(oracle["decode_lineage"]):
+        label = (
+            "Replay structural oracle decode-lineage mismatch at "
+            f"decode_lineage[{index}]"
+        )
+        contexts = [
+            context_by_delivery_id[delivery_id]
+            for delivery_id in expectation["source_delivery_ids"]
+        ]
+        decode_group_id = expectation["decode_group_id"]
+        if any(
+            context["source_event"].get("decode_group_id")
+            != decode_group_id
+            for context in contexts
+        ):
+            raise ValueError(
+                f"{label}: source delivery decode-group declarations differ"
+            )
+        mapping_identities = {
+            (
+                context["mapping"]["mapping_id"],
+                context["mapping"]["mapping_version"],
+                context["mapping"]["content_digest"],
+            )
+            for context in contexts
+        }
+        if len(mapping_identities) != 1:
+            raise ValueError(
+                f"{label}: source deliveries do not use one mapping "
+                "derivation"
+            )
+        transformation = contexts[0]["mapping"]["transformation"]
+        if (
+            transformation["kind"]
+            != "REGISTER_PAIR_SIGNED_INT32_BE"
+            or transformation["target_point_id"]
+            != expectation["target_point_id"]
+        ):
+            raise ValueError(
+                f"{label}: mapping transformation does not produce the "
+                "declared target point"
+            )
+        expected_native_ids = {
+            context["native_row"]["source_native_record_id"]
+            for context in contexts
+        }
+        matching_observation_ids = []
+        for observation_id, edges in lineage_by_observation_id.items():
+            row = row_by_observation_id[observation_id]
+            if (
+                row["canonical_point_definition_id"]
+                == expectation["target_point_id"]
+                and {
+                    edge["source_native_record_id"] for edge in edges
+                }
+                == expected_native_ids
+            ):
+                matching_observation_ids.append(observation_id)
+        if len(matching_observation_ids) != 1:
+            raise ValueError(
+                f"{label}: expected exactly one canonical observation with "
+                "the declared source-native lineage"
+            )
+        observation_id = matching_observation_ids[0]
+        edges = lineage_by_observation_id[observation_id]
+        _require_matching_oracle_counts(
+            label,
+            expected=expectation,
+            actual={"expected_lineage_edges": len(edges)},
+        )
+
+        expected_signed_raw_value = expectation.get(
+            "expected_signed_raw_value"
+        )
+        if expected_signed_raw_value is not None:
+            contexts_by_role: dict[str, list[dict[str, Any]]] = defaultdict(
+                list
+            )
+            for context in contexts:
+                role = _lookup_declared_field(
+                    context,
+                    transformation["component_role_field"],
+                )
+                if isinstance(role, str):
+                    contexts_by_role[role].append(context)
+            high_values = {
+                _declared_value(
+                    context,
+                    transformation["value_field"],
+                )
+                for context in contexts_by_role[
+                    transformation["high_role"]
+                ]
+            }
+            low_values = {
+                _declared_value(
+                    context,
+                    transformation["value_field"],
+                )
+                for context in contexts_by_role[
+                    transformation["low_role"]
+                ]
+            }
+            if len(high_values) != 1 or len(low_values) != 1:
+                raise ValueError(
+                    f"{label}: signed raw-value validation requires one "
+                    "logical value for each declared register role"
+                )
+            actual_signed_raw_value = decode_signed_int32_be(
+                next(iter(high_values)),
+                next(iter(low_values)),
+            )
+            if actual_signed_raw_value != expected_signed_raw_value:
+                raise ValueError(
+                    f"{label}: expected signed raw value "
+                    f"{expected_signed_raw_value}, derived "
+                    f"{actual_signed_raw_value}"
+                )
+
+        expected_normalized_value = expectation.get(
+            "expected_normalized_value"
+        )
+        if (
+            expected_normalized_value is not None
+            and _row_value(row_by_observation_id[observation_id])
+            != expected_normalized_value
+        ):
+            raise ValueError(
+                f"{label}: expected normalized value "
+                f"{expected_normalized_value!r}, derived "
+                f"{_row_value(row_by_observation_id[observation_id])!r}"
+            )
+
+
+def _validate_oracle_ordering_facts(
+    oracle: dict[str, Any],
+    *,
+    native_contexts: list[dict[str, Any]],
+    canonical_rows: list[dict[str, Any]],
+    lineage_rows: list[dict[str, Any]],
+) -> None:
+    context_by_delivery_id = {
+        context["native_row"]["delivery_id"]: context
+        for context in native_contexts
+    }
+    row_by_observation_id = {
+        row["canonical_observation_id"]: row for row in canonical_rows
+    }
+    report_material_by_native_and_point: dict[
+        str,
+        dict[str, set[tuple[Any, ...]]],
+    ] = defaultdict(lambda: defaultdict(set))
+    for edge in lineage_rows:
+        row = row_by_observation_id[edge["canonical_observation_id"]]
+        report_material_by_native_and_point[
+            edge["source_native_record_id"]
+        ][row["canonical_point_definition_id"]].add(
+            (
+                row["value_type"],
+                _row_value(row),
+                row["unit"],
+            )
+        )
+
+    for index, fact in enumerate(oracle["ordering_facts"]):
+        fact_kind = fact["fact_kind"]
+        label = (
+            "Replay structural oracle ordering-fact mismatch at "
+            f"ordering_facts[{index}] ({fact_kind})"
+        )
+        if fact_kind == "OUT_OF_ORDER_ARRIVAL":
+            older = _ordering_candidate(
+                context_by_delivery_id[fact["older_delivery_id"]]
+            )
+            newer = _ordering_candidate(
+                context_by_delivery_id[fact["newer_delivery_id"]]
+            )
+            comparison = observation_ordering_facts(older, newer)
+            if not (
+                comparison["relation"] == ORDER_BEFORE
+                and comparison["received_at_relation"] == ORDER_AFTER
+                and comparison["out_of_order_arrival"]
+            ):
+                raise ValueError(
+                    f"{label}: referenced delivery orientation is not an "
+                    "older source report received after the newer report"
+                )
+        elif fact_kind == "SEQUENCE_TIME_DISAGREEMENT":
+            earlier = _ordering_candidate(
+                context_by_delivery_id[fact["earlier_delivery_id"]]
+            )
+            later = _ordering_candidate(
+                context_by_delivery_id[fact["later_delivery_id"]]
+            )
+            comparison = observation_ordering_facts(earlier, later)
+            if not (
+                comparison["same_source_binding"]
+                and comparison["relation"] == ORDER_UNORDERED
+                and comparison["sequence_relation"] == ORDER_BEFORE
+                and comparison["observed_at_relation"] == ORDER_AFTER
+                and comparison["sequence_time_disagreement"]
+            ):
+                raise ValueError(
+                    f"{label}: the later source sequence does not carry an "
+                    "older observed time"
+                )
+        elif fact_kind == "DECLARED_SEQUENCE_RESET":
+            context = context_by_delivery_id[fact["delivery_id"]]
+            native = context["native_row"]
+            prior_contexts = [
+                prior
+                for prior in native_contexts
+                if prior["delivery_row"]["ingestion_ordinal"]
+                < context["delivery_row"]["ingestion_ordinal"]
+                and prior["native_row"]["source_binding_id"]
+                == native["source_binding_id"]
+                and prior["native_row"]["source_session_epoch"] is not None
+                and prior["native_row"]["source_session_epoch"]
+                != native["source_session_epoch"]
+                and prior["native_row"]["source_sequence"] is not None
+            ]
+            if not (
+                native["source_session_epoch"] is not None
+                and native["source_sequence"] is not None
+                and any(
+                    prior["native_row"]["source_sequence"]
+                    > native["source_sequence"]
+                    for prior in prior_contexts
+                )
+            ):
+                raise ValueError(
+                    f"{label}: the prepared plan has no explicit new epoch "
+                    "with a reset source sequence"
+                )
+        elif fact_kind == "AMBIGUOUS_SEQUENCE_RESET":
+            context = context_by_delivery_id[fact["delivery_id"]]
+            ordering = json.loads(
+                context["native_row"]["ordering_facts_json"]
+            )
+            if not ordering["ambiguous_sequence_reset"]:
+                raise ValueError(
+                    f"{label}: prepared ordering facts do not identify an "
+                    "ambiguous reset"
+                )
+        elif fact_kind == "EQUAL_OBSERVED_TIME_DIFFERENT_REPORTS":
+            contexts = [
+                context_by_delivery_id[delivery_id]
+                for delivery_id in fact["delivery_ids"]
+            ]
+            native_rows = [
+                context["native_row"] for context in contexts
+            ]
+            observed_signatures = {
+                (
+                    native["observed_at_status"],
+                    native["observed_at_utc"],
+                )
+                for native in native_rows
+            }
+            group_keys = {
+                native["source_event_group_key"] for native in native_rows
+            }
+            common_points = set.intersection(
+                *(
+                    set(
+                        report_material_by_native_and_point[
+                            native["source_native_record_id"]
+                        ]
+                    )
+                    for native in native_rows
+                )
+            )
+            has_different_report = any(
+                len(
+                    set().union(
+                        *(
+                            report_material_by_native_and_point[
+                                native["source_native_record_id"]
+                            ][point_id]
+                            for native in native_rows
+                        )
+                    )
+                )
+                > 1
+                for point_id in common_points
+            )
+            if not (
+                observed_signatures
+                and len(observed_signatures) == 1
+                and next(iter(observed_signatures))[0] == "VALID"
+                and len(group_keys) == len(native_rows)
+                and all(
+                    native["source_sequence"] is None
+                    for native in native_rows
+                )
+                and has_different_report
+            ):
+                raise ValueError(
+                    f"{label}: deliveries are not distinct, differently "
+                    "reported source events at one valid observed time"
+                )
+        elif fact_kind in {
+            "MISSING_OBSERVED_TIME",
+            "INVALID_OBSERVED_TIME",
+        }:
+            native = context_by_delivery_id[fact["delivery_id"]][
+                "native_row"
+            ]
+            expected_status = (
+                "MISSING"
+                if fact_kind == "MISSING_OBSERVED_TIME"
+                else "INVALID"
+            )
+            if native["observed_at_status"] != expected_status:
+                raise ValueError(
+                    f"{label}: expected observed-at status "
+                    f"{expected_status}, derived "
+                    f"{native['observed_at_status']}"
+                )
+        elif fact_kind == "SOURCE_TIME_AFTER_RECEIPT":
+            context = context_by_delivery_id[fact["delivery_id"]]
+            temporal = json.loads(
+                context["native_row"]["ordering_facts_json"]
+            )["temporal_facts"]
+            if temporal["observed_at_after_received_at"] is not True:
+                raise ValueError(
+                    f"{label}: source time is not after receipt time"
+                )
+        elif fact_kind == "MAPPING_VERSION_TRANSITION":
+            context = context_by_delivery_id[fact["delivery_id"]]
+            mapping = context["mapping"]
+            prior_versions = {
+                prior["mapping"]["mapping_version"]
+                for prior in native_contexts
+                if prior["delivery_row"]["ingestion_ordinal"]
+                < context["delivery_row"]["ingestion_ordinal"]
+                and prior["native_row"]["source_binding_id"]
+                == context["native_row"]["source_binding_id"]
+                and prior["mapping"]["mapping_id"] == fact["mapping_id"]
+            }
+            if not (
+                mapping["mapping_id"] == fact["mapping_id"]
+                and mapping["mapping_version"] == fact["to_version"]
+                and fact["from_version"] in prior_versions
+                and fact["from_version"] != fact["to_version"]
+            ):
+                raise ValueError(
+                    f"{label}: the referenced delivery does not transition "
+                    "from the declared prior mapping version"
+                )
+        else:  # package validation guards this
+            raise ValueError(
+                f"{label}: unsupported fact_kind {fact_kind!r}"
+            )
+
+
+def _ordering_candidate(context: dict[str, Any]) -> dict[str, Any]:
+    native = context["native_row"]
+    return {
+        "source_native_record_id": native["source_native_record_id"],
+        "facility_id": native["facility_id"],
+        "source_binding_id": native["source_binding_id"],
+        "channel": context["binding"]["channel"],
+        "observed_at_status": native["observed_at_status"],
+        "observed_at_utc": native["observed_at_utc"],
+        "received_at_utc": native["received_at_utc"],
+        "source_sequence": native["source_sequence"],
+        "source_session_epoch": native["source_session_epoch"],
+    }
+
+
+def _require_matching_oracle_counts(
+    label: str,
+    *,
+    expected: dict[str, Any],
+    actual: dict[str, int],
+) -> None:
+    mismatches = {
+        field_name: {
+            "expected": expected.get(field_name),
+            "actual": actual_count,
+        }
+        for field_name, actual_count in actual.items()
+        if expected.get(field_name) != actual_count
+    }
+    if mismatches:
+        raise ValueError(
+            f"{label}: " + canonical_json_text(mismatches)
+        )
+
+
 def _validate_structural_oracle_counts(
     *,
     loaded: dict[str, Any],
@@ -1573,11 +2236,17 @@ def _validate_structural_oracle_counts(
             for context in native_contexts
         ),
     }
+    missing_counts = sorted(set(actual) - set(expected))
     unknown_counts = sorted(set(expected) - set(actual))
-    if unknown_counts:
+    if missing_counts or unknown_counts:
+        detail = []
+        if missing_counts:
+            detail.append("missing " + ", ".join(missing_counts))
+        if unknown_counts:
+            detail.append("unsupported " + ", ".join(unknown_counts))
         raise ValueError(
-            "Replay structural oracle declares unsupported expected counts: "
-            + ", ".join(unknown_counts)
+            "Replay structural oracle expected-count inventory mismatch: "
+            + "; ".join(detail)
         )
     mismatches = {
         key: {"expected": expected[key], "actual": actual[key]}

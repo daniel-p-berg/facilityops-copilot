@@ -6,6 +6,7 @@ import csv
 import json
 import re
 from copy import deepcopy
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,179 @@ _ALLOWED_FIELD_NORMALIZATIONS = {
     "DECIMAL_SCALE",
     "UNIT_CONVERSION",
 }
+_STRUCTURAL_ORACLE_COUNT_FIELDS = {
+    "narrative_events",
+    "executed_narrative_events",
+    "executed_observation_groups",
+    "deliveries",
+    "source_native_records",
+    "source_event_groups",
+    "logical_source_event_variants",
+    "canonical_observations",
+    "lineage_edges",
+    "canonical_point_definitions_represented",
+    "source_bindings",
+    "mapping_versions",
+    "register_decode_groups",
+    "exact_redelivery_groups",
+    "conflicting_redelivery_groups",
+    "missing_observed_at_records",
+    "invalid_observed_at_records",
+}
+_ALLOWED_ORACLE_IDENTITY_GROUP_KINDS = {
+    "EXACT_REDELIVERY",
+    "CONFLICTING_REDELIVERY",
+    "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS",
+}
+_ORACLE_TOP_LEVEL_FIELDS = {
+    "oracle_type",
+    "description",
+    "excluded_outcomes",
+    "expected_counts",
+    "identity_groups",
+    "decode_lineage",
+    "ordering_facts",
+    "projection_expectations",
+}
+_ORACLE_IDENTITY_GROUP_COUNT_FIELDS = {
+    "EXACT_REDELIVERY": (
+        "expected_source_native_records",
+        "expected_logical_variants",
+        "expected_canonical_observations",
+    ),
+    "CONFLICTING_REDELIVERY": (
+        "expected_source_native_records",
+        "expected_logical_variants",
+        "expected_canonical_observations",
+    ),
+    "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS": (
+        "expected_source_event_groups",
+        "expected_canonical_observations",
+    ),
+}
+_ORACLE_IDENTITY_GROUP_FIELDS = {
+    "EXACT_REDELIVERY": {
+        "group_kind",
+        "source_binding_id",
+        "source_event_id",
+        "delivery_ids",
+        "expected_source_native_records",
+        "expected_logical_variants",
+        "expected_canonical_observations",
+        "statement",
+    },
+    "CONFLICTING_REDELIVERY": {
+        "group_kind",
+        "source_binding_id",
+        "source_event_id",
+        "delivery_ids",
+        "expected_source_native_records",
+        "expected_logical_variants",
+        "expected_canonical_observations",
+        "statement",
+    },
+    "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS": {
+        "group_kind",
+        "source_binding_id",
+        "source_event_ids",
+        "delivery_ids",
+        "expected_source_event_groups",
+        "expected_canonical_observations",
+        "statement",
+    },
+}
+_ORACLE_DECODE_LINEAGE_FIELDS = {
+    "decode_group_id",
+    "source_delivery_ids",
+    "target_point_id",
+    "expected_lineage_edges",
+    "expected_signed_raw_value",
+    "expected_normalized_value",
+}
+_ALLOWED_ORACLE_ORDERING_FACT_KINDS = {
+    "OUT_OF_ORDER_ARRIVAL",
+    "SEQUENCE_TIME_DISAGREEMENT",
+    "DECLARED_SEQUENCE_RESET",
+    "AMBIGUOUS_SEQUENCE_RESET",
+    "EQUAL_OBSERVED_TIME_DIFFERENT_REPORTS",
+    "MISSING_OBSERVED_TIME",
+    "INVALID_OBSERVED_TIME",
+    "SOURCE_TIME_AFTER_RECEIPT",
+    "MAPPING_VERSION_TRANSITION",
+}
+_ORACLE_ORDERING_FACT_FIELDS = {
+    "OUT_OF_ORDER_ARRIVAL": {
+        "fact_kind",
+        "older_delivery_id",
+        "newer_delivery_id",
+        "statement",
+    },
+    "SEQUENCE_TIME_DISAGREEMENT": {
+        "fact_kind",
+        "earlier_delivery_id",
+        "later_delivery_id",
+        "statement",
+    },
+    "DECLARED_SEQUENCE_RESET": {
+        "fact_kind",
+        "delivery_id",
+        "statement",
+    },
+    "AMBIGUOUS_SEQUENCE_RESET": {
+        "fact_kind",
+        "delivery_id",
+        "statement",
+    },
+    "EQUAL_OBSERVED_TIME_DIFFERENT_REPORTS": {
+        "fact_kind",
+        "delivery_ids",
+        "statement",
+    },
+    "MISSING_OBSERVED_TIME": {
+        "fact_kind",
+        "delivery_id",
+        "statement",
+    },
+    "INVALID_OBSERVED_TIME": {
+        "fact_kind",
+        "delivery_id",
+        "statement",
+    },
+    "SOURCE_TIME_AFTER_RECEIPT": {
+        "fact_kind",
+        "delivery_id",
+        "statement",
+    },
+    "MAPPING_VERSION_TRANSITION": {
+        "fact_kind",
+        "delivery_id",
+        "mapping_id",
+        "from_version",
+        "to_version",
+        "statement",
+    },
+}
+_ORACLE_PROJECTION_EXPECTATION_FIELDS = {
+    "name",
+    "scope",
+    "as_of_observed_at",
+    "known_by_received_at",
+    "expected_disposition",
+    "expected_logical_candidate_count",
+}
+_ORACLE_PROJECTION_SCOPE_FIELDS = {
+    "source_binding_id",
+    "point_id",
+    "mapping_id",
+    "mapping_version",
+}
+_ALLOWED_PROJECTION_DISPOSITIONS = {
+    "NO_OBSERVATION",
+    "NO_ELIGIBLE_REPORT",
+    "REPORTED",
+    "CONFLICT_PRESENT",
+    "UNORDERED",
+}
 _PROHIBITED_PACKAGE_KEYS = {
     "independent",
     "evidence_sufficient",
@@ -130,6 +304,11 @@ _APPROVED_REPLAY_OBSERVATION_EVENT_IDS = {
     "E210-POST-ACTION-PROCESS-INDICATIONS-RECEIVED",
     "E220-PROCESS-PERMISSIVE-INDICATION-RECEIVED",
 }
+_APPROVED_REPLAY_ACTION_EVENT_ID = "E180-HUMAN-ACTION-RECORDED"
+_APPROVED_REPLAY_NARRATIVE_EVENT_IDS = (
+    _APPROVED_REPLAY_OBSERVATION_EVENT_IDS
+    | {_APPROVED_REPLAY_ACTION_EVENT_ID}
+)
 _PROHIBITED_OUTCOME_PHRASES = (
     "fan failed",
     "fan failure",
@@ -210,13 +389,14 @@ def get_replay_package_detail(
     package_id: str,
     package_version: str,
 ) -> dict[str, Any]:
-    """Return a reviewer-facing detail view of a structurally validated package."""
+    """Return package detail after syntax and reference validation only."""
 
     loaded = load_replay_package(facility_id, package_id, package_version)
     mapping_package = loaded["mapping_package"]
     return {
         **_package_summary(loaded),
-        "structural_validation": "VALID",
+        "package_validation": "SYNTAX_AND_REFERENCES_VALID",
+        "structural_validation": "REPLAY_PLAN_NOT_EVALUATED",
         "narrative": loaded["narrative"],
         "oracle": loaded["oracle"],
         "source_bindings": mapping_package["source_bindings"],
@@ -231,7 +411,7 @@ def load_replay_package(
     package_id: str,
     package_version: str,
 ) -> dict[str, Any]:
-    """Load and structurally validate one exact allowlisted repository package."""
+    """Load one allowlisted package after syntax and reference validation."""
 
     manifest_path = REGISTERED_REPLAY_PACKAGES.get(
         (facility_id, package_id, package_version)
@@ -910,8 +1090,7 @@ def _validate_transformation(
             raise ObservationPackageValidationError(
                 f"{label} register-pair output must use DECIMAL"
             )
-        _require_decimal_text(transformation.get("factor"), f"{label} factor")
-        _require_decimal_text(transformation.get("quantum"), f"{label} quantum")
+        _validate_decimal_parameters(transformation, label=label)
         _require_text(transformation.get("unit"), f"{label} unit")
         return
 
@@ -943,6 +1122,15 @@ def _validate_normalization(
             raise ObservationPackageValidationError(
                 f"{label} Boolean token declarations must be non-empty lists"
             )
+        if any(
+            type(true_value) is type(false_value)
+            and true_value == false_value
+            for true_value in true_values
+            for false_value in false_values
+        ):
+            raise ObservationPackageValidationError(
+                f"{label} Boolean token declarations must not overlap"
+            )
         return
     if kind == "DIRECT_ENUM":
         enum_mapping = normalization.get("mapping")
@@ -967,9 +1155,29 @@ def _validate_normalization(
             raise ObservationPackageValidationError(
                 f"{label} decimal normalization must use DECIMAL"
             )
-        _require_decimal_text(normalization.get("factor"), f"{label} factor")
-        _require_decimal_text(normalization.get("quantum"), f"{label} quantum")
+        _validate_decimal_parameters(normalization, label=label)
         return
+
+
+def _validate_decimal_parameters(
+    parameters: dict[str, Any],
+    *,
+    label: str,
+) -> None:
+    factor = Decimal(
+        _require_decimal_text(parameters.get("factor"), f"{label} factor")
+    )
+    quantum = Decimal(
+        _require_decimal_text(parameters.get("quantum"), f"{label} quantum")
+    )
+    if factor == 0:
+        raise ObservationPackageValidationError(
+            f"{label} factor must be non-zero"
+        )
+    if quantum <= 0:
+        raise ObservationPackageValidationError(
+            f"{label} quantum must be greater than zero"
+        )
 
 
 def _validate_unit(value: Any, *, value_type: str, label: str) -> None:
@@ -1016,7 +1224,7 @@ def _validate_narrative(value: dict[str, Any]) -> dict[str, dict[str, Any]]:
             )
         kind = event.get("kind")
         if kind == "ACTION_CONTEXT":
-            valid_identity = event_id == "E180-HUMAN-ACTION-RECORDED"
+            valid_identity = event_id == _APPROVED_REPLAY_ACTION_EVENT_ID
         elif kind == "OBSERVATION_GROUP":
             valid_identity = (
                 _RECEIVED_INDICATION_EVENT_PATTERN.fullmatch(event_id)
@@ -1031,8 +1239,30 @@ def _validate_narrative(value: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 "recorded-action annotation or a received-indication "
                 "observation group"
             )
+        expected_order = int(event_id[1:4])
+        if order != expected_order:
+            raise ObservationPackageValidationError(
+                f"Narrative event {event_id} order must match its approved "
+                f"event ordinal {expected_order}"
+            )
         events[event_id] = event
         orders.add(order)
+    missing_events = sorted(
+        _APPROVED_REPLAY_NARRATIVE_EVENT_IDS - set(events)
+    )
+    unexpected_events = sorted(
+        set(events) - _APPROVED_REPLAY_NARRATIVE_EVENT_IDS
+    )
+    if missing_events or unexpected_events:
+        detail = []
+        if missing_events:
+            detail.append("missing " + ", ".join(missing_events))
+        if unexpected_events:
+            detail.append("unexpected " + ", ".join(unexpected_events))
+        raise ObservationPackageValidationError(
+            "Replay narrative must contain the exact approved event "
+            "inventory: " + "; ".join(detail)
+        )
     _reject_prohibited_outcome_phrases(
         value,
         label="Replay narrative",
@@ -1087,6 +1317,11 @@ def _validate_deliveries(
         if not events[narrative_event_id]["executed"]:
             raise ObservationPackageValidationError(
                 f"Delivery {delivery_id} references a non-executed narrative event"
+            )
+        if events[narrative_event_id].get("kind") != "OBSERVATION_GROUP":
+            raise ObservationPackageValidationError(
+                f"Delivery {delivery_id} must reference a received-indication "
+                "observation group, not action context"
             )
         binding_id = _require_text(
             delivery.get("source_binding_id"),
@@ -1198,6 +1433,58 @@ def _validate_oracle(
         )
     _reject_prohibited_keys(value, path="oracle")
     _reject_prohibited_outcome_phrases(value, label="Replay oracle")
+    _reject_unexpected_fields(
+        value,
+        allowed_fields=_ORACLE_TOP_LEVEL_FIELDS,
+        label="Replay oracle",
+    )
+
+    if value.get("oracle_type") != "STRUCTURAL_OBSERVATION_ONLY":
+        raise ObservationPackageValidationError(
+            "Replay oracle_type must be STRUCTURAL_OBSERVATION_ONLY"
+        )
+    _require_text(value.get("description"), "oracle description")
+    excluded_outcomes = value.get("excluded_outcomes")
+    if (
+        not isinstance(excluded_outcomes, list)
+        or not excluded_outcomes
+        or any(not isinstance(item, str) for item in excluded_outcomes)
+        or len(set(excluded_outcomes)) != len(excluded_outcomes)
+    ):
+        raise ObservationPackageValidationError(
+            "oracle excluded_outcomes must be a non-empty unique text list"
+        )
+    for index, outcome in enumerate(excluded_outcomes):
+        _require_text(
+            outcome,
+            f"oracle excluded_outcomes[{index}]",
+        )
+
+    expected_counts = _require_object(
+        value.get("expected_counts"),
+        "oracle expected_counts",
+    )
+    missing_count_fields = sorted(
+        _STRUCTURAL_ORACLE_COUNT_FIELDS - set(expected_counts)
+    )
+    unexpected_count_fields = sorted(
+        set(expected_counts) - _STRUCTURAL_ORACLE_COUNT_FIELDS
+    )
+    if missing_count_fields or unexpected_count_fields:
+        detail = []
+        if missing_count_fields:
+            detail.append("missing " + ", ".join(missing_count_fields))
+        if unexpected_count_fields:
+            detail.append("unexpected " + ", ".join(unexpected_count_fields))
+        raise ObservationPackageValidationError(
+            "Replay oracle expected_counts must contain the exact supported "
+            "count inventory: " + "; ".join(detail)
+        )
+    for field_name, count in expected_counts.items():
+        _require_oracle_count(
+            count,
+            f"oracle expected_counts.{field_name}",
+        )
 
     delivery_by_id = {
         delivery["delivery_id"]: delivery for delivery in deliveries
@@ -1212,16 +1499,40 @@ def _validate_oracle(
     }
     point_ids = _topology_point_ids()
 
-    for index, raw_group in enumerate(value.get("identity_groups", [])):
+    identity_groups = value.get("identity_groups")
+    if not isinstance(identity_groups, list) or not identity_groups:
+        raise ObservationPackageValidationError(
+            "Oracle identity_groups must be a non-empty list"
+        )
+    for index, raw_group in enumerate(identity_groups):
         group = _require_object(
             raw_group,
             f"oracle identity_groups[{index}]",
+        )
+        group_kind = _require_text(
+            group.get("group_kind"),
+            f"oracle identity_groups[{index}].group_kind",
+        )
+        if group_kind not in _ALLOWED_ORACLE_IDENTITY_GROUP_KINDS:
+            raise ObservationPackageValidationError(
+                f"Oracle identity group uses unsupported group_kind "
+                f"{group_kind!r}"
+            )
+        _reject_unexpected_fields(
+            group,
+            allowed_fields=_ORACLE_IDENTITY_GROUP_FIELDS[group_kind],
+            label=f"oracle identity_groups[{index}]",
         )
         delivery_ids = _require_resolved_oracle_delivery_ids(
             group.get("delivery_ids"),
             label=f"oracle identity_groups[{index}].delivery_ids",
             delivery_by_id=delivery_by_id,
         )
+        if len(delivery_ids) < 2:
+            raise ObservationPackageValidationError(
+                "Oracle identity groups must reference at least two "
+                "deliveries"
+            )
         binding_id = _require_text(
             group.get("source_binding_id"),
             f"oracle identity_groups[{index}].source_binding_id",
@@ -1240,7 +1551,7 @@ def _validate_oracle(
                 "deliveries"
             )
         declared_event_id = group.get("source_event_id")
-        if declared_event_id is not None:
+        if group_kind in {"EXACT_REDELIVERY", "CONFLICTING_REDELIVERY"}:
             declared_event_id = _require_text(
                 declared_event_id,
                 f"oracle identity_groups[{index}].source_event_id",
@@ -1254,19 +1565,25 @@ def _validate_oracle(
                     "Oracle identity group source event does not match its "
                     "deliveries"
                 )
+        elif declared_event_id is not None:
+            raise ObservationPackageValidationError(
+                "Equal-payload distinct-source-event identity groups must "
+                "not declare one source_event_id"
+            )
         declared_event_ids = group.get("source_event_ids")
-        if declared_event_ids is not None:
+        if group_kind == "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS":
             if (
                 not isinstance(declared_event_ids, list)
-                or not declared_event_ids
+                or len(declared_event_ids) < 2
                 or any(
                     not isinstance(event_id, str) or not event_id
                     for event_id in declared_event_ids
                 )
+                or len(set(declared_event_ids)) != len(declared_event_ids)
             ):
                 raise ObservationPackageValidationError(
                     "Oracle identity group source_event_ids must be a "
-                    "non-empty text list"
+                    "unique text list with at least two entries"
                 )
             actual_event_ids = {
                 delivery_by_id[delivery_id]["source_event"].get("event_id")
@@ -1277,12 +1594,52 @@ def _validate_oracle(
                     "Oracle identity group source events do not match its "
                     "deliveries"
                 )
+        elif declared_event_ids is not None:
+            raise ObservationPackageValidationError(
+                "Redelivery identity groups must not declare "
+                "source_event_ids"
+            )
+        for count_field in _ORACLE_IDENTITY_GROUP_COUNT_FIELDS[group_kind]:
+            _require_oracle_count(
+                group.get(count_field),
+                f"oracle identity_groups[{index}].{count_field}",
+                minimum=(
+                    0
+                    if count_field == "expected_canonical_observations"
+                    else 1
+                ),
+            )
+        _require_text(
+            group.get("statement"),
+            f"oracle identity_groups[{index}].statement",
+        )
 
-    for index, raw_lineage in enumerate(value.get("decode_lineage", [])):
+    decode_lineage = value.get("decode_lineage")
+    if not isinstance(decode_lineage, list) or not decode_lineage:
+        raise ObservationPackageValidationError(
+            "Oracle decode_lineage must be a non-empty list"
+        )
+    seen_decode_groups: set[str] = set()
+    for index, raw_lineage in enumerate(decode_lineage):
         lineage = _require_object(
             raw_lineage,
             f"oracle decode_lineage[{index}]",
         )
+        _reject_unexpected_fields(
+            lineage,
+            allowed_fields=_ORACLE_DECODE_LINEAGE_FIELDS,
+            label=f"oracle decode_lineage[{index}]",
+        )
+        decode_group_id = _require_text(
+            lineage.get("decode_group_id"),
+            f"oracle decode_lineage[{index}].decode_group_id",
+        )
+        if decode_group_id in seen_decode_groups:
+            raise ObservationPackageValidationError(
+                f"Oracle decode lineage repeats decode group "
+                f"{decode_group_id!r}"
+            )
+        seen_decode_groups.add(decode_group_id)
         _require_resolved_oracle_delivery_ids(
             lineage.get("source_delivery_ids"),
             label=f"oracle decode_lineage[{index}].source_delivery_ids",
@@ -1297,39 +1654,104 @@ def _validate_oracle(
                 f"Oracle decode lineage references unknown point "
                 f"{target_point_id!r}"
             )
+        _require_oracle_count(
+            lineage.get("expected_lineage_edges"),
+            f"oracle decode_lineage[{index}].expected_lineage_edges",
+            minimum=1,
+        )
+        expected_signed_raw_value = lineage.get(
+            "expected_signed_raw_value"
+        )
+        if expected_signed_raw_value is not None and (
+            isinstance(expected_signed_raw_value, bool)
+            or not isinstance(expected_signed_raw_value, int)
+        ):
+            raise ObservationPackageValidationError(
+                "Oracle expected_signed_raw_value must be an integer"
+            )
+        expected_normalized_value = lineage.get(
+            "expected_normalized_value"
+        )
+        if expected_normalized_value is not None:
+            _require_decimal_text(
+                expected_normalized_value,
+                f"oracle decode_lineage[{index}].expected_normalized_value",
+            )
 
-    for index, raw_fact in enumerate(value.get("ordering_facts", [])):
+    ordering_facts = value.get("ordering_facts")
+    if not isinstance(ordering_facts, list) or not ordering_facts:
+        raise ObservationPackageValidationError(
+            "Oracle ordering_facts must be a non-empty list"
+        )
+    for index, raw_fact in enumerate(ordering_facts):
         fact = _require_object(
             raw_fact,
             f"oracle ordering_facts[{index}]",
         )
-        referenced_delivery_ids: list[str] = []
-        for field_name, field_value in fact.items():
-            if (
-                field_name == "delivery_id"
-                or field_name.endswith("_delivery_id")
-            ):
-                referenced_delivery_ids.append(
-                    _require_text(
-                        field_value,
-                        f"oracle ordering_facts[{index}].{field_name}",
-                    )
+        fact_kind = _require_text(
+            fact.get("fact_kind"),
+            f"oracle ordering_facts[{index}].fact_kind",
+        )
+        if fact_kind not in _ALLOWED_ORACLE_ORDERING_FACT_KINDS:
+            raise ObservationPackageValidationError(
+                f"Oracle ordering fact uses unsupported fact_kind "
+                f"{fact_kind!r}"
+            )
+        _reject_unexpected_fields(
+            fact,
+            allowed_fields=_ORACLE_ORDERING_FACT_FIELDS[fact_kind],
+            label=f"oracle ordering_facts[{index}]",
+        )
+        if fact_kind == "OUT_OF_ORDER_ARRIVAL":
+            referenced_delivery_ids = [
+                _require_text(
+                    fact.get(field_name),
+                    f"oracle ordering_facts[{index}].{field_name}",
                 )
-            elif (
-                field_name == "delivery_ids"
-                or field_name.endswith("_delivery_ids")
-            ):
-                if not isinstance(field_value, list):
-                    raise ObservationPackageValidationError(
-                        f"Oracle ordering fact {field_name} must be a list"
-                    )
-                referenced_delivery_ids.extend(field_value)
+                for field_name in (
+                    "older_delivery_id",
+                    "newer_delivery_id",
+                )
+            ]
+        elif fact_kind == "SEQUENCE_TIME_DISAGREEMENT":
+            referenced_delivery_ids = [
+                _require_text(
+                    fact.get(field_name),
+                    f"oracle ordering_facts[{index}].{field_name}",
+                )
+                for field_name in (
+                    "earlier_delivery_id",
+                    "later_delivery_id",
+                )
+            ]
+        elif fact_kind == "EQUAL_OBSERVED_TIME_DIFFERENT_REPORTS":
+            referenced_delivery_ids = _require_resolved_oracle_delivery_ids(
+                fact.get("delivery_ids"),
+                label=f"oracle ordering_facts[{index}].delivery_ids",
+                delivery_by_id=delivery_by_id,
+            )
+            if len(referenced_delivery_ids) < 2:
+                raise ObservationPackageValidationError(
+                    "Equal-observed-time ordering facts must reference at "
+                    "least two deliveries"
+                )
+        else:
+            referenced_delivery_ids = [
+                _require_text(
+                    fact.get("delivery_id"),
+                    f"oracle ordering_facts[{index}].delivery_id",
+                )
+            ]
         _require_resolved_oracle_delivery_ids(
             referenced_delivery_ids,
             label=f"oracle ordering_facts[{index}] delivery references",
             delivery_by_id=delivery_by_id,
         )
-        if fact.get("fact_kind") == "MAPPING_VERSION_TRANSITION":
+        if len(set(referenced_delivery_ids)) != len(referenced_delivery_ids):
+            raise ObservationPackageValidationError(
+                "Oracle ordering fact delivery references must be unique"
+            )
+        if fact_kind == "MAPPING_VERSION_TRANSITION":
             mapping_id = _require_text(
                 fact.get("mapping_id"),
                 f"oracle ordering_facts[{index}].mapping_id",
@@ -1344,17 +1766,48 @@ def _validate_oracle(
                         "Oracle mapping transition references an unresolved "
                         f"mapping {mapping_id} {mapping_version}"
                     )
+        _require_text(
+            fact.get("statement"),
+            f"oracle ordering_facts[{index}].statement",
+        )
 
-    for index, raw_expectation in enumerate(
-        value.get("projection_expectations", [])
+    projection_expectations = value.get("projection_expectations")
+    if (
+        not isinstance(projection_expectations, list)
+        or not projection_expectations
     ):
+        raise ObservationPackageValidationError(
+            "Oracle projection_expectations must be a non-empty list"
+        )
+    expectation_names: set[str] = set()
+    for index, raw_expectation in enumerate(projection_expectations):
         expectation = _require_object(
             raw_expectation,
             f"oracle projection_expectations[{index}]",
         )
+        _reject_unexpected_fields(
+            expectation,
+            allowed_fields=_ORACLE_PROJECTION_EXPECTATION_FIELDS,
+            label=f"oracle projection_expectations[{index}]",
+        )
+        expectation_name = _require_text(
+            expectation.get("name"),
+            f"oracle projection_expectations[{index}].name",
+        )
+        if expectation_name in expectation_names:
+            raise ObservationPackageValidationError(
+                f"Oracle projection expectation name "
+                f"{expectation_name!r} is duplicated"
+            )
+        expectation_names.add(expectation_name)
         scope = _require_object(
             expectation.get("scope"),
             f"oracle projection_expectations[{index}].scope",
+        )
+        _reject_unexpected_fields(
+            scope,
+            allowed_fields=_ORACLE_PROJECTION_SCOPE_FIELDS,
+            label=f"oracle projection_expectations[{index}].scope",
         )
         binding_id = _require_text(
             scope.get("source_binding_id"),
@@ -1391,6 +1844,35 @@ def _validate_oracle(
             raise ObservationPackageValidationError(
                 "Oracle projection mapping and source binding differ"
             )
+        for cutoff_field in (
+            "as_of_observed_at",
+            "known_by_received_at",
+        ):
+            parsed_cutoff = parse_rfc3339_timestamp(
+                expectation.get(cutoff_field)
+            )
+            if parsed_cutoff["status"] != "VALID":
+                raise ObservationPackageValidationError(
+                    f"Oracle projection {cutoff_field} must be valid RFC 3339"
+                )
+        expected_disposition = _require_text(
+            expectation.get("expected_disposition"),
+            f"oracle projection_expectations[{index}].expected_disposition",
+        )
+        if expected_disposition not in _ALLOWED_PROJECTION_DISPOSITIONS:
+            raise ObservationPackageValidationError(
+                "Oracle projection expectation uses unsupported "
+                f"disposition {expected_disposition!r}"
+            )
+        expected_logical_count = expectation.get(
+            "expected_logical_candidate_count"
+        )
+        if expected_logical_count is not None:
+            _require_oracle_count(
+                expected_logical_count,
+                "oracle projection expectation "
+                "expected_logical_candidate_count",
+            )
 
 
 def _require_resolved_oracle_delivery_ids(
@@ -1407,6 +1889,10 @@ def _require_resolved_oracle_delivery_ids(
         raise ObservationPackageValidationError(
             f"{label} must be a non-empty text list"
         )
+    if len(set(value)) != len(value):
+        raise ObservationPackageValidationError(
+            f"{label} must not contain duplicate delivery references"
+        )
     missing = sorted(set(value) - set(delivery_by_id))
     if missing:
         raise ObservationPackageValidationError(
@@ -1414,6 +1900,37 @@ def _require_resolved_oracle_delivery_ids(
             + ", ".join(missing)
         )
     return value
+
+
+def _require_oracle_count(
+    value: Any,
+    label: str,
+    *,
+    minimum: int = 0,
+) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+    ):
+        raise ObservationPackageValidationError(
+            f"{label} must be an integer greater than or equal to {minimum}"
+        )
+    return value
+
+
+def _reject_unexpected_fields(
+    value: dict[str, Any],
+    *,
+    allowed_fields: set[str],
+    label: str,
+) -> None:
+    unexpected_fields = sorted(set(value) - allowed_fields)
+    if unexpected_fields:
+        raise ObservationPackageValidationError(
+            f"{label} contains unsupported fields: "
+            + ", ".join(unexpected_fields)
+        )
 
 
 def _reject_prohibited_outcome_phrases(value: Any, *, label: str) -> None:
@@ -1520,8 +2037,6 @@ def _require_field_path(
 def _require_decimal_text(value: Any, label: str) -> str:
     text = _require_text(value, label)
     try:
-        from decimal import Decimal
-
         parsed = Decimal(text)
     except Exception as exc:
         raise ObservationPackageValidationError(

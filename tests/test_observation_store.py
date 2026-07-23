@@ -374,6 +374,36 @@ def rekey_execution(plan, execution_id):
     return plan
 
 
+def distinct_replay_plan(execution_id, suffix):
+    plan = rekey_execution(deepcopy(replay_plan()), execution_id)
+    plan["request"]["idempotency_key"] = f"REPLAY-REQUEST-KEY-{suffix}"
+    plan["execution"]["request_digest"] = digest(f"request-{suffix}")
+
+    native_id_map = {}
+    for native in plan["source_native_records"]:
+        original_id = native["source_native_record_id"]
+        native_id_map[original_id] = f"{original_id}-{suffix}"
+        native["source_native_record_id"] = native_id_map[original_id]
+    for delivery in plan["deliveries"]:
+        delivery["source_native_record_id"] = native_id_map[
+            delivery["source_native_record_id"]
+        ]
+
+    canonical_id_map = {}
+    for observation in plan["canonical_observations"]:
+        original_id = observation["canonical_observation_id"]
+        canonical_id_map[original_id] = f"{original_id}-{suffix}"
+        observation["canonical_observation_id"] = canonical_id_map[original_id]
+    for lineage in plan["lineage"]:
+        lineage["canonical_observation_id"] = canonical_id_map[
+            lineage["canonical_observation_id"]
+        ]
+        lineage["source_native_record_id"] = native_id_map[
+            lineage["source_native_record_id"]
+        ]
+    return plan
+
+
 class ObservationStoreTests(unittest.TestCase):
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
@@ -579,6 +609,129 @@ class ObservationStoreTests(unittest.TestCase):
             "exact-redelivery lineage",
         ):
             persist_replay_execution(self.db_path, missing_redelivery)
+
+    def test_mapping_and_decode_issue_scope_are_enforced_atomically(self):
+        persist_replay_execution(self.db_path, replay_plan())
+
+        cross_topology = distinct_replay_plan(
+            "REPLAY-EXECUTION-CROSS-TOPOLOGY",
+            "CROSS-TOPOLOGY",
+        )
+        topology_digest = digest("other-topology")
+        cross_topology["topology_snapshot"].update(
+            {
+                "topology_id": "TOPOLOGY-2",
+                "topology_version": "2.0.0",
+                "content_digest": topology_digest,
+                "manifest_json": json_text({"topology": "TOPOLOGY-2"}),
+            }
+        )
+        package_digest = digest("other-package")
+        cross_topology["package_snapshot"].update(
+            {
+                "package_id": "PACKAGE-2",
+                "package_version": "2.0.0",
+                "content_digest": package_digest,
+                "topology_id": "TOPOLOGY-2",
+                "topology_version": "2.0.0",
+                "topology_digest": topology_digest,
+                "manifest_json": json_text({"package": "PACKAGE-2"}),
+            }
+        )
+        cross_topology["execution"].update(
+            {
+                "package_id": "PACKAGE-2",
+                "package_version": "2.0.0",
+                "package_digest": package_digest,
+                "topology_id": "TOPOLOGY-2",
+                "topology_version": "2.0.0",
+                "topology_digest": topology_digest,
+            }
+        )
+        with self.assertRaisesRegex(
+            sqlite3.IntegrityError,
+            "source-native mapping crosses replay topology",
+        ):
+            persist_replay_execution(self.db_path, cross_topology)
+
+        cross_canonical_binding = distinct_replay_plan(
+            "REPLAY-EXECUTION-CROSS-CANONICAL-BINDING",
+            "CROSS-CANONICAL-BINDING",
+        )
+        second_binding = deepcopy(cross_canonical_binding["source_bindings"][0])
+        second_binding.update(
+            {
+                "source_binding_id": "SOURCE-BINDING-2",
+                "source_id": "SOURCE-2",
+                "channel": "CHANNEL-2",
+            }
+        )
+        cross_canonical_binding["source_bindings"].append(second_binding)
+        second_mapping = deepcopy(
+            cross_canonical_binding["mapping_snapshots"][0]
+        )
+        second_mapping.update(
+            {
+                "mapping_id": "MAPPING-2",
+                "content_digest": digest("mapping-2"),
+                "source_binding_id": "SOURCE-BINDING-2",
+                "definition_json": json_text({"kind": "SECOND_MAPPING"}),
+            }
+        )
+        cross_canonical_binding["mapping_snapshots"].append(second_mapping)
+        cross_canonical_binding["canonical_observations"][0].update(
+            {
+                "mapping_id": "MAPPING-2",
+                "mapping_digest": second_mapping["content_digest"],
+            }
+        )
+        with self.assertRaisesRegex(
+            sqlite3.IntegrityError,
+            "canonical mapping crosses replay topology",
+        ):
+            persist_replay_execution(self.db_path, cross_canonical_binding)
+
+        cross_execution_issue = distinct_replay_plan(
+            "REPLAY-EXECUTION-CROSS-DECODE-ISSUE",
+            "CROSS-DECODE-ISSUE",
+        )
+        cross_execution_issue["decode_issues"] = [
+            {
+                "replay_execution_id": (
+                    "REPLAY-EXECUTION-CROSS-DECODE-ISSUE"
+                ),
+                "issue_id": "DECODE-ISSUE-CROSS-EXECUTION",
+                "source_native_record_id": "NATIVE-1",
+                "mapping_id": "MAPPING-1",
+                "mapping_version": "1.0.0",
+                "issue_code": "TEST_DECODE_ISSUE",
+                "detail_json": json_text({"test": True}),
+            }
+        ]
+        with self.assertRaisesRegex(
+            sqlite3.IntegrityError,
+            "decode issue crosses replay",
+        ):
+            persist_replay_execution(self.db_path, cross_execution_issue)
+
+        with self.assertRaises(LookupError):
+            get_replay_execution(
+                self.db_path,
+                FACILITY_ID,
+                "REPLAY-EXECUTION-CROSS-TOPOLOGY",
+            )
+        with self.assertRaises(LookupError):
+            get_replay_execution(
+                self.db_path,
+                FACILITY_ID,
+                "REPLAY-EXECUTION-CROSS-DECODE-ISSUE",
+            )
+        with self.assertRaises(LookupError):
+            get_replay_execution(
+                self.db_path,
+                FACILITY_ID,
+                "REPLAY-EXECUTION-CROSS-CANONICAL-BINDING",
+            )
 
     def test_typed_values_timestamp_metadata_json_and_digests_are_validated(self):
         invalid_decimal = replay_plan()
@@ -791,6 +944,14 @@ class ObservationStoreTests(unittest.TestCase):
                 FACILITY_ID,
                 EXECUTION_ID,
                 page_size=101,
+            )
+        with self.assertRaisesRegex(ValueError, "page is too large"):
+            list_source_native_records(
+                self.db_path,
+                FACILITY_ID,
+                EXECUTION_ID,
+                page=10**30,
+                page_size=100,
             )
 
     def test_source_native_detail_preserves_source_and_transport_fields(self):

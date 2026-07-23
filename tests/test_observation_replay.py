@@ -161,7 +161,14 @@ class ObservationReplayTests(unittest.TestCase):
         )
 
         detail = get_replay_package_detail(*PACKAGE_KEY)
-        self.assertEqual(detail["structural_validation"], "VALID")
+        self.assertEqual(
+            detail["package_validation"],
+            "SYNTAX_AND_REFERENCES_VALID",
+        )
+        self.assertEqual(
+            detail["structural_validation"],
+            "REPLAY_PLAN_NOT_EVALUATED",
+        )
         self.assertEqual(detail["delivery_count"], 41)
         self.assertEqual(len(detail["source_bindings"]), 10)
         self.assertEqual(len(detail["mappings"]), 11)
@@ -227,6 +234,16 @@ class ObservationReplayTests(unittest.TestCase):
         def inactive_entry(_manifest, files):
             files["narrative"]["events"][0]["executed"] = False
 
+        def missing_action_context(_manifest, files):
+            files["narrative"]["events"] = [
+                event
+                for event in files["narrative"]["events"]
+                if event["event_id"] != "E180-HUMAN-ACTION-RECORDED"
+            ]
+
+        def mismatched_event_order(_manifest, files):
+            files["narrative"]["events"][0]["order"] = 11
+
         def tranche_boundary(_manifest, files):
             files["narrative"]["events"].append(
                 {
@@ -248,6 +265,16 @@ class ObservationReplayTests(unittest.TestCase):
                 "recorded-action",
             ),
             ("inactive-entry", inactive_entry, "implemented replay entry"),
+            (
+                "missing-action-context",
+                missing_action_context,
+                "exact approved event inventory",
+            ),
+            (
+                "mismatched-event-order",
+                mismatched_event_order,
+                "order must match",
+            ),
             ("tranche-boundary", tranche_boundary, "recorded-action"),
         )
         for name, mutator, expected_error in cases:
@@ -255,6 +282,18 @@ class ObservationReplayTests(unittest.TestCase):
                 manifest_path = self.copied_replay_package(name, mutator)
                 with self.assertRaisesRegex(ValueError, expected_error):
                     self.load_copied_replay_package(manifest_path)
+
+        def delivery_under_action_context(_manifest, files):
+            files["deliveries"]["deliveries"][0][
+                "narrative_event_id"
+            ] = "E180-HUMAN-ACTION-RECORDED"
+
+        manifest_path = self.copied_replay_package(
+            "delivery-under-action-context",
+            delivery_under_action_context,
+        )
+        with self.assertRaisesRegex(ValueError, "observation group"):
+            self.load_copied_replay_package(manifest_path)
 
     def test_package_bounds_and_declared_digest_are_enforced(self):
         with (
@@ -336,6 +375,59 @@ class ObservationReplayTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "explicit UNKNOWN.*missing"):
             observation_package_service._validate_source_bindings(
                 {"source_bindings": incomplete}
+            )
+
+    def test_mapping_validation_rejects_unusable_normalization_parameters(self):
+        boolean_normalization = {
+            "kind": "STRICT_BOOLEAN",
+            "true_values": [1],
+            "false_values": [1],
+        }
+        with self.assertRaisesRegex(ValueError, "must not overlap"):
+            observation_package_service._validate_normalization(
+                boolean_normalization,
+                value_type="BOOLEAN",
+                label="test Boolean mapping",
+            )
+
+        for name, parameters, expected_error in (
+            (
+                "zero-factor",
+                {"kind": "DECIMAL_SCALE", "factor": "0", "quantum": "0.01"},
+                "factor must be non-zero",
+            ),
+            (
+                "zero-quantum",
+                {"kind": "DECIMAL_SCALE", "factor": "1", "quantum": "0"},
+                "quantum must be greater than zero",
+            ),
+            (
+                "negative-quantum",
+                {
+                    "kind": "DECIMAL_SCALE",
+                    "factor": "1",
+                    "quantum": "-0.01",
+                },
+                "quantum must be greater than zero",
+            ),
+        ):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    observation_package_service._validate_normalization(
+                        parameters,
+                        value_type="DECIMAL",
+                        label="test decimal mapping",
+                    )
+
+        register_pair = deepcopy(
+            self.mapping("MAPPING-DUTY-MOTOR-CURRENT")["transformation"]
+        )
+        register_pair["factor"] = "0"
+        with self.assertRaisesRegex(ValueError, "factor must be non-zero"):
+            observation_package_service._validate_transformation(
+                register_pair,
+                point_ids={"FAN-EXHAUST-DUTY_MOTOR_CURRENT"},
+                label="test register mapping",
             )
 
     def test_every_replay_reference_resolves_before_execution(self):
@@ -434,6 +526,559 @@ class ObservationReplayTests(unittest.TestCase):
                 manifest_path = self.copied_replay_package(name, mutator)
                 with self.assertRaisesRegex(ValueError, expected_error):
                     self.load_copied_replay_package(manifest_path)
+
+    def test_oracle_load_validation_is_limited_to_syntax_and_references(self):
+        def unsupported_identity_kind(_manifest, files):
+            files["oracle"]["identity_groups"][0][
+                "group_kind"
+            ] = "UNSUPPORTED_IDENTITY_KIND"
+
+        def incomplete_count_inventory(_manifest, files):
+            del files["oracle"]["expected_counts"]["lineage_edges"]
+
+        def unexpected_oracle_field(_manifest, files):
+            files["oracle"]["expected_source_event_groups"] = 999
+
+        def unexpected_identity_field(_manifest, files):
+            files["oracle"]["identity_groups"][0][
+                "expected_source_event_groups"
+            ] = 999
+
+        def unexpected_decode_field(_manifest, files):
+            files["oracle"]["decode_lineage"][0][
+                "expected_source_event_groups"
+            ] = 999
+
+        def unexpected_ordering_field(_manifest, files):
+            files["oracle"]["ordering_facts"][0][
+                "expected_lineage_edges"
+            ] = 999
+
+        def unexpected_projection_field(_manifest, files):
+            files["oracle"]["projection_expectations"][0][
+                "expected_lineage_edges"
+            ] = 999
+
+        def unexpected_projection_scope_field(_manifest, files):
+            files["oracle"]["projection_expectations"][0]["scope"][
+                "mapping_digest"
+            ] = "0" * 64
+
+        for name, mutator, expected_error in (
+            (
+                "unsupported-identity-kind",
+                unsupported_identity_kind,
+                "unsupported group_kind",
+            ),
+            (
+                "incomplete-count-inventory",
+                incomplete_count_inventory,
+                "exact supported count inventory",
+            ),
+            (
+                "unexpected-oracle-field",
+                unexpected_oracle_field,
+                "unsupported fields",
+            ),
+            (
+                "unexpected-identity-field",
+                unexpected_identity_field,
+                "unsupported fields",
+            ),
+            (
+                "unexpected-decode-field",
+                unexpected_decode_field,
+                "unsupported fields",
+            ),
+            (
+                "unexpected-ordering-field",
+                unexpected_ordering_field,
+                "unsupported fields",
+            ),
+            (
+                "unexpected-projection-field",
+                unexpected_projection_field,
+                "unsupported fields",
+            ),
+            (
+                "unexpected-projection-scope-field",
+                unexpected_projection_scope_field,
+                "unsupported fields",
+            ),
+        ):
+            with self.subTest(name=name):
+                manifest_path = self.copied_replay_package(name, mutator)
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    self.load_copied_replay_package(manifest_path)
+
+        def semantic_identity_mismatch(_manifest, files):
+            files["oracle"]["identity_groups"][0][
+                "group_kind"
+            ] = "CONFLICTING_REDELIVERY"
+
+        manifest_path = self.copied_replay_package(
+            "semantic-identity-mismatch",
+            semantic_identity_mismatch,
+        )
+        with mock.patch.dict(
+            REGISTERED_REPLAY_PACKAGES,
+            {PACKAGE_KEY: manifest_path},
+        ):
+            loaded = load_replay_package(*PACKAGE_KEY)
+            detail = get_replay_package_detail(*PACKAGE_KEY)
+        self.assertEqual(
+            detail["package_validation"],
+            "SYNTAX_AND_REFERENCES_VALID",
+        )
+        self.assertEqual(
+            detail["structural_validation"],
+            "REPLAY_PLAN_NOT_EVALUATED",
+        )
+        with self.assertRaisesRegex(ValueError, "identity-group mismatch"):
+            build_replay_plan(
+                loaded,
+                replay_execution_id="REPLAY-EXECUTION-ORACLE-SYNTAX-SPLIT",
+                requested_replay_execution_id=(
+                    "REPLAY-EXECUTION-ORACLE-SYNTAX-SPLIT"
+                ),
+                idempotency_key="oracle-syntax-split",
+            )
+
+        def zero_canonical_identity_count(_manifest, files):
+            files["oracle"]["identity_groups"][0][
+                "expected_canonical_observations"
+            ] = 0
+
+        manifest_path = self.copied_replay_package(
+            "zero-canonical-identity-count",
+            zero_canonical_identity_count,
+        )
+        with mock.patch.dict(
+            REGISTERED_REPLAY_PACKAGES,
+            {PACKAGE_KEY: manifest_path},
+        ):
+            loaded = load_replay_package(*PACKAGE_KEY)
+        with self.assertRaisesRegex(ValueError, "identity-group mismatch"):
+            build_replay_plan(
+                loaded,
+                replay_execution_id=(
+                    "REPLAY-EXECUTION-ORACLE-ZERO-CANONICAL"
+                ),
+                requested_replay_execution_id=(
+                    "REPLAY-EXECUTION-ORACLE-ZERO-CANONICAL"
+                ),
+                idempotency_key="oracle-zero-canonical",
+            )
+
+    def test_plan_rejects_every_semantic_structural_oracle_mismatch(self):
+        mutations = []
+
+        wrong_identity_kind = deepcopy(self.loaded)
+        wrong_identity_kind["oracle"]["identity_groups"][0][
+            "group_kind"
+        ] = "CONFLICTING_REDELIVERY"
+        mutations.append(
+            (
+                "identity-kind",
+                wrong_identity_kind,
+                "identity-group mismatch",
+            )
+        )
+
+        wrong_identity_count = deepcopy(self.loaded)
+        wrong_identity_count["oracle"]["identity_groups"][0][
+            "expected_logical_variants"
+        ] = 2
+        mutations.append(
+            (
+                "identity-count",
+                wrong_identity_count,
+                "identity-group mismatch",
+            )
+        )
+
+        wrong_identity_event = deepcopy(self.loaded)
+        wrong_identity_event["oracle"]["identity_groups"][0][
+            "source_event_id"
+        ] = "FALSE-SOURCE-EVENT"
+        mutations.append(
+            (
+                "identity-source-event",
+                wrong_identity_event,
+                "identity-group mismatch",
+            )
+        )
+
+        wrong_distinct_identity_events = deepcopy(self.loaded)
+        wrong_distinct_identity_events["oracle"]["identity_groups"][2][
+            "source_event_ids"
+        ] = ["FALSE-SOURCE-EVENT-A", "FALSE-SOURCE-EVENT-B"]
+        mutations.append(
+            (
+                "identity-source-events",
+                wrong_distinct_identity_events,
+                "identity-group mismatch",
+            )
+        )
+
+        wrong_lineage_count = deepcopy(self.loaded)
+        wrong_lineage_count["oracle"]["decode_lineage"][1][
+            "expected_lineage_edges"
+        ] = 3
+        mutations.append(
+            (
+                "decode-lineage-count",
+                wrong_lineage_count,
+                "decode-lineage mismatch",
+            )
+        )
+
+        wrong_signed_value = deepcopy(self.loaded)
+        wrong_signed_value["oracle"]["decode_lineage"][1][
+            "expected_signed_raw_value"
+        ] = -24
+        mutations.append(
+            (
+                "decode-signed-value",
+                wrong_signed_value,
+                "expected signed raw value",
+            )
+        )
+
+        wrong_normalized_value = deepcopy(self.loaded)
+        wrong_normalized_value["oracle"]["decode_lineage"][1][
+            "expected_normalized_value"
+        ] = "-0.24"
+        mutations.append(
+            (
+                "decode-normalized-value",
+                wrong_normalized_value,
+                "expected normalized value",
+            )
+        )
+
+        reversed_ordering_fact = deepcopy(self.loaded)
+        ordering_fact = reversed_ordering_fact["oracle"][
+            "ordering_facts"
+        ][0]
+        (
+            ordering_fact["older_delivery_id"],
+            ordering_fact["newer_delivery_id"],
+        ) = (
+            ordering_fact["newer_delivery_id"],
+            ordering_fact["older_delivery_id"],
+        )
+        mutations.append(
+            (
+                "ordering-orientation",
+                reversed_ordering_fact,
+                "ordering-fact mismatch",
+            )
+        )
+
+        cross_source_ordering_fact = deepcopy(self.loaded)
+        fact = cross_source_ordering_fact["oracle"]["ordering_facts"][1]
+        fact.update(
+            {
+                "earlier_delivery_id": (
+                    "DELIVERY-E150-STANDBY-VFD-001"
+                ),
+                "later_delivery_id": "DELIVERY-E100-DUTY-VFD-001",
+            }
+        )
+        for delivery in cross_source_ordering_fact["deliveries"]:
+            if delivery["delivery_id"] in {
+                "DELIVERY-E150-STANDBY-VFD-001",
+                "DELIVERY-E100-DUTY-VFD-001",
+            }:
+                delivery["source_event"]["session_epoch"] = (
+                    "CROSS-SOURCE-BOOT-01"
+                )
+        mutations.append(
+            (
+                "ordering-cross-source",
+                cross_source_ordering_fact,
+                "ordering-fact mismatch",
+            )
+        )
+
+        ordering_reference_mutations = (
+            (
+                "declared-reset-reference",
+                "DECLARED_SEQUENCE_RESET",
+                "delivery_id",
+                "DELIVERY-E020-CONTROLLER-001",
+            ),
+            (
+                "ambiguous-reset-reference",
+                "AMBIGUOUS_SEQUENCE_RESET",
+                "delivery_id",
+                "DELIVERY-E020-CONTROLLER-001",
+            ),
+            (
+                "missing-time-reference",
+                "MISSING_OBSERVED_TIME",
+                "delivery_id",
+                "DELIVERY-E010-PROCESS-PATH-001",
+            ),
+            (
+                "invalid-time-reference",
+                "INVALID_OBSERVED_TIME",
+                "delivery_id",
+                "DELIVERY-E010-PROCESS-PATH-001",
+            ),
+            (
+                "source-time-after-receipt-reference",
+                "SOURCE_TIME_AFTER_RECEIPT",
+                "delivery_id",
+                "DELIVERY-E010-PROCESS-PATH-001",
+            ),
+            (
+                "mapping-transition-reference",
+                "MAPPING_VERSION_TRANSITION",
+                "delivery_id",
+                "DELIVERY-E160-PROCESS-PATH-001",
+            ),
+        )
+        for (
+            name,
+            fact_kind,
+            field_name,
+            delivery_id,
+        ) in ordering_reference_mutations:
+            mutated = deepcopy(self.loaded)
+            fact = next(
+                candidate
+                for candidate in mutated["oracle"]["ordering_facts"]
+                if candidate["fact_kind"] == fact_kind
+            )
+            fact[field_name] = delivery_id
+            mutations.append(
+                (name, mutated, "ordering-fact mismatch")
+            )
+
+        wrong_equal_time_reference = deepcopy(self.loaded)
+        equal_time_fact = next(
+            candidate
+            for candidate in wrong_equal_time_reference["oracle"][
+                "ordering_facts"
+            ]
+            if candidate["fact_kind"]
+            == "EQUAL_OBSERVED_TIME_DIFFERENT_REPORTS"
+        )
+        equal_time_fact["delivery_ids"][1] = "DELIVERY-E060-PRESSURE-001"
+        mutations.append(
+            (
+                "equal-time-reference",
+                wrong_equal_time_reference,
+                "ordering-fact mismatch",
+            )
+        )
+
+        wrong_expected_count = deepcopy(self.loaded)
+        wrong_expected_count["oracle"]["expected_counts"][
+            "canonical_observations"
+        ] += 1
+        mutations.append(
+            (
+                "aggregate-count",
+                wrong_expected_count,
+                "count mismatch",
+            )
+        )
+
+        for index, (name, mutated, expected_error) in enumerate(mutations):
+            with self.subTest(name=name):
+                execution_id = f"REPLAY-EXECUTION-ORACLE-MISMATCH-{index}"
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    build_replay_plan(
+                        mutated,
+                        replay_execution_id=execution_id,
+                        requested_replay_execution_id=execution_id,
+                        idempotency_key=f"oracle-mismatch-{index}",
+                    )
+
+    def test_equal_payload_distinct_events_compose_with_exact_redelivery(self):
+        mutated = deepcopy(self.loaded)
+        original = next(
+            delivery
+            for delivery in mutated["deliveries"]
+            if delivery["delivery_id"]
+            == "DELIVERY-E010-MAKEUP-STATUS-001"
+        )
+        redelivery = deepcopy(original)
+        redelivery["delivery_id"] = (
+            "DELIVERY-E010-MAKEUP-STATUS-EXACT-REDELIVERY-002"
+        )
+        redelivery["received_at"] = "2026-07-23T10:01:00.201Z"
+        mutated["deliveries"].append(redelivery)
+
+        identity_group = next(
+            group
+            for group in mutated["oracle"]["identity_groups"]
+            if group["group_kind"]
+            == "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS"
+        )
+        identity_group["delivery_ids"].append(redelivery["delivery_id"])
+        mutated["oracle"]["expected_counts"].update(
+            {
+                "deliveries": 42,
+                "source_native_records": 42,
+                "lineage_edges": 83,
+                "exact_redelivery_groups": 2,
+            }
+        )
+
+        plan = build_replay_plan(
+            mutated,
+            replay_execution_id=(
+                "REPLAY-EXECUTION-COMPOSED-IDENTITY-FACTS"
+            ),
+            requested_replay_execution_id=(
+                "REPLAY-EXECUTION-COMPOSED-IDENTITY-FACTS"
+            ),
+            idempotency_key="composed-identity-facts",
+        )
+        declared_delivery_ids = set(identity_group["delivery_ids"])
+        grouped_native_records = [
+            record
+            for record in plan["source_native_records"]
+            if record["delivery_id"] in declared_delivery_ids
+        ]
+        group_keys = {
+            record["source_event_group_key"]
+            for record in grouped_native_records
+        }
+        original_group_key = next(
+            record["source_event_group_key"]
+            for record in grouped_native_records
+            if record["delivery_id"] == original["delivery_id"]
+        )
+        self.assertEqual(len(grouped_native_records), 3)
+        self.assertEqual(len(group_keys), 2)
+        self.assertEqual(
+            len(
+                {
+                    record["source_event_variant_digest"]
+                    for record in grouped_native_records
+                    if record["source_event_group_key"]
+                    == original_group_key
+                }
+            ),
+            1,
+        )
+        self.assertEqual(
+            len(
+                {
+                    record["canonical_observation_id"]
+                    for record in plan["canonical_observations"]
+                    if record["source_event_group_key"] in group_keys
+                }
+            ),
+            2,
+        )
+
+        duplicate_event_id = deepcopy(mutated)
+        epoch_variant = deepcopy(original)
+        epoch_variant["delivery_id"] = (
+            "DELIVERY-E010-MAKEUP-STATUS-NEW-EPOCH-003"
+        )
+        epoch_variant["received_at"] = "2026-07-23T10:01:00.202Z"
+        epoch_variant["source_event"]["session_epoch"] = (
+            "MAKEUP-CONTROLLER-BOOT-02"
+        )
+        duplicate_event_id["deliveries"].append(epoch_variant)
+        duplicate_identity_group = next(
+            group
+            for group in duplicate_event_id["oracle"]["identity_groups"]
+            if group["group_kind"]
+            == "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS"
+        )
+        duplicate_identity_group["delivery_ids"].append(
+            epoch_variant["delivery_id"]
+        )
+        duplicate_identity_group["expected_source_event_groups"] = 3
+        duplicate_event_id["oracle"]["expected_counts"].update(
+            {
+                "deliveries": 43,
+                "source_native_records": 43,
+                "source_event_groups": 40,
+                "logical_source_event_variants": 41,
+                "canonical_observations": 77,
+                "lineage_edges": 84,
+            }
+        )
+        next(
+            checkpoint
+            for checkpoint in duplicate_event_id["oracle"][
+                "projection_expectations"
+            ]
+            if checkpoint["scope"]["source_binding_id"]
+            == "SOURCE-BINDING-MAKEUP-CONTROLLER"
+        )["expected_disposition"] = "CONFLICT_PRESENT"
+        with self.assertRaisesRegex(
+            ValueError,
+            "declared source events do not map one-to-one",
+        ):
+            build_replay_plan(
+                duplicate_event_id,
+                replay_execution_id=(
+                    "REPLAY-EXECUTION-DUPLICATE-DECLARED-EVENT-ID"
+                ),
+                requested_replay_execution_id=(
+                    "REPLAY-EXECUTION-DUPLICATE-DECLARED-EVENT-ID"
+                ),
+                idempotency_key="duplicate-declared-event-id",
+            )
+
+        incomplete = deepcopy(mutated)
+        next(
+            group
+            for group in incomplete["oracle"]["identity_groups"]
+            if group["group_kind"]
+            == "EQUAL_PAYLOAD_DISTINCT_SOURCE_EVENTS"
+        )["delivery_ids"].remove(redelivery["delivery_id"])
+        with self.assertRaisesRegex(
+            ValueError,
+            "complete derived source-event groups",
+        ):
+            build_replay_plan(
+                incomplete,
+                replay_execution_id=(
+                    "REPLAY-EXECUTION-INCOMPLETE-COMPOSED-IDENTITY-FACTS"
+                ),
+                requested_replay_execution_id=(
+                    "REPLAY-EXECUTION-INCOMPLETE-COMPOSED-IDENTITY-FACTS"
+                ),
+                idempotency_key="incomplete-composed-identity-facts",
+            )
+
+    def test_semantic_oracle_mismatch_prevents_store_creation(self):
+        mutated = deepcopy(self.loaded)
+        mutated["oracle"]["decode_lineage"][1][
+            "expected_normalized_value"
+        ] = "-0.24"
+
+        with mock.patch(
+            "backend.services.observation_replay_service."
+            "load_replay_package",
+            return_value=mutated,
+        ):
+            with self.assertRaisesRegex(
+                ValueError,
+                "expected normalized value",
+            ):
+                execute_replay_package(
+                    self.db_path,
+                    facility_id=FLAGSHIP_FACILITY_ID,
+                    package_id=FLAGSHIP_REPLAY_PACKAGE_ID,
+                    package_version=FLAGSHIP_REPLAY_PACKAGE_VERSION,
+                    idempotency_key="semantic-oracle-rejected",
+                    replay_execution_id=(
+                        "REPLAY-EXECUTION-SEMANTIC-ORACLE-REJECTED"
+                    ),
+                )
+        self.assertFalse(self.db_path.exists())
 
     def test_plan_matches_structural_oracle_and_keeps_identity_boundaries(self):
         plan = self.build_plan()
@@ -782,6 +1427,88 @@ class ObservationReplayTests(unittest.TestCase):
             2,
         )
 
+    def test_register_components_from_different_source_epochs_do_not_pair(self):
+        mutated = deepcopy(self.loaded)
+        high_component = next(
+            delivery
+            for delivery in mutated["deliveries"]
+            if delivery["delivery_id"]
+            == "DELIVERY-E050-DUTY-CURRENT-HIGH-001"
+        )
+        low_component = next(
+            delivery
+            for delivery in mutated["deliveries"]
+            if delivery["delivery_id"]
+            == "DELIVERY-E050-DUTY-CURRENT-LOW-001"
+        )
+        low_component["source_event"]["session_epoch"] = (
+            "DUTY-CURRENT-BOOT-02"
+        )
+        mutated["oracle"]["decode_lineage"] = [
+            expectation
+            for expectation in mutated["oracle"]["decode_lineage"]
+            if expectation["decode_group_id"]
+            != "DUTY-CURRENT-DECODE-0001"
+        ]
+        mutated["oracle"]["expected_counts"].update(
+            {
+                "canonical_observations": 75,
+                "lineage_edges": 80,
+            }
+        )
+
+        execution_id = "REPLAY-EXECUTION-REGISTER-EPOCH-MISMATCH"
+        plan = self.build_and_persist_mutation(
+            mutated,
+            execution_id,
+            "register-epoch-mismatch",
+        )
+
+        self.assertEqual(
+            [issue["issue_code"] for issue in plan["decode_issues"]],
+            ["REGISTER_PAIR_SOURCE_EPOCH_MISMATCH"],
+        )
+        issue_detail = json.loads(plan["decode_issues"][0]["detail_json"])
+        self.assertEqual(
+            issue_detail["source_session_epochs"],
+            {
+                "HIGH_WORD": "DUTY-CURRENT-BOOT-01",
+                "LOW_WORD": "DUTY-CURRENT-BOOT-02",
+            },
+        )
+        component_native_ids = {
+            row["source_native_record_id"]
+            for row in plan["source_native_records"]
+            if row["delivery_id"]
+            in {
+                high_component["delivery_id"],
+                low_component["delivery_id"],
+            }
+        }
+        self.assertFalse(
+            any(
+                edge["source_native_record_id"] in component_native_ids
+                for edge in plan["lineage"]
+            )
+        )
+        self.assertFalse(
+            any(
+                row["canonical_point_definition_id"]
+                == "FAN-EXHAUST-DUTY_MOTOR_CURRENT"
+                and row["observed_at_utc"]
+                == "2026-07-23T10:05:00.010Z"
+                for row in plan["canonical_observations"]
+            )
+        )
+        self.assertEqual(
+            get_replay_execution(
+                self.db_path,
+                FLAGSHIP_FACILITY_ID,
+                execution_id,
+            )["record_counts"]["decode_issues"],
+            1,
+        )
+
     def test_register_component_conflict_retains_bitemporal_variants(self):
         mutated = deepcopy(self.loaded)
         high_component = next(
@@ -986,6 +1713,18 @@ class ObservationReplayTests(unittest.TestCase):
         exact["received_at"] = "2026-07-23T10:05:00.400Z"
         low_index = mutated["deliveries"].index(low_component)
         mutated["deliveries"].insert(low_index + 1, exact)
+        decode_expectation = next(
+            expectation
+            for expectation in mutated["oracle"]["decode_lineage"]
+            if expectation["decode_group_id"]
+            == "DUTY-CURRENT-DECODE-0001"
+        )
+        decode_expectation["source_delivery_ids"].append(
+            exact["delivery_id"]
+        )
+        decode_expectation["expected_lineage_edges"] = 3
+        decode_expectation["expected_signed_raw_value"] = 1250
+        decode_expectation["expected_normalized_value"] = "12.50"
         mutated["oracle"]["expected_counts"].update(
             {
                 "deliveries": 42,

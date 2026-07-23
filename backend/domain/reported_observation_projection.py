@@ -178,16 +178,16 @@ def project_reported_observation(
         maximal_candidates,
         ordering_facts,
     )
-    unselectable_newer_facts = _unselectable_newer_sequence_facts(
+    unselectable_non_older_facts = _unselectable_non_older_sequence_facts(
         logical_candidates,
         maximal_candidates,
         scope=scope,
     )
-    ordering_facts.extend(unselectable_newer_facts)
+    ordering_facts.extend(unselectable_non_older_facts)
 
     if identity_conflict_at_frontier or equal_order_material_conflict:
         disposition = CONFLICT_PRESENT
-    elif frontier_ordering_issue or unselectable_newer_facts:
+    elif frontier_ordering_issue or unselectable_non_older_facts:
         disposition = UNORDERED
     elif len(
         {
@@ -733,13 +733,15 @@ def _frontier_has_ordering_issue(
     }
     return any(
         facts["relation"] in {ORDER_UNORDERED, ORDER_NOT_COMPARABLE}
-        and facts["left_logical_candidate_key"] in maximal_keys
-        and facts["right_logical_candidate_key"] in maximal_keys
+        and (
+            facts["left_logical_candidate_key"] in maximal_keys
+            or facts["right_logical_candidate_key"] in maximal_keys
+        )
         for facts in ordering_facts
     )
 
 
-def _unselectable_newer_sequence_facts(
+def _unselectable_non_older_sequence_facts(
     logical_candidates: list[dict[str, Any]],
     maximal_candidates: list[dict[str, Any]],
     *,
@@ -761,13 +763,18 @@ def _unselectable_newer_sequence_facts(
                 or frontier_candidate["source_epoch"]
                 != candidate["source_epoch"]
                 or candidate["source_sequence"]
-                <= frontier_candidate["source_sequence"]
+                < frontier_candidate["source_sequence"]
             ):
                 continue
             facts.append(
                 {
                     "relation": ORDER_UNORDERED,
-                    "issue": "NEWER_SEQUENCE_HAS_NO_VALID_OBSERVED_AT",
+                    "issue": (
+                        "NEWER_SEQUENCE_HAS_NO_VALID_OBSERVED_AT"
+                        if candidate["source_sequence"]
+                        > frontier_candidate["source_sequence"]
+                        else "SAME_SEQUENCE_HAS_NO_VALID_OBSERVED_AT"
+                    ),
                     "unselectable_logical_candidate_key": candidate[
                         "logical_candidate_key"
                     ],

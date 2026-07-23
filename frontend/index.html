@@ -611,7 +611,7 @@
 
       <form id="observationReplayForm" class="replay-controls">
         <label>
-          Structurally validated replay package
+          Syntax/reference-validated replay package
           <select id="observationReplayPackage" required disabled></select>
         </label>
         <label>
@@ -1629,7 +1629,12 @@
       );
       appendSummaryField(
         observationReplayPackageMetadataEl,
-        "Structural validation",
+        "Package validation",
+        data.package_validation,
+      );
+      appendSummaryField(
+        observationReplayPackageMetadataEl,
+        "Replay-plan validation",
         data.structural_validation,
       );
 
@@ -1656,7 +1661,8 @@
         limitations: data.limitations,
       });
       observationReplayStatusEl.textContent =
-        "Structurally validated replay package selected; no execution started";
+        "Syntax/reference-validated replay package selected; " +
+        "replay plan not yet evaluated";
       startObservationReplayButton.disabled = false;
     }
 
@@ -1934,7 +1940,8 @@
 
     async function loadObservationReplayPackageDetail(packageSummary) {
       startObservationReplayButton.disabled = true;
-      observationReplayStatusEl.textContent = "Validating selected replay package...";
+      observationReplayStatusEl.textContent =
+        "Checking selected replay package syntax and references...";
       observationReplayErrorEl.hidden = true;
       try {
         const url =

@@ -213,7 +213,8 @@ class ObservationReplayApiTests(unittest.TestCase):
         detail = {
             "package_id": REPLAY_PACKAGE_ID,
             "package_version": REPLAY_PACKAGE_VERSION,
-            "structural_validation": "VALID",
+            "package_validation": "SYNTAX_AND_REFERENCES_VALID",
+            "structural_validation": "REPLAY_PLAN_NOT_EVALUATED",
         }
         with mock.patch.object(
             backend_main,
@@ -228,6 +229,14 @@ class ObservationReplayApiTests(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertEqual(payload, detail)
+        self.assertEqual(
+            payload["package_validation"],
+            "SYNTAX_AND_REFERENCES_VALID",
+        )
+        self.assertEqual(
+            payload["structural_validation"],
+            "REPLAY_PLAN_NOT_EVALUATED",
+        )
         get_detail.assert_called_once_with(
             FLAGSHIP_FACILITY_ID,
             REPLAY_PACKAGE_ID,
@@ -845,7 +854,8 @@ class ObservationReplayWorkbenchTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         required_terms = (
-            "Structurally validated replay package",
+            "Syntax/reference-validated replay package",
+            "Replay-plan validation",
             "Source-native records",
             "Canonical observations",
             "Observed time reported by source",
